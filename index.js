@@ -1,0 +1,3961 @@
+require('dotenv').config();
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder } = require('discord.js');
+const { createCanvas, loadImage } = require('canvas');
+const fs = require('fs');
+const https = require('https');
+const http  = require('http');
+
+function fetchImageBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? https : http;
+    mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchImageBuffer(res.headers.location).then(resolve).catch(reject);
+      }
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+});
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+const PREFIX         = '!';
+const DROP_COOLDOWN  = 2 * 60 * 1000;
+const ACTIVITY_WINDOW = 2 * 60 * 1000;
+const DB_FILE        = './data/users.json';
+const META_FILE      = './data/meta.json';
+const RACE_LB_FILE   = './data/race_lb.json';
+const CLAIMS_LB_FILE = './data/claims_lb.json';
+const LOCKS_FILE     = './data/locks.json';
+const MARKET_FILE    = './data/market.json';
+const SETTINGS_FILE  = './data/settings.json';
+const CURRENCY_NAME  = 'Coins';
+const CURRENCY_EMOJI = '<:coins:1477684491320426601>';
+const SERVER_NAME    = 'Horizon Hub';
+const WATERMARK      = 'LA';
+const AUCTION_FILE = './data/auctions.json';
+let   auctionChannels = {};
+
+let sellbatchV10Protection = true;
+
+// ─── Auction soft-close config ────────────────────────────────────────────────
+const AUCTION_EXTEND_THRESHOLD_1 = 2 * 60 * 1000;  // last 2 min → add 90s
+const AUCTION_EXTEND_AMOUNT_1    = 90 * 1000;
+const AUCTION_EXTEND_THRESHOLD_2 = 30 * 1000;       // last 30s → add 45s
+const AUCTION_EXTEND_AMOUNT_2    = 45 * 1000;
+const AUCTION_MAX_EXTENSION      = 10 * 60 * 1000;  // cap: 10 min total added
+
+// ─── Auctions ─────────────────────────────────────────────────────────────────
+function loadAuctions() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(AUCTION_FILE)) fs.writeFileSync(AUCTION_FILE, '[]');
+  return JSON.parse(fs.readFileSync(AUCTION_FILE));
+}
+function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
+function getAuction(id) { return loadAuctions().find(a => a.id === id) || null; }
+
+let raceTimer = 30; // seconds
+
+// ─── Race reaction emojis ─────────────────────────────────────────────────────
+const RACE_REACT_CORRECT = '✅';
+const RACE_REACT_RECORD  = '⭐';
+
+// ─── Claim cooldowns per rarity (ms) ─────────────────────────────────────────
+const CLAIM_COOLDOWNS = {
+  Common:    40 * 1000,
+  Uncommon:  70 * 1000,
+  Rare:      75 * 1000,
+  Epic:      100 * 1000,
+  Legendary: 120 * 1000,
+  Mythic:    60 * 60 * 1000,
+  Secret:    0,
+};
+
+const CRATE_COOLDOWNS = {
+  bronze:  30 * 1000,
+  silver:  35 * 1000,
+  gold:    40 * 1000,
+  diamond: 50 * 1000,
+  ruby:    60 * 1000,
+};
+
+const COOLDOWN_EXEMPT_IDS = [
+  '734159803995259042',
+  '239725298403246081',
+  '1263885067227496472',
+];
+
+const TEST_IDS = new Set([
+  '239725298403246081',
+]);
+
+// ─── Decay Config ─────────────────────────────────────────────────────────────
+const DECAY_WARN_MS    = 2 * 24 * 60 * 60 * 1000; // 2 days → DM warning
+const DECAY_START_MS   = 3 * 24 * 60 * 60 * 1000; // 3 days → decay begins
+const DECAY_INTERVAL   = 60 * 60 * 1000;            // remove 1 plant per hour
+const DECAY_SAFE_VER   = 10;                         // v1–v10 are immune
+
+// ─── Activity Tracking ────────────────────────────────────────────────────────
+const channelActivity  = {};
+const lastDropTime     = {};
+let   dropChannels     = {};
+let   relaxedDropChannels = {};
+let   vPingChannels    = {};
+
+// ─── Settings persistence ─────────────────────────────────────────────────────
+function loadSettings() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(SETTINGS_FILE)) fs.writeFileSync(SETTINGS_FILE, '{}');
+  return JSON.parse(fs.readFileSync(SETTINGS_FILE));
+}
+function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2)); }
+;(function initSettings() {
+  const s = loadSettings();
+  if (s.dropChannels)        dropChannels        = s.dropChannels;
+  if (s.relaxedDropChannels) relaxedDropChannels = s.relaxedDropChannels;
+  if (s.vPingChannels)       vPingChannels       = s.vPingChannels;
+  if (s.auctionChannels) auctionChannels = s.auctionChannels;
+})();
+
+
+// ─── XP Config ────────────────────────────────────────────────────────────────
+const XP_REWARDS = {
+  claim:      50,
+  daily:      80,
+  weekly:     200,
+  race_finish:30,
+  race_win:   100,
+  crate_open: 40,
+};
+function xpForLevel(level) {
+  let total = 0;
+  for (let i = 1; i < level; i++) total += i * 120;
+  return total;
+}
+function getLevelFromXP(xp) {
+  let level = 1;
+  while (xpForLevel(level + 1) <= xp) level++;
+  return level;
+}
+function xpToNextLevel(xp) {
+  const level = getLevelFromXP(xp);
+  const needed = xpForLevel(level + 1) - xpForLevel(level);
+  const progress = xp - xpForLevel(level);
+  return { level, needed, progress, pct: Math.floor((progress / needed) * 100) };
+}
+
+// ─── Ranks ────────────────────────────────────────────────────────────────────
+const RANKS = [
+  { minLevel: 1,   name: 'Seedling',   emoji: '🌱' },
+  { minLevel: 5,   name: 'Sprout',     emoji: '🌿' },
+  { minLevel: 10,  name: 'Gardener',   emoji: '🌾' },
+  { minLevel: 20,  name: 'Botanist',   emoji: '🌺' },
+  { minLevel: 35,  name: 'Florist',    emoji: '💐' },
+  { minLevel: 50,  name: 'Arborist',   emoji: '🌳' },
+  { minLevel: 75,  name: 'Naturalist', emoji: '🍃' },
+  { minLevel: 100, name: 'Verdant',    emoji: '✨' },
+];
+function getRank(level) {
+  let rank = RANKS[0];
+  for (const r of RANKS) { if (level >= r.minLevel) rank = r; }
+  return rank;
+}
+
+// ─── Garden Elo / Weighted Rank System ───────────────────────────────────────
+// Inspired by osu!'s weighted pp system: each plant contributes
+// sellValue * (0.95 ^ index) where plants are sorted by sell value desc.
+// This means 100 common plants can't beat 1 legendary — diminishing returns.
+// A rarity bonus multiplier further rewards high-rarity plants.
+
+const RARITY_WEIGHT_BONUS = {
+  Common:    1.00,
+  Uncommon:  1.05,
+  Rare:      1.15,
+  Epic:      1.35,
+  Legendary: 1.65,
+  Mythic:    2.20,
+  Secret:    3.50,
+};
+
+function calcWeightedGardenScore(collection) {
+  if (!collection.length) return 0;
+  // Sort by effective value descending
+  const sorted = [...collection]
+    .map(p => {
+      const base = p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      const bonus = RARITY_WEIGHT_BONUS[p.rarity] || 1.0;
+      const mutBonus = p.mutation ? p.mutation.multiplier : 1.0;
+      return base * bonus * mutBonus;
+    })
+    .sort((a, b) => b - a);
+
+  let score = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    score += sorted[i] * Math.pow(0.95, i);
+  }
+  return Math.round(score);
+}
+
+// Garden Elo tiers — placeholders for custom icons
+const GARDEN_TIERS = [
+  { name: 'Iron',      emoji: '🪨', minScore: 10000,       color: 0x8B8B8B, ansi: 'gray'    },
+  { name: 'Bronze',    emoji: '🥉', minScore: 25000,     color: 0xCD7F32, ansi: 'orange'  },
+  { name: 'Silver',    emoji: '🥈', minScore: 50000,    color: 0xC0C0C0, ansi: 'white'   },
+  { name: 'Gold',      emoji: '🥇', minScore: 80000,    color: 0xFFD700, ansi: 'yellow'  },
+  { name: 'Platinum',  emoji: '💠', minScore: 100000,   color: 0x00BFFF, ansi: 'cyan'    },
+  { name: 'Diamond',   emoji: '💎', minScore: 250000,   color: 0xB9F2FF, ansi: 'cyan'    },
+  { name: 'Master',    emoji: '🔮', minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
+  { name: 'Grandmaster', emoji: '👑', minScore: 700000, color: 0xFF6600, ansi: 'yellow' },
+  { name: 'Celestial', emoji: '🌌', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
+  { name: '???', emoji: '🔱', minScore: 2000000, color: 0x000000, ansi: 'black' },
+];
+
+function getGardenTier(score) {
+  let tier = GARDEN_TIERS[0];
+  for (const t of GARDEN_TIERS) { if (score >= t.minScore) tier = t; }
+  return tier;
+}
+
+function getNextGardenTier(score) {
+  for (const t of GARDEN_TIERS) { if (score < t.minScore) return t; }
+  return null;
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+const MUTATIONS = [
+  { name: 'Starstruck', emoji: '<:starstruck:1477666927135428650>', multiplier: 1.65, weight: 3,  color: 0xFFFF00 },
+  { name: 'Flooded',    emoji: '🌊', multiplier: 1.50, weight: 5,  color: 0x0099FF },
+  { name: 'Shocked',    emoji: '<:shocked:1477666867890884628>',    multiplier: 1.45, weight: 6,  color: 0xFFDD00 },
+  { name: 'Soaked',     emoji: '<:soaked:1477666816745537546>',     multiplier: 1.30, weight: 10, color: 0x66CCFF },
+  { name: 'Sandy',      emoji: '🏜️', multiplier: 1.25, weight: 12, color: 0xF4A460 },
+  { name: 'Snowy',      emoji: '<:snowy:1477666846382620683>',      multiplier: 1.20, weight: 15, color: 0xADD8E6 },
+];
+const MUTATION_NONE_WEIGHT = 949;
+function rollMutation() {
+  const roll = Math.random() * 1000;
+  let acc = MUTATION_NONE_WEIGHT;
+  if (roll < acc) return null;
+  for (const m of MUTATIONS) {
+    acc += m.weight;
+    if (roll < acc) return m;
+  }
+  return null;
+}
+
+// ─── Rarities ─────────────────────────────────────────────────────────────────
+const RARITIES = [
+  { name: 'Common',    color: 0x9E9E9E, weight: 499300, emoji: '⚪', sellPrice: 10    },
+  { name: 'Uncommon',  color: 0x4CAF50, weight: 279900, emoji: '🟢', sellPrice: 25    },
+  { name: 'Rare',      color: 0x2196F3, weight: 129900, emoji: '🔵', sellPrice: 75    },
+  { name: 'Epic',      color: 0x9C27B0, weight: 59900,  emoji: '🟣', sellPrice: 2000  },
+  { name: 'Legendary', color: 0xFFD700, weight: 29900,  emoji: '🌟', sellPrice: 10000 },
+  { name: 'Mythic',    color: 0xEA2222, weight: 2000,   emoji: '🔥', sellPrice: 25000 },
+  { name: 'Secret',    color: 0x000000, weight: 1000,    emoji: '<:Secret:1477076829004370045>', sellPrice: 100000 },
+];
+
+// ─── Base plant sell prices (version-weighted) ────────────────────────────────
+const VERSION_MULTIPLIERS = { 1: 3.50, 2: 2.20, 3: 1.70, 4: 1.40, 5: 1.20, 6: 1.05 };
+function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 1.00; }
+
+// ─── Market / Demand system ───────────────────────────────────────────────────
+function loadMarket() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(MARKET_FILE)) fs.writeFileSync(MARKET_FILE, '{}');
+  return JSON.parse(fs.readFileSync(MARKET_FILE));
+}
+function saveMarket(m) { fs.writeFileSync(MARKET_FILE, JSON.stringify(m, null, 2)); }
+function recordTrade(plantName) {
+  const market = loadMarket();
+  if (!market[plantName]) market[plantName] = { trades: 0, lastDecay: Date.now() };
+  market[plantName].trades += 1;
+  saveMarket(market);
+}
+function getMarketMultiplier(plantName) {
+  const market = loadMarket();
+  const entry  = market[plantName];
+  if (!entry) return 1.0;
+  const hoursSince = (Date.now() - entry.lastDecay) / 3600000;
+  const decayed    = entry.trades * Math.pow(0.5, hoursSince / 24);
+  const mult = 0.5 + (1.5 * Math.min(decayed, 20) / 20);
+  return Math.max(0.5, Math.min(2.0, mult));
+}
+function calcSellValue(plant, rarity, mutation, version) {
+  const base    = rarity.sellPrice;
+  const verMult = getVersionMultiplier(version);
+  const mktMult = getMarketMultiplier(plant.name);
+  const mutMult = mutation ? mutation.multiplier : 1.0;
+  return Math.max(1, Math.round(base * verMult * mktMult * mutMult));
+}
+
+// ─── Achievements ─────────────────────────────────────────────────────────────
+const ACHIEVEMENTS = {
+  first_claim:    { name: 'First Bloom',       emoji: '🌸', description: 'Claim your first plant',      title: 'Bloomer',       check: u => u.claimed >= 1 },
+  collector_10:   { name: 'Budding Collector', emoji: '🌻', description: 'Own 10 plants',               title: 'Collector',     check: u => u.collection.length >= 10 },
+  collector_50:   { name: 'Green Thumb',       emoji: '👍', description: 'Own 50 plants',               title: 'Green Thumb',   check: u => u.collection.length >= 50 },
+  collector_100:  { name: 'The Hoarder',       emoji: '📦', description: 'Own 100 plants',              title: 'Hoarder',       check: u => u.collection.length >= 100 },
+  rare_finder:    { name: 'Rare Find',         emoji: '🔵', description: 'Claim a Rare or higher',      title: 'Rare Finder',   check: u => u.collection.some(p => ['Rare','Epic','Legendary','Mythic','Secret'].includes(p.rarity)) },
+  legendary_find: { name: 'Legendary Bloom',   emoji: '🌟', description: 'Claim a Legendary or higher', title: 'Legendary',     check: u => u.collection.some(p => ['Legendary','Mythic','Secret'].includes(p.rarity)) },
+  secret_find:    { name: 'The Secret Garden', emoji: '💎', description: 'Claim a Secret plant',        title: 'Secret Keeper', check: u => u.collection.some(p => p.rarity === 'Secret') },
+  mutant:         { name: 'Mutant Hunter',     emoji: '⭐', description: 'Claim a mutated plant',       title: 'Mutant Hunter', check: u => u.collection.some(p => p.mutation) },
+  rich:           { name: 'Coin Baron',        emoji: '💰', description: 'Reach 10,000 coins',          title: 'Baron',         check: u => u.currency >= 10000 },
+  racer:          { name: 'Speed Demon',       emoji: '🏁', description: 'Win a race',                  title: 'Speed Demon',   check: u => (u.raceWins || 0) >= 1 },
+  level_10:       { name: 'Level 10',          emoji: '⬆️', description: 'Reach Level 10',              title: 'Lvl.10',        check: u => getLevelFromXP(u.xp || 0) >= 10 },
+  level_50:       { name: 'Level 50',          emoji: '🔝', description: 'Reach Level 50',              title: 'Veteran',       check: u => getLevelFromXP(u.xp || 0) >= 50 },
+  crate_opener:   { name: 'Crate Opener',      emoji: '📫', description: 'Open 10 crates',              title: 'Opener',        check: u => (u.cratesOpened || 0) >= 10 },
+};
+
+// ─── Shop Titles ──────────────────────────────────────────────────────────────
+const SHOP_TITLES = {
+  wanderer:  { name: 'Wanderer',  price: 2000,   emoji: '🗺️' },
+  guardian:  { name: 'Guardian',  price: 5000,   emoji: '🛡️' },
+  phantom:   { name: 'Phantom',   price: 15000,  emoji: '👻' },
+  sovereign: { name: 'Sovereign', price: 50000,  emoji: '👑' },
+  celestial: { name: 'Celestial', price: 200000, emoji: '🌙' },
+};
+
+// ─── Charms ───────────────────────────────────────────────────────────────────
+const CHARMS = {
+  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×1.05**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
+  silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15**',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
+  gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.30**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
+  void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
+};
+
+// ─── Crates ───────────────────────────────────────────────────────────────────
+const CRATES = {
+  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 1000,  minLevel: 5,  plants: 10, weights: { Common: 800000, Uncommon: 170000, Rare: 19900, Epic: 9000, Legendary: 10000, Mythic: 1000, Secret: 100 } },
+  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 5000,  minLevel: 10, plants: 10, weights: { Common: 700000, Uncommon: 186000, Rare: 30000, Epic: 20000, Legendary: 12500, Mythic: 1124, Secret: 112 } },
+  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 10000, minLevel: 15, plants: 10, weights: { Common: 600000, Uncommon: 200000, Rare: 50000, Epic: 25000, Legendary: 25000, Mythic: 3333, Secret: 143 } },
+  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 30000, minLevel: 30, plants: 10, weights: { Common: 500000, Uncommon: 200000, Rare: 100000, Epic: 50000, Legendary: 40000, Mythic: 1538, Secret: 154 } },
+  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 75000, minLevel: 50, plants: 10, weights: { Common: 400000, Uncommon: 200000, Rare: 150000, Epic: 100000, Legendary: 50000, Mythic: 2000, Secret: 200 } },
+};
+
+// ─── Plants ───────────────────────────────────────────────────────────────────
+const PLANTS = [
+  { name: 'Carrot',         file: './images/carrot.png',         display: 'https://gardenhorizonswiki.com/images/plants/carrot.webp',         rarity: 'Common'    },
+  { name: 'Corn',           file: './images/corn.png',           display: 'https://gardenhorizonswiki.com/images/plants/corn.webp',           rarity: 'Common'    },
+  { name: 'Sunpetal',       file: './images/sunpetal.png',       display: 'https://gardenhorizonswiki.com/images/plants/sunpetal.webp',       rarity: 'Common'    },
+  { name: 'Dandelion',      file: './images/dandelion.png',      display: 'https://gardenhorizonswiki.com/images/plants/dandelion.webp',      rarity: 'Common'    },
+  { name: 'Biohazard Melon',file: './images/biohazard-melon.png',display: 'https://gardenhorizonswiki.com/images/plants/biohazard-melon.webp',rarity: 'Common'    },
+  { name: 'Onion',          file: './images/onion.png',          display: 'https://gardenhorizonswiki.com/images/plants/onion.webp',          rarity: 'Uncommon'  },
+  { name: 'Mushroom',       file: './images/mushroom.png',       display: 'https://gardenhorizonswiki.com/images/plants/mushroom.webp',       rarity: 'Uncommon'  },
+  { name: 'Strawberry',      file: './images/strawberry.png',     display: 'https://gardenhorizonswiki.com/images/plants/strawberry.webp',    rarity: 'Uncommon'  },
+  { name: 'Goldenberry',    file: './images/goldenberry.png',    display: 'https://gardenhorizonswiki.com/images/plants/goldenberry.webp',    rarity: 'Uncommon'  },
+  { name: 'Bell Pepper',    file: './images/bellpepper.png',     display: 'https://gardenhorizonswiki.com/images/plants/bellpepper.webp',     rarity: 'Uncommon'  },
+  { name: 'Lablush Berry',  file: './images/lablush-berry.png',  display: 'https://gardenhorizonswiki.com/images/plants/lablush-berry.webp',  rarity: 'Uncommon'  },
+  { name: 'Beetroot',       file: './images/beetroot.png',       display: 'https://gardenhorizonswiki.com/images/plants/beetroot.webp',       rarity: 'Rare'      },
+  { name: 'Tomato',         file: './images/tomato.png',         display: 'https://gardenhorizonswiki.com/images/plants/tomato.webp',         rarity: 'Rare'      },
+  { name: 'Rose',           file: './images/rose.png',           display: 'https://gardenhorizonswiki.com/images/plants/rose.webp',           rarity: 'Rare'      },
+  { name: 'Apple',          file: './images/apple.png',          display: 'https://gardenhorizonswiki.com/images/plants/apple.webp',          rarity: 'Rare'      },
+  { name: 'Amberpine',      file: './images/amberpine.png',      display: 'https://gardenhorizonswiki.com/images/plants/amberpine.webp',      rarity: 'Rare'      },
+  { name: 'Birch',          file: './images/birch.png',          display: 'https://gardenhorizonswiki.com/images/plants/birch.webp',          rarity: 'Rare'      },
+  { name: 'Starvine',       file: './images/starvine.png',       display: 'https://gardenhorizonswiki.com/images/plants/starvine.webp',       rarity: 'Secret'      },
+  { name: 'Wheat',          file: './images/wheat.png',          display: 'https://gardenhorizonswiki.com/images/plants/wheat.webp',          rarity: 'Epic'      },
+  { name: 'Banana',         file: './images/banana.png',         display: 'https://gardenhorizonswiki.com/images/plants/banana.webp',         rarity: 'Epic'      },
+  { name: 'Potato',         file: './images/potato.png',         display: 'https://gardenhorizonswiki.com/images/plants/potato.webp',         rarity: 'Epic'      },
+  { name: 'Plum',           file: './images/plum.png',           display: 'https://gardenhorizonswiki.com/images/plants/plum.webp',           rarity: 'Epic'      },
+  { name: 'Emberwood',      file: './images/emberwood.png',      display: 'https://gardenhorizonswiki.com/images/plants/emberwood.webp',      rarity: 'Epic'      },
+  { name: 'Orange',         file: './images/orange.png',         display: 'https://gardenhorizonswiki.com/images/plants/orange.webp',         rarity: 'Epic'      },
+  { name: 'Radiant Petal',  file: './images/radiant-petal.png',  display: 'https://gardenhorizonswiki.com/images/plants/radiant-petal.webp',  rarity: 'Epic'      },
+  { name: 'Cabbage',        file: './images/cabbage.png',        display: 'https://gardenhorizonswiki.com/images/plants/cabbage.webp',        rarity: 'Legendary' },
+  { name: 'Cherry',         file: './images/cherry.png',         display: 'https://gardenhorizonswiki.com/images/plants/cherry.webp',         rarity: 'Legendary' },
+  { name: 'Dawn Fruit',     file: './images/dawn-fruit.png',     display: 'https://gardenhorizonswiki.com/images/plants/dawn-fruit.webp',     rarity: 'Legendary' },
+  { name: 'Pomegranate',    file: './images/pomegranate.png',    display: 'https://gardenhorizonswiki.com/images/plants/pomegranate.webp',    rarity: 'Legendary' },
+  { name: 'Mango',          file: './images/mango.png',          display: 'https://gardenhorizonswiki.com/images/plants/mango.webp',          rarity: 'Legendary' },
+  { name: 'Bamboo',         file: './images/bamboo.png',         display: 'https://gardenhorizonswiki.com/images/plants/bamboo.webp',         rarity: 'Legendary' },
+  { name: 'Octobranch',     file: './images/octobranch.png',     display: 'https://gardenhorizonswiki.com/images/plants/octobranch.webp',     rarity: 'Legendary' },
+  { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',   display: 'https://gardenhorizonswiki.com/images/plants/dawn-blossom.webp',   rarity: 'Mythic'    },
+  { name: 'Olive',          file: './images/olive.png',          display: 'https://gardenhorizonswiki.com/images/plants/olive.webp',          rarity: 'Mythic'    },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let activeDrops  = {};
+let activeRaces  = {};
+let pendingSells = {};
+let pendingWipes = {};
+let activeTrades = {};
+let userTrades   = {};
+let pendingCrates ={};
+let devRarity    = null;
+function generateTradeId() { return `t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`; }
+
+// ─── DB / Meta ────────────────────────────────────────────────────────────────
+function loadDB() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DB_FILE))  fs.writeFileSync(DB_FILE, '{}');
+  return JSON.parse(fs.readFileSync(DB_FILE));
+}
+function saveDB(db) { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
+
+function loadMeta() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
+  return JSON.parse(fs.readFileSync(META_FILE));
+}
+function saveMeta(m) { fs.writeFileSync(META_FILE, JSON.stringify(m, null, 2)); }
+
+function loadLocks(userId) {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
+  const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
+  return all[userId] || [];
+}
+function saveLocks(userId, locks) {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
+  const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
+  all[userId] = locks;
+  fs.writeFileSync(LOCKS_FILE, JSON.stringify(all, null, 2));
+}
+function isLocked(userId, plant) {
+  const locks = loadLocks(userId);
+  return locks.some(l => {
+    if (l.name && l.name.toLowerCase() !== plant.name.toLowerCase()) return false;
+    if (l.version && l.version !== plant.version) return false;
+    if (l.mutation && (!plant.mutation || plant.mutation.name.toLowerCase() !== l.mutation.toLowerCase())) return false;
+    if (l.rarity && plant.rarity.toLowerCase() !== l.rarity.toLowerCase()) return false;
+    // if lock has no version specified, it only matches if the plant version is > 10
+    // unless the lock was created with explicit version
+    if (!l.version && !l.rarity && !l.mutation && plant.version && plant.version <= 10) return false;
+    return true;
+  });
+}
+
+function loadClaimsLB() {
+  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(CLAIMS_LB_FILE)) fs.writeFileSync(CLAIMS_LB_FILE, '[]');
+  return JSON.parse(fs.readFileSync(CLAIMS_LB_FILE));
+}
+function saveClaimsLB(lb) { fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify(lb, null, 2)); }
+
+function recordClaim(userId, username) {
+  const lb  = loadClaimsLB();
+  const now = Date.now();
+  let entry = lb.find(e => e.userId === userId);
+  if (!entry) {
+    entry = { userId, username, claims: [] };
+    lb.push(entry);
+  }
+  entry.username = username;
+  entry.claims.push(now);
+  // clean up old claims beyond 1 week
+  entry.claims = entry.claims.filter(t => now - t <= 7 * 24 * 60 * 60 * 1000);
+  saveClaimsLB(lb);
+}
+
+function getClaimsInWindow(claims, ms) {
+  const now = Date.now();
+  return claims.filter(t => now - t <= ms).length;
+}
+
+function generateClaimsLBImage(entries, title, subtitle) {
+  const W = 520, ROW_H = 56, HEADER_H = 80, FOOTER_H = 32;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+
+  // Background — deep forest green to black
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#030d06'); bgGrad.addColorStop(1, '#010501');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+
+  // Subtle dot grid
+  for (let x = 0; x < W; x += 24) {
+    for (let y = 0; y < H; y += 24) {
+      ctx.fillStyle = 'rgba(100,220,100,0.025)';
+      ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Header background
+  const hGrad = ctx.createLinearGradient(0, 0, W, HEADER_H);
+  hGrad.addColorStop(0, '#042010'); hGrad.addColorStop(1, '#010a04');
+  ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HEADER_H);
+
+  // Top accent — animated-looking multi-stop green
+  const accent = ctx.createLinearGradient(0, 0, W, 0);
+  accent.addColorStop(0,    '#00ff87');
+  accent.addColorStop(0.3,  '#00c853');
+  accent.addColorStop(0.6,  '#69f0ae');
+  accent.addColorStop(1,    '#00ff87');
+  ctx.fillStyle = accent; ctx.fillRect(0, 0, W, 4);
+
+  // Glow under accent
+  const accentGlow = ctx.createLinearGradient(0, 4, 0, 28);
+  accentGlow.addColorStop(0, 'rgba(0,200,80,0.18)'); accentGlow.addColorStop(1, 'rgba(0,200,80,0)');
+  ctx.fillStyle = accentGlow; ctx.fillRect(0, 4, W, 24);
+
+  // Header left bar
+  ctx.save(); ctx.shadowColor = '#00ff87'; ctx.shadowBlur = 14;
+  ctx.fillStyle = '#00ff87'; ctx.fillRect(0, 12, 4, HEADER_H - 24); ctx.restore();
+
+  // Title
+  ctx.font = 'bold 24px Arial'; ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(title, 20, HEADER_H / 2 - 10);
+
+  // Subtitle
+  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(100,220,130,0.6)';
+  ctx.fillText(subtitle, 20, HEADER_H / 2 + 14);
+
+  // Entry count badge top right
+  const badgeTxt = `${entries.length} players`;
+  ctx.font = 'bold 12px Arial';
+  const badgeW = ctx.measureText(badgeTxt).width + 18;
+  ctx.fillStyle = 'rgba(0,200,80,0.15)';
+  ctx.beginPath(); ctx.roundRect(W - badgeW - 12, HEADER_H/2 - 14, badgeW, 28, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,200,80,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(W - badgeW - 12, HEADER_H/2 - 14, badgeW, 28, 6); ctx.stroke();
+  ctx.fillStyle = '#69f0ae'; ctx.textAlign = 'center';
+  ctx.fillText(badgeTxt, W - badgeW/2 - 12, HEADER_H/2);
+
+  const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const y = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Row bg alternating
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(0,255,100,0.03)' : 'rgba(0,0,0,0.12)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Top 3 glow rows
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.07)','rgba(192,192,192,0.05)','rgba(205,127,50,0.05)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
+      ctx.save();
+      ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 12;
+      ctx.fillStyle = rankColors[i]; ctx.fillRect(0, y, 4, ROW_H); ctx.restore();
+    } else {
+      // Subtle green left bar for others
+      ctx.fillStyle = 'rgba(0,200,80,0.15)'; ctx.fillRect(0, y, 3, ROW_H);
+    }
+
+    // Rank number/medal
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (i < 3) {
+      ctx.save(); ctx.font = '22px Arial';
+      ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 10;
+      ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore();
+    } else {
+      ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillText(`${i+1}`, 30, mid);
+    }
+
+    // Username
+    ctx.textAlign = 'left';
+    ctx.font = i < 3 ? 'bold 17px Arial' : '15px Arial';
+    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
+    ctx.fillText(e.username, 58, mid);
+
+    // Count pill — right side
+    const countTxt = `${e.count} claims`;
+    ctx.font = 'bold 13px Arial';
+    const pillW = ctx.measureText(countTxt).width + 20;
+    const pillX = W - pillW - 16, pillY = mid - 13;
+    const pillColor = i === 0 ? 'rgba(0,255,135,0.18)' : 'rgba(0,180,80,0.10)';
+    ctx.fillStyle = pillColor;
+    ctx.beginPath(); ctx.roundRect(pillX, pillY, pillW, 26, 6); ctx.fill();
+    ctx.strokeStyle = i === 0 ? 'rgba(0,255,135,0.5)' : 'rgba(0,180,80,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(pillX, pillY, pillW, 26, 6); ctx.stroke();
+    ctx.fillStyle = i === 0 ? '#00ff87' : '#69f0ae';
+    ctx.textAlign = 'center';
+    if (i === 0) { ctx.save(); ctx.shadowColor = '#00ff87'; ctx.shadowBlur = 8; }
+    ctx.fillText(countTxt, pillX + pillW / 2, mid);
+    if (i === 0) ctx.restore();
+
+    // Bar under username showing relative rank
+    const barX = 58, barW = W - 58 - pillW - 32, barH = 3, barY = mid + 14;
+    const relPct = entries[0].count > 0 ? e.count / entries[0].count : 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 2); ctx.fill();
+    const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    barGrad.addColorStop(0, '#00c853'); barGrad.addColorStop(1, '#69f0ae');
+    ctx.fillStyle = barGrad;
+    ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW * relPct, 4), barH, 2); ctx.fill();
+
+    // Row divider
+    ctx.strokeStyle = 'rgba(0,255,100,0.06)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
+  }
+
+  // Footer
+  ctx.strokeStyle = 'rgba(0,255,100,0.08)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(100,220,130,0.3)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  ${subtitle}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
+  return canvas.toBuffer('image/png');
+}
+
+function loadRaceLB() {
+  if (!fs.existsSync(RACE_LB_FILE)) fs.writeFileSync(RACE_LB_FILE, '[]');
+  return JSON.parse(fs.readFileSync(RACE_LB_FILE));
+}
+function saveRaceLB(lb) { fs.writeFileSync(RACE_LB_FILE, JSON.stringify(lb, null, 2)); }
+
+function getUser(db, userId) {
+  if (!db[userId]) db[userId] = {};
+  const u = db[userId];
+  if (!u.collection)     u.collection     = [];
+  if (!u.claimed)        u.claimed        = 0;
+  if (!u.currency)       u.currency       = 500;
+  if (!u.charms)         u.charms         = [];
+  if (!u.equippedCharms) u.equippedCharms = [];
+  if (!u.bestRaceTime)   u.bestRaceTime   = null;
+  if (!u.raceWins)       u.raceWins       = 0;
+  if (!u.lastDaily)      u.lastDaily      = null;
+  if (!u.lastWeekly)     u.lastWeekly     = null;
+  if (!u.xp)             u.xp             = 0;
+  if (!u.achievements)   u.achievements   = [];
+  if (!u.titles)         u.titles         = [];
+  if (!u.activeTitle)    u.activeTitle    = null;
+  if (!u.cratesOpened)   u.cratesOpened   = 0;
+  if (!u.claimStreak)    u.claimStreak    = 0;
+  if (!u.lastClaimDrop)  u.lastClaimDrop  = null;
+  if (!u.claimCooldowns) u.claimCooldowns = {};
+  if (!u.lastActivity)   u.lastActivity   = Date.now();
+  if (u.decayWarned === undefined) u.decayWarned = false;
+  return u;
+}
+
+// Touch lastActivity whenever a user does ANYTHING with the bot
+function touchActivity(db, userId, member) {
+  const u = getUser(db, userId);
+  u.lastActivity = Date.now();
+  u.decayWarned  = false;
+  if (member) {
+    u.username  = member.username;
+    u.avatarUrl = member.displayAvatarURL({ extension: 'png', size: 128 });
+  }
+}
+
+async function resolveTarget(message, argIdOrMention) {
+  const mentioned = message.mentions.users.first();
+  if (mentioned) return mentioned;
+  if (argIdOrMention && /^\d{17,20}$/.test(argIdOrMention)) {
+    try { return await client.users.fetch(argIdOrMention); } catch {}
+  }
+  return null;
+}
+
+// ─── XP helper ────────────────────────────────────────────────────────────────
+function addXP(db, userId, amount) {
+  const u = getUser(db, userId);
+  const before = getLevelFromXP(u.xp);
+  u.xp += amount;
+  const after = getLevelFromXP(u.xp);
+  return after > before ? after : null;
+}
+
+// ─── Achievement checker ──────────────────────────────────────────────────────
+function checkAchievements(user) {
+  const newOnes = [];
+  for (const [key, ach] of Object.entries(ACHIEVEMENTS)) {
+    if (!user.achievements.includes(key) && ach.check(user)) {
+      user.achievements.push(key);
+      if (!user.titles.includes(key)) user.titles.push(key);
+      newOnes.push(key);
+    }
+  }
+  return newOnes;
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function randomCaptcha(len = 6) {
+  const chars = 'ABCDEFGHJKLMNPRSTUVWY';
+  return Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+function pickRarity(customWeights) {
+  const weights = customWeights || Object.fromEntries(RARITIES.map(r => [r.name, r.weight]));
+  const total   = Object.values(weights).reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (const r of RARITIES) { roll -= (weights[r.name] || 0); if (roll <= 0) return r; }
+  return RARITIES[0];
+}
+function pickRarityWithCharms(db, userId, customWeights) {
+  const base    = customWeights || Object.fromEntries(RARITIES.map(r => [r.name, r.weight]));
+  const user    = getUser(db, userId);
+  const weights = { ...base };
+  for (const k of (user.equippedCharms || [])) {
+    const c = CHARMS[k]; if (!c) continue;
+    for (const [rn, mult] of Object.entries(c.multipliers)) {
+      if (weights[rn] !== undefined) weights[rn] = Math.round(weights[rn] * mult);
+    }
+  }
+  return pickRarity(weights);
+}
+function pickPlant(rarityName) {
+  const pool = PLANTS.filter(p => p.rarity === rarityName);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
+}
+function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
+function fmt(amount) { return `${CURRENCY_EMOJI} **${Number(amount).toLocaleString()} ${CURRENCY_NAME}**`; }
+function msToStr(ms) { return ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(2)}s`; }
+function medal(i) { return ['🥇','🥈','🥉','4️⃣','5️⃣'][i] || `${i+1}.`; }
+
+async function ephemeralReply(message, text) {
+  message.delete().catch(() => {});
+  const errMsg = await message.channel.send(`<@${message.author.id}> ${text}`);
+  setTimeout(() => errMsg.delete().catch(() => {}), 4000);
+}
+
+function ansiColor(text, color) {
+  const codes = { red:31, green:32, yellow:33, blue:34, magenta:35, cyan:36, white:37, gray:90, orange:33 };
+  return `\u001b[${codes[color]||37}m${text}\u001b[0m`;
+}
+function ansiBlock(s) { return `\`\`\`ansi\n${s}\n\`\`\``; }
+function rarityAnsiColor(name) {
+  return { Common:'gray', Uncommon:'green', Rare:'cyan', Epic:'magenta', Legendary:'yellow', Mythic:'red', Secret:'white' }[name] || 'white';
+}
+function mutationAnsiColor(name) {
+  return { Starstruck:'yellow', Flooded:'cyan', Shocked:'yellow', Soaked:'cyan', Sandy:'orange', Snowy:'white' }[name] || 'white';
+}
+function rarityAnsiEmoji(name) {
+  return { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'◼' }[name] || '▫';
+}
+
+function getActiveTitle(user) {
+  if (!user.activeTitle) return null;
+  const ach = ACHIEVEMENTS[user.activeTitle];
+  if (ach) return `${ach.emoji} ${ach.title}`;
+  const st = SHOP_TITLES[user.activeTitle];
+  if (st) return `${st.emoji} ${st.name}`;
+  return null;
+}
+
+// ─── Version system ───────────────────────────────────────────────────────────
+function getAvailableVersion(plantName, db) {
+  const meta = loadMeta();
+  if (!meta.plantVersions) meta.plantVersions = {};
+  const high = meta.plantVersions[plantName] || 0;
+  const owned = new Set();
+  for (const userData of Object.values(db)) {
+    for (const p of (userData.collection || [])) {
+      if (p.name === plantName && p.version) owned.add(p.version);
+    }
+  }
+  const free = [];
+  for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
+  if (free.length > 0) return free[Math.floor(Math.random() * free.length)];
+  const newVer = high + 1;
+  meta.plantVersions[plantName] = newVer;
+  meta.totalDrops = (meta.totalDrops || 0) + 1;
+  saveMeta(meta);
+  return newVer;
+}
+
+function recordVersionHighWater(plantName, version) {
+  const meta = loadMeta();
+  if (!meta.plantVersions) meta.plantVersions = {};
+  if ((meta.plantVersions[plantName] || 0) < version) {
+    meta.plantVersions[plantName] = version;
+    meta.totalDrops = (meta.totalDrops || 0) + 1;
+    saveMeta(meta);
+  }
+}
+
+// ─── Inventory value calculator (legacy, used for display only) ───────────────
+function calcInventoryValue(collection) {
+  return collection.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+}
+
+// ─── Mutation display ─────────────────────────────────────────────────────────
+function mutationDisplay(rarity, mutation) {
+  const rCol   = rarityAnsiColor(rarity.name);
+  const rEmoji = rarityAnsiEmoji(rarity.name);
+  const mCol   = mutation ? mutationAnsiColor(mutation.name) : null;
+  let line     = ansiColor(`${rEmoji}  ${rarity.name.toUpperCase()}`, rCol);
+  if (mutation) line += ansiColor(`  ·  ${mutation.name.toUpperCase()}`, mCol);
+  return ansiBlock(line);
+}
+
+// ─── Combined plant + captcha image ──────────────────────────────────────────
+async function generateDropImage(plant, captcha, rarityColor) {
+  const W = 400, H = 400, CAPTCHA_H = 52;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
+  try {
+    const img = await loadImage(plant.file);
+    const scale = Math.max(W / img.width, H / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  } catch {
+    ctx.fillStyle = '#1a2332'; ctx.fillRect(0, 0, W, H);
+    ctx.font = '22px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(plant.name, W / 2, H / 2);
+  }
+  const barY = H - CAPTCHA_H;
+  const fade = ctx.createLinearGradient(0, barY - 20, 0, barY + 4);
+  fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,0.82)');
+  ctx.fillStyle = fade; ctx.fillRect(0, barY - 20, W, 24);
+  const rr = (rarityColor >> 16) & 0xFF, rg = (rarityColor >> 8) & 0xFF, rb = rarityColor & 0xFF;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, barY, W, CAPTCHA_H);
+  ctx.fillStyle = `rgba(${rr},${rg},${rb},0.18)`; ctx.fillRect(0, barY, W, CAPTCHA_H);
+  ctx.strokeStyle = `rgba(${rr},${rg},${rb},0.9)`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, barY + 0.75); ctx.lineTo(W, barY + 0.75); ctx.stroke();
+  for (let i = 0; i < 4; i++) {
+    ctx.strokeStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.04})`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.lineTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.stroke();
+  }
+  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff9f43','#ff6bff'];
+  const letters = captcha.split('');
+  const CHAR_W = 48, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.35, midY = barY + CAPTCHA_H / 2;
+  letters.forEach((char, i) => {
+    ctx.save(); ctx.font = 'bold 30px Arial'; ctx.fillStyle = colors[i % colors.length];
+    ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 7; ctx.textBaseline = 'middle';
+    ctx.translate(startX + i * CHAR_W, midY + Math.floor(Math.random() * 5) - 2);
+    ctx.rotate((Math.random() - 0.5) * 0.2); ctx.fillText(char, 0, 0); ctx.restore();
+  });
+  for (let i = 0; i < 20; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`; ctx.beginPath();
+    ctx.arc(Math.random() * W, barY + Math.random() * CAPTCHA_H, Math.random() * 2, 0, Math.PI * 2); ctx.fill();
+  }
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Activity-based Drop System ───────────────────────────────────────────────
+async function tryActivityDrop(channel) {
+  const now = Date.now(), chId = channel.id;
+  if ((now - (channelActivity[chId] || 0) <= ACTIVITY_WINDOW) && (now - (lastDropTime[chId] || 0) >= DROP_COOLDOWN) && !activeDrops[chId]) {
+    lastDropTime[chId] = now;
+    await sendDrop(channel).catch(console.error);
+  }
+}
+
+// ─── Drop ─────────────────────────────────────────────────────────────────────
+async function sendDrop(channel, opts = {}) {
+  if (typeof opts === 'string') opts = { rarityName: opts };
+  const forcedRarity   = opts.rarityName   || devRarity || null;
+  const forcedPlant    = opts.plantName    || null;
+  const forcedMutation = opts.mutationName || null;
+  let rarity = forcedRarity ? (RARITIES.find(r => r.name.toLowerCase() === forcedRarity.toLowerCase()) || pickRarity()) : pickRarity();
+  let plant;
+  if (forcedPlant) {
+    plant = PLANTS.find(p => p.name.toLowerCase() === forcedPlant.toLowerCase());
+    if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
+    rarity = getRarityConfig(plant.rarity);
+  } else {
+    plant = pickPlant(rarity.name);
+  }
+  let mutation;
+  if (forcedMutation) {
+    if (forcedMutation === 'none') mutation = null;
+    else { mutation = MUTATIONS.find(m => m.name.toLowerCase() === forcedMutation.toLowerCase()) || null; if (!mutation) { await channel.send(`❌ Mutation **${forcedMutation}** not found.`); return; } }
+  } else { mutation = rollMutation(); }
+  const captcha  = randomCaptcha(6);
+  const dropTime = Date.now();
+  const imgBuffer  = await generateDropImage(plant, captcha, rarity.color);
+  const attachment = new AttachmentBuilder(imgBuffer, { name: 'drop.png' });
+  const mutSuffix = mutation ? `  ${mutation.emoji} **${mutation.name}**` : '';
+  const embed = new EmbedBuilder()
+    .setTitle(`${rarity.emoji} **${plant.name}**${mutSuffix}`)
+    .setDescription(mutationDisplay(rarity, mutation) + `Type \`claim <captcha>\` to claim!`)
+    .setImage('attachment://drop.png')
+    .setColor(mutation ? mutation.color : rarity.color)
+    .setTimestamp();
+  const msg = await channel.send({ embeds: [embed], files: [attachment] });
+  activeDrops[channel.id] = { plant, rarity, captcha, mutation, messageId: msg.id, dropTime, claimers: [] };
+  setTimeout(() => {
+    if (activeDrops[channel.id]?.messageId === msg.id) {
+      delete activeDrops[channel.id];
+      msg.edit({ content: '❌ Expired — not claimed.', embeds: [], files: [], attachments: [] }).catch(() => {});
+    }
+  }, 60_000);
+}
+
+function startDropLoop() {
+  setInterval(async () => {
+    const allDropChIds = new Set([
+      ...Object.values(dropChannels),
+      ...Object.values(relaxedDropChannels),
+    ]);
+    for (const chId of allDropChIds) {
+      const ch = client.channels.cache.get(chId);
+      if (ch) await tryActivityDrop(ch).catch(console.error);
+    }
+  }, 30_000);
+}
+
+// ─── Decay Loop ───────────────────────────────────────────────────────────────
+function startDecayLoop() {
+  setInterval(async () => {
+    const db  = loadDB();
+    const now = Date.now();
+    let changed = false;
+
+    for (const [userId, userData] of Object.entries(db)) {
+      const u = getUser(db, userId);
+      if (!u.collection.length) continue;
+
+      const idle = now - (u.lastActivity || now);
+
+      // 2 days idle → send DM warning once
+      if (idle >= DECAY_WARN_MS && !u.decayWarned) {
+        u.decayWarned = true;
+        changed = true;
+        try {
+          const discordUser = await client.users.fetch(userId);
+          await discordUser.send({
+            embeds: [new EmbedBuilder()
+              .setTitle('⚠️ Your Garden is Withering!')
+              .setDescription(
+                `You haven't visited **${SERVER_NAME}** in 2 days.\n\n` +
+                `If you don't return within **24 hours**, your plants will begin to **decay** — ` +
+                `one random plant (excluding v1–v10) will be removed from your garden **every hour**.\n\n` +
+                `Head back to keep your collection safe! 🌱`
+              )
+              .setColor(0xFF6600)
+              .setFooter({ text: 'v1–v10 plants are always safe from decay.' })]
+          });
+        } catch { /* DMs closed, skip */ }
+      }
+
+      // 3+ days idle → decay one plant per hour
+      if (idle >= DECAY_START_MS) {
+        const lastDecay = u.lastDecayTick || (now - DECAY_START_MS);
+        const hoursPassed = Math.floor((now - lastDecay) / DECAY_INTERVAL);
+        if (hoursPassed >= 1) {
+          // Build pool of decayable plants (v > DECAY_SAFE_VER or no version)
+          const pool = u.collection
+            .map((p, i) => ({ p, i }))
+            .filter(({ p }) => !p.version || p.version > DECAY_SAFE_VER);
+
+          for (let h = 0; h < hoursPassed && pool.length > 0; h++) {
+            const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+            u.collection.splice(pick.i - (hoursPassed - pool.length - 1 - h), 1);
+          }
+          u.lastDecayTick = lastDecay + hoursPassed * DECAY_INTERVAL;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) saveDB(db);
+  }, 15 * 60 * 1000); // check every 15 minutes
+}
+
+function openCrate(crateKey, db, userId) {
+  const crate = CRATES[crateKey];
+  return Array.from({ length: crate.plants }, () => {
+    const rarity   = pickRarityWithCharms(db, userId, crate.weights);
+    const plant    = pickPlant(rarity.name);
+    const mutation = rollMutation();
+    return { ...plant, rarityConfig: rarity, mutation };
+  });
+}
+
+// ─── Shared canvas helpers ────────────────────────────────────────────────────
+function drawWatermark(ctx, W, H) {
+  ctx.save(); ctx.font = 'bold 11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText(WATERMARK, W - 8, H - 4); ctx.restore();
+}
+
+function drawRowGlow(ctx, y, rowH, W, rank) {
+  const glowColors = ['rgba(255,215,0,0.10)','rgba(192,192,192,0.07)','rgba(205,127,50,0.07)'];
+  if (rank >= 3) return;
+  const grad = ctx.createLinearGradient(0, y, 0, y + rowH);
+  grad.addColorStop(0, glowColors[rank].replace('0.1','0.0').replace('0.07','0.0'));
+  grad.addColorStop(0.3, glowColors[rank]); grad.addColorStop(0.7, glowColors[rank]);
+  grad.addColorStop(1, glowColors[rank].replace('0.1','0.0').replace('0.07','0.0'));
+  ctx.fillStyle = grad; ctx.fillRect(0, y, W, rowH);
+  const rankHex = ['#FFD700','#C0C0C0','#CD7F32'][rank];
+  ctx.save(); ctx.shadowColor = rankHex; ctx.shadowBlur = 12;
+  ctx.fillStyle = rankHex; ctx.fillRect(0, y, 4, rowH); ctx.restore();
+}
+
+function drawLBFooter(ctx, W, H, PADDING, label) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - PADDING); ctx.lineTo(W, H - PADDING); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = '12px Arial';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  ${label}`, W / 2, H - PADDING / 2);
+  drawWatermark(ctx, W, H);
+}
+
+// ─── Inventory Rank Leaderboard Image ─────────────────────────────────────────
+async function generateInvLBImage(entries) {
+  const W = 600, ROW_H = 64, HEADER_H = 80, FOOTER_H = 36;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // Deep dark background with subtle grid
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Header gradient
+  const hGrad = ctx.createLinearGradient(0, 0, W, HEADER_H);
+  hGrad.addColorStop(0, '#1a0533'); hGrad.addColorStop(0.5, '#0d1a40'); hGrad.addColorStop(1, '#08080f');
+  ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HEADER_H);
+
+  // Accent line — rainbow-ish
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700'); accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
+  ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
+
+  // Header text
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText('🌿  Garden Rankings', 20, HEADER_H / 2 - 8);
+  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText('Weighted score · Higher rarity = greater impact', 20, HEADER_H / 2 + 14);
+
+  // Column headers
+  ctx.font = 'bold 11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.textAlign = 'right';
+  ctx.fillText('SCORE', W - 16, HEADER_H - 12);
+  ctx.textAlign = 'left';
+
+  for (let i = 0; i < entries.length; i++) {
+    const e   = entries[i];
+    const y   = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Alternating row bg
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Tier-colored left bar
+    const tierHex = '#' + e.tier.color.toString(16).padStart(6, '0');
+    ctx.save();
+    ctx.shadowColor = tierHex; ctx.shadowBlur = 16;
+    ctx.fillStyle   = tierHex;
+    ctx.fillRect(0, y + 8, 4, ROW_H - 16);
+    ctx.restore();
+
+    // Top 3 glow
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
+      const sideCol = ['#FFD700','#C0C0C0','#CD7F32'][i];
+      ctx.save(); ctx.shadowColor = sideCol; ctx.shadowBlur = 14;
+      ctx.fillStyle = sideCol; ctx.fillRect(0, y, 4, ROW_H); ctx.restore();
+    }
+
+    // Rank number / medal
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (i < 3) {
+      ctx.save(); ctx.font = '24px Arial';
+      ctx.fillStyle = ['#FFD700','#C0C0C0','#CD7F32'][i];
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+      ctx.fillText(['🥇','🥈','🥉'][i], 32, mid); ctx.restore();
+    } else {
+      ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillText(`${i + 1}`, 32, mid);
+    }
+
+    // Tier emoji
+    ctx.font = '20px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(e.tier.emoji, 58, mid);
+
+    // Username
+    ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+    ctx.fillText(e.username, 88, mid - 8);
+
+    // Tier name
+    ctx.font = '12px Arial';
+    ctx.fillStyle = tierHex;
+    ctx.fillText(e.tier.name.toUpperCase(), 88, mid + 10);
+
+    // Score — right aligned, big
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = i === 0 ? tierHex : 'rgba(255,255,255,0.75)';
+    ctx.save();
+    if (i === 0) { ctx.shadowColor = tierHex; ctx.shadowBlur = 12; }
+    ctx.fillText(e.score.toLocaleString(), W - 16, mid - 8); ctx.restore();
+
+    // Plant count sub-text
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText(`${e.plantCount} plants`, W - 16, mid + 10);
+
+    ctx.textAlign = 'left';
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
+  }
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '12px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  Garden Leaderboard  ·  Top ${entries.length}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Level Leaderboard Image ──────────────────────────────────────────────────
+async function generateLevelLBImage(entries) {
+  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
+  const H = HEADER_H + entries.length * ROW_H + PADDING;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b0f1a'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#1a237e'); grad.addColorStop(1, '#0b0f1a');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#5C6BC0'; ctx.fillRect(0, 0, 4, HEADER_H);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('⭐  Level Leaderboard', 24, HEADER_H / 2);
+  const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H / 2;
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
+    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
+    ctx.textAlign = 'center';
+    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
+    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
+    ctx.font = '18px Arial'; ctx.textAlign = 'left'; ctx.fillText(e.rankEmoji, 54, mid - 1);
+    ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
+    ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#7986CB'; ctx.fillText(`Lv. ${e.level}`, W - 170, mid);
+    const barX = W - 120, barW = 90, barH = 8, barY = mid - barH / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 4); ctx.fill();
+    const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    barGrad.addColorStop(0, '#5C6BC0'); barGrad.addColorStop(1, '#9575CD');
+    ctx.fillStyle = barGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW * (e.pct/100), 4), barH, 4); ctx.fill();
+  }
+  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Players`);
+  return canvas.toBuffer('image/png');
+}
+
+async function buildLevelLBData(db, page = 1) {
+  const PER_PAGE = 10;
+  const sorted   = Object.entries(db).map(([id, u]) => ({ id, xp: u.xp || 0 })).sort((a, b) => b.xp - a.xp);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
+  const slice      = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const entries    = await Promise.all(slice.map(async (e, i) => {
+    const globalRank = (page - 1) * PER_PAGE + i + 1;
+    const level = getLevelFromXP(e.xp); const rank = getRank(level); const { pct } = xpToNextLevel(e.xp);
+    let username = `User#${e.id.slice(-4)}`;
+    try { const u = await client.users.fetch(e.id); username = u.username; } catch {}
+    return { globalRank, username, level, rankEmoji: rank.emoji, rankName: rank.name, xp: e.xp, pct };
+  }));
+  return { entries, totalPages };
+}
+
+// ─── Profile Image ────────────────────────────────────────────────────────────
+async function generateProfileImage(data) {
+  const W = 560, H = 300;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0f1117'; ctx.fillRect(0, 0, W, H);
+  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+  bgGrad.addColorStop(0, 'rgba(77,150,255,0.09)'); bgGrad.addColorStop(1, 'rgba(123,47,190,0.05)');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+  const topBar = ctx.createLinearGradient(0, 0, W, 0);
+  topBar.addColorStop(0, '#4d96ff'); topBar.addColorStop(1, '#7B2FBE');
+  ctx.fillStyle = topBar; ctx.fillRect(0, 0, W, 5);
+  const AV = 96, ACX = 60, ACY = 90;
+  ctx.save(); ctx.beginPath(); ctx.arc(ACX, ACY, AV/2, 0, Math.PI*2); ctx.clip();
+  try { const buf = await fetchImageBuffer(data.avatarUrl); const img = await loadImage(buf); ctx.drawImage(img, ACX - AV/2, ACY - AV/2, AV, AV); }
+  catch { ctx.fillStyle = '#2a2a4e'; ctx.fillRect(ACX - AV/2, ACY - AV/2, AV, AV); }
+  ctx.restore(); ctx.strokeStyle = '#4d96ff'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(ACX, ACY, AV/2 + 3, 0, Math.PI*2); ctx.stroke();
+  const TX = ACX + AV/2 + 20;
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.fillText(data.username, TX, 46);
+  if (data.title) { ctx.fillStyle = '#a78bfa'; ctx.font = '15px Arial'; ctx.fillText(data.title, TX, 70); }
+  const pillY = data.title ? 96 : 76;
+  const pillTx = `${data.rankEmoji}  ${data.rankName}  ·  Lv. ${data.level}`;
+  ctx.font = 'bold 14px Arial';
+  const pillW = ctx.measureText(pillTx).width + 24;
+  ctx.fillStyle = 'rgba(77,150,255,0.22)'; ctx.beginPath(); ctx.roundRect(TX, pillY-13, pillW, 26, 8); ctx.fill();
+  ctx.strokeStyle = 'rgba(77,150,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(TX, pillY-13, pillW, 26, 8); ctx.stroke();
+  ctx.fillStyle = '#4d96ff'; ctx.fillText(pillTx, TX+12, pillY);
+
+  // Garden rank pill
+  const gardenPillY = pillY + 32;
+  const gardenTierHex = '#' + data.gardenTier.color.toString(16).padStart(6, '0');
+  const gardenTx = `${data.gardenTier.emoji}  ${data.gardenTier.name}  ·  ${data.gardenScore.toLocaleString()} pts`;
+  ctx.font = 'bold 13px Arial';
+  const gardenPillW = ctx.measureText(gardenTx).width + 24;
+  ctx.fillStyle = `rgba(${parseInt(gardenTierHex.slice(1,3),16)},${parseInt(gardenTierHex.slice(3,5),16)},${parseInt(gardenTierHex.slice(5,7),16)},0.18)`;
+  ctx.beginPath(); ctx.roundRect(TX, gardenPillY-12, gardenPillW, 24, 8); ctx.fill();
+  ctx.strokeStyle = `rgba(${parseInt(gardenTierHex.slice(1,3),16)},${parseInt(gardenTierHex.slice(3,5),16)},${parseInt(gardenTierHex.slice(5,7),16)},0.5)`;
+  ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(TX, gardenPillY-12, gardenPillW, 24, 8); ctx.stroke();
+  ctx.fillStyle = gardenTierHex; ctx.fillText(gardenTx, TX+12, gardenPillY);
+
+  const barX = TX, barW = Math.min(W - TX - 24, 320), barH = 10, barY = gardenPillY + 22;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 5); ctx.fill();
+  const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+  xpGrad.addColorStop(0, '#4d96ff'); xpGrad.addColorStop(1, '#a78bfa');
+  ctx.fillStyle = xpGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*(data.pct/100), 8), barH, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px Arial'; ctx.fillText(`${data.pct}% to next level`, barX, barY + barH + 14);
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(20, 195); ctx.lineTo(W-20, 195); ctx.stroke();
+  const stats = [
+    { icon:'💰', label:'Balance', value: data.balance.toLocaleString() },
+    { icon:'🌱', label:'Plants',  value: String(data.plants) },
+    { icon:'🏅', label:'Achiev.', value: `${data.achievements}/${data.totalAchievements}` },
+  ];
+  const PILL_W = (W-48)/3, PILL_H = 60, PILL_Y = 207;
+  stats.forEach((s, i) => {
+    const px = 16 + i*(PILL_W+8);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px Arial'; ctx.textAlign = 'center';
+    ctx.fillText(s.label, px + PILL_W/2, PILL_Y+18);
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 17px Arial';
+    ctx.fillText(`${s.icon} ${s.value}`, px + PILL_W/2, PILL_Y+44);
+    ctx.textAlign = 'left';
+  });
+  if (data.equippedCharms.length) {
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '13px Arial';
+    ctx.fillText('Equipped', W-16, ACY-20); ctx.font = '26px Arial';
+    ctx.fillText(data.equippedCharms.join('  '), W-16, ACY+8); ctx.textAlign = 'left';
+  }
+  const R = W - 20; ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = '12px Arial'; ctx.fillText(`Total XP: ${data.totalXp.toLocaleString()}`, R, 148);
+  if (data.serverRank <= 3) {
+    const gc = ['#FFD700','#C0C0C0','#CD7F32'][data.serverRank - 1];
+    ctx.save(); ctx.shadowColor = gc; ctx.shadowBlur = 10; ctx.fillStyle = gc; ctx.font = 'bold 12px Arial';
+    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, R, 164); ctx.restore();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = '12px Arial';
+    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, R, 164);
+  }
+  ctx.textAlign = 'left';
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Level Card Image ─────────────────────────────────────────────────────────
+async function generateLevelCardImage(data) {
+  // ── Layout constants ────────────────────────────────────────────────────────
+  const W = 700, H = 260;
+  const PAD = 28;             // outer horizontal padding
+  const AV  = 110;            // avatar diameter
+  const AV_CX = PAD + AV / 2; // avatar centre x
+  const AV_CY = H / 2;        // avatar centre y (vertically centred)
+  const TX = PAD + AV + 24;   // text column x start
+  const RX = W - PAD;         // right-flush x
+
+  // ── Fixed vertical rhythm (no dynamic shifts) ───────────────────────────────
+  const Y_TITLE    = 36;   // title line          (skipped if no title)
+  const Y_NAME     = data.title ? 62  : 48;   // username
+  const Y_PILL     = data.title ? 94  : 80;   // rank pill centre
+  const Y_BAR      = data.title ? 124 : 110;  // XP bar top
+  const BAR_H      = 14;
+  const Y_XP_LABEL = Y_BAR + BAR_H + 18;      // "x / y XP (z%)"
+  const Y_STATS    = Y_XP_LABEL + 36;         // stat labels row
+
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // ── Background ───────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#07090f';
+  ctx.fillRect(0, 0, W, H);
+
+  // deep diagonal gradient overlay
+  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+  bgGrad.addColorStop(0, 'rgba(60,40,120,0.55)');
+  bgGrad.addColorStop(0.5, 'rgba(20,30,80,0.30)');
+  bgGrad.addColorStop(1, 'rgba(10,10,30,0.10)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // subtle noise dots
+  for (let i = 0; i < 60; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.025 + 0.005})`;
+    ctx.beginPath();
+    ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 1.5 + 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // faint diagonal lines (depth texture)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.018)';
+  ctx.lineWidth = 1;
+  for (let x = -H; x < W + H; x += 28) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H, H); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Top accent bar ────────────────────────────────────────────────────────────
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0,   '#7C4DFF');
+  accentGrad.addColorStop(0.4, '#448AFF');
+  accentGrad.addColorStop(0.7, '#00BCD4');
+  accentGrad.addColorStop(1,   '#7C4DFF');
+  ctx.fillStyle = accentGrad;
+  ctx.fillRect(0, 0, W, 5);
+
+  // soft glow under accent bar
+  const accentGlow = ctx.createLinearGradient(0, 5, 0, 40);
+  accentGlow.addColorStop(0, 'rgba(100,80,255,0.22)');
+  accentGlow.addColorStop(1, 'rgba(100,80,255,0)');
+  ctx.fillStyle = accentGlow;
+  ctx.fillRect(0, 5, W, 35);
+
+  // ── Bottom footer bar ─────────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, H - 38, W, 38);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - 38); ctx.lineTo(W, H - 38); ctx.stroke();
+
+  // ── Avatar ────────────────────────────────────────────────────────────────────
+  // outer glow ring
+  ctx.save();
+  ctx.shadowColor = '#7C4DFF';
+  ctx.shadowBlur  = 22;
+  ctx.strokeStyle = 'rgba(124,77,255,0.5)';
+  ctx.lineWidth   = 3;
+  ctx.beginPath(); ctx.arc(AV_CX, AV_CY, AV / 2 + 6, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+
+  // coloured ring
+  const ringGrad = ctx.createLinearGradient(AV_CX - AV/2, AV_CY - AV/2, AV_CX + AV/2, AV_CY + AV/2);
+  ringGrad.addColorStop(0, '#7C4DFF');
+  ringGrad.addColorStop(0.5, '#448AFF');
+  ringGrad.addColorStop(1, '#00BCD4');
+  ctx.save();
+  ctx.strokeStyle = ringGrad;
+  ctx.lineWidth   = 3.5;
+  ctx.beginPath(); ctx.arc(AV_CX, AV_CY, AV / 2 + 2.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+
+  // avatar image clipped to circle
+  ctx.save();
+  ctx.beginPath(); ctx.arc(AV_CX, AV_CY, AV / 2, 0, Math.PI * 2); ctx.clip();
+  try {
+    const buf = await fetchImageBuffer(data.avatarUrl);
+    const img = await loadImage(buf);
+    ctx.drawImage(img, AV_CX - AV/2, AV_CY - AV/2, AV, AV);
+  } catch {
+    ctx.fillStyle = '#1e1e3a';
+    ctx.fillRect(AV_CX - AV/2, AV_CY - AV/2, AV, AV);
+  }
+  ctx.restore();
+
+  // ── LEVEL badge — top-right corner ───────────────────────────────────────────
+  // Big number with glow
+  ctx.save();
+  ctx.font         = 'bold 72px Arial';
+  ctx.textAlign    = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor  = '#7C4DFF';
+  ctx.shadowBlur   = 28;
+  ctx.fillStyle    = '#ffffff';
+  ctx.fillText(`${data.level}`, RX, 50);
+  ctx.restore();
+
+  // "LEVEL" label under the number
+  ctx.font         = 'bold 11px Arial';
+  ctx.textAlign    = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = 'rgba(255,255,255,0.30)';
+  ctx.letterSpacing = '3px';
+  ctx.fillText('LEVEL', RX, 90);
+  ctx.letterSpacing = '0px';
+
+  // ── Title (if present) ────────────────────────────────────────────────────────
+  if (data.title) {
+    ctx.font         = '13px Arial';
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = '#a78bfa';
+    ctx.fillText(data.title, TX, Y_TITLE);
+  }
+
+  // ── Username ──────────────────────────────────────────────────────────────────
+  ctx.font         = 'bold 26px Arial';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = '#ffffff';
+  ctx.fillText(data.username, TX, Y_NAME);
+
+  // ── Rank pill ─────────────────────────────────────────────────────────────────
+  const rankTxt  = `${data.rankEmoji}  ${data.rankName}`;
+  ctx.font        = 'bold 13px Arial';
+  ctx.textBaseline = 'middle';
+  const rankTxtW  = ctx.measureText(rankTxt).width;
+  const pillW     = rankTxtW + 28;
+  const pillH     = 26;
+  const pillX     = TX;
+  const pillY     = Y_PILL - pillH / 2;
+
+  // pill background
+  ctx.fillStyle = 'rgba(92,107,192,0.22)';
+  ctx.beginPath(); ctx.roundRect(pillX, pillY, pillW, pillH, 7); ctx.fill();
+  // pill border
+  ctx.strokeStyle = 'rgba(124,77,255,0.55)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.roundRect(pillX, pillY, pillW, pillH, 7); ctx.stroke();
+  // pill text
+  ctx.fillStyle    = '#c4b5fd';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(rankTxt, pillX + 14, Y_PILL);
+
+  // ── XP bar ────────────────────────────────────────────────────────────────────
+  const barX = TX;
+  const barW = W - TX - PAD - 10;
+  const barFill = Math.max(barW * (data.pct / 100), 10);
+
+  // track
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.beginPath(); ctx.roundRect(barX, Y_BAR, barW, BAR_H, BAR_H / 2); ctx.fill();
+
+  // fill gradient
+  const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+  xpGrad.addColorStop(0,   '#7C4DFF');
+  xpGrad.addColorStop(0.5, '#448AFF');
+  xpGrad.addColorStop(1,   '#00BCD4');
+  ctx.fillStyle = xpGrad;
+  ctx.beginPath(); ctx.roundRect(barX, Y_BAR, barFill, BAR_H, BAR_H / 2); ctx.fill();
+
+  // glow on fill
+  ctx.save();
+  ctx.shadowColor = '#7C4DFF';
+  ctx.shadowBlur  = 12;
+  ctx.fillStyle   = xpGrad;
+  ctx.beginPath(); ctx.roundRect(barX, Y_BAR, barFill, BAR_H, BAR_H / 2); ctx.fill();
+  ctx.restore();
+
+  // bright leading edge dot
+  ctx.save();
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur  = 10;
+  ctx.fillStyle   = 'rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.arc(barX + barFill, Y_BAR + BAR_H / 2, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // XP label
+  ctx.font         = '12px Arial';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle    = 'rgba(255,255,255,0.38)';
+  ctx.fillText(
+    `${data.progress.toLocaleString()} / ${data.needed.toLocaleString()} XP`,
+    barX, Y_XP_LABEL
+  );
+  // percentage right-aligned to bar end
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(`${data.pct}%`, barX + barW, Y_XP_LABEL);
+
+  // ── Bottom stat row ───────────────────────────────────────────────────────────
+  // stat divider above footer
+  const STAT_Y_LABEL = H - 28;
+  const STAT_Y_VAL   = H - 14; // not used — we keep stats inside the footer bar
+
+  const stats = [
+    { label: 'TOTAL XP',     value: data.totalXp.toLocaleString(), glow: false },
+    { label: 'SERVER RANK',  value: `#${data.serverRank} of ${data.serverTotal}`, glow: data.serverRank <= 3 },
+    { label: 'PROGRESS',     value: `${data.pct}% → Lv.${data.level + 1}`, glow: false },
+  ];
+
+  const colW = (W - PAD * 2) / stats.length;
+  stats.forEach((s, i) => {
+    const cx = PAD + i * colW + colW / 2;
+    // label
+    ctx.font         = 'bold 9px Arial';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = 'rgba(255,255,255,0.30)';
+    ctx.fillText(s.label, cx, H - 26);
+    // value
+    ctx.font = 'bold 13px Arial';
+    if (s.glow && data.serverRank <= 3) {
+      const gc = ['#FFD700','#C0C0C0','#CD7F32'][data.serverRank - 1];
+      ctx.save();
+      ctx.shadowColor = gc; ctx.shadowBlur = 10; ctx.fillStyle = gc;
+      ctx.fillText(s.value, cx, H - 12);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.80)';
+      ctx.fillText(s.value, cx, H - 12);
+    }
+    // vertical divider between cols
+    if (i > 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD + i * colW, H - 34);
+      ctx.lineTo(PAD + i * colW, H - 2);
+      ctx.stroke();
+    }
+  });
+
+  // ── Watermark ─────────────────────────────────────────────────────────────────
+  drawWatermark(ctx, W, H);
+
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Race Leaderboard Image ───────────────────────────────────────────────────
+function generateRaceLBImage(entries) {
+  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
+  const H = HEADER_H + entries.length * ROW_H + PADDING;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#120a00'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,170,0,0.07)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#3d1f00'); grad.addColorStop(1, '#120a00');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#FFAA00'; ctx.fillRect(0, 0, 4, HEADER_H);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('🏁  Race Leaderboard', 24, HEADER_H/2);
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H/2;
+    ctx.fillStyle = i%2===0 ? 'rgba(255,170,0,0.03)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
+    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
+    ctx.textAlign = 'center';
+    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
+    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
+    ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#FFAA00' : 'rgba(255,255,255,0.7)';
+    ctx.textAlign = 'right'; ctx.fillText(msToStr(e.bestTime), W-16, mid); ctx.textAlign = 'left';
+    const barX = W-170, barW = 100, barH = 5, barY = mid+10;
+    const relPct = entries[0].bestTime / e.bestTime;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
+    const bGrad = ctx.createLinearGradient(barX, 0, barX+barW, 0); bGrad.addColorStop(0, '#FFAA00'); bGrad.addColorStop(1, '#ff6b6b');
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*relPct, 4), barH, 3); ctx.fill();
+  }
+  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Racers`);
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Money Leaderboard Image ──────────────────────────────────────────────────
+function generateMoneyLBImage(entries) {
+  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
+  const H = HEADER_H + entries.length * ROW_H + PADDING;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#020d05'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(0,200,80,0.06)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#002d0f'); grad.addColorStop(1, '#020d05');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#00C853'; ctx.fillRect(0, 0, 4, HEADER_H);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('💰  Money Leaderboard', 24, HEADER_H/2);
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H/2;
+    ctx.fillStyle = i%2===0 ? 'rgba(0,200,80,0.04)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
+    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
+    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
+    ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#00C853' : 'rgba(255,255,255,0.7)';
+    ctx.textAlign = 'right'; ctx.fillText(`${e.currency.toLocaleString()} coins`, W-16, mid); ctx.textAlign = 'left';
+    const barX = W-170, barW = 100, barH = 5, barY = mid+10;
+    const relPct = entries[0].currency > 0 ? e.currency/entries[0].currency : 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
+    const bGrad = ctx.createLinearGradient(barX, 0, barX+barW, 0); bGrad.addColorStop(0, '#00C853'); bGrad.addColorStop(1, '#69F0AE');
+    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*relPct, 4), barH, 3); ctx.fill();
+  }
+  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Richest`);
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Inventory Canvas Image ───────────────────────────────────────────────────
+async function generateInventoryImage(data) {
+  const { username, plants, page, totalPages, totalPlants, filterDesc } = data;
+  const W = 560, HEADER_H = 72, FOOTER_H = 40, ROW_H = 80;
+  const H = HEADER_H + plants.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0a0c12'; ctx.fillRect(0, 0, W, H);
+  const bgG = ctx.createLinearGradient(0, 0, W, H);
+  bgG.addColorStop(0, 'rgba(20,30,60,0.6)'); bgG.addColorStop(1, 'rgba(5,8,16,0.4)');
+  ctx.fillStyle = bgG; ctx.fillRect(0, 0, W, H);
+  const topG = ctx.createLinearGradient(0, 0, W, 0); topG.addColorStop(0, '#4d96ff'); topG.addColorStop(1, '#9575CD');
+  ctx.fillStyle = topG; ctx.fillRect(0, 0, W, 3);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center'; ctx.fillText(`${username}'s Inventory`, W / 2, 28);
+  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  const subLine = filterDesc ? `${totalPlants} plants  ·  filtered: ${filterDesc}` : `${totalPlants} plants  ·  Page ${page} of ${totalPages}  ·  !inv [page]`;
+  ctx.fillText(subLine, W / 2, 52); ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, HEADER_H); ctx.lineTo(W, HEADER_H); ctx.stroke();
+  for (let i = 0; i < plants.length; i++) {
+    const p = plants[i], rCfg = getRarityConfig(p.rarity), y = HEADER_H + i * ROW_H, mid = y + ROW_H / 2;
+    const rHex = '#' + rCfg.color.toString(16).padStart(6, '0');
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
+    ctx.save(); ctx.shadowColor = rHex; ctx.shadowBlur = 10; ctx.fillStyle = rHex; ctx.fillRect(0, y + 10, 5, ROW_H - 20); ctx.restore();
+    const LPAD = 22;
+    ctx.font = 'bold 20px Arial'; ctx.fillStyle = '#ffffff'; ctx.fillText(p.name, LPAD, mid - 14);
+    const verStr = `v${p.version || '?'}`;
+    ctx.font = 'bold 13px Arial';
+    const verW = ctx.measureText(verStr).width + 18, verX = W - 20 - verW, verY = mid - 25;
+    ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.roundRect(verX, verY, verW, 24, 5); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(verX, verY, verW, 24, 5); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(verStr, verX + verW / 2, verY + 12); ctx.textAlign = 'left';
+    ctx.font = 'bold 14px Arial'; ctx.fillStyle = rHex; ctx.fillText(p.rarity.toUpperCase(), LPAD, mid + 14);
+    if (p.mutation) {
+      ctx.font = '14px Arial';
+      const mutX = LPAD + ctx.measureText(p.rarity.toUpperCase()).width + 16;
+      ctx.font = 'bold 13px Arial';
+      const mutLabel = `${p.mutation.emoji} ${p.mutation.name}`, mutW = ctx.measureText(mutLabel).width + 16;
+      ctx.fillStyle = 'rgba(255,240,100,0.12)'; ctx.beginPath(); ctx.roundRect(mutX - 8, mid + 4, mutW, 22, 5); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,240,100,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(mutX - 8, mid + 4, mutW, 22, 5); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,240,120,0.9)'; ctx.fillText(mutLabel, mutX, mid + 15);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, y + ROW_H); ctx.lineTo(W, y + ROW_H); ctx.stroke();
+  }
+  const footerY = HEADER_H + plants.length * ROW_H;
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, footerY); ctx.lineTo(W, footerY); ctx.stroke();
+  ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(SERVER_NAME, W / 2, footerY + FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+  return canvas.toBuffer('image/png');
+}
+
+// ─── Shop pages ───────────────────────────────────────────────────────────────
+const SHOP_PAGES = [
+  { title: '📦 Crates', fields: () => Object.entries(CRATES).map(([, c]) => ({ name: `${c.emoji} ${c.name} — ${c.price.toLocaleString()} ${CURRENCY_NAME}`, value: `Opens **${c.plants} plants**.\nRequires **Level ${c.minLevel}**.\n\`!buy ${c.name.split(' ')[0].toLowerCase()}\`` })) },
+  { title: '🔮 Charms', fields: (user) => Object.entries(CHARMS).map(([key, ch]) => {
+    const owned = user.charms.includes(key), equipped = user.equippedCharms.includes(key);
+    const status = owned ? (equipped ? ' ✅ *Equipped*' : ' *(Owned)*') : '';
+    const legMult = ch.multipliers.Legendary || null;
+    const mytMult = ch.multipliers.Mythic    || null;
+    const rateLines = [
+      legMult ? `🌟 Legendary ×${legMult.toFixed(2)}` : null,
+      mytMult ? `🔥 Mythic ×${mytMult.toFixed(2)}`    : null,
+    ].filter(Boolean).join('  ·  ');
+    return { name: `${ch.emoji} ${ch.name} — ${ch.price.toLocaleString()} ${CURRENCY_NAME}${status}`, value: `${rateLines}\n\`!buy ${key}\`` };
+  }) },
+  { title: '🏷️ Titles', fields: (user) => Object.entries(SHOP_TITLES).map(([key, t]) => { const owned = user.titles.includes(key); return { name: `${t.emoji} ${t.name} — ${t.price.toLocaleString()} ${CURRENCY_NAME}${owned ? ' *(Owned)*' : ''}`, value: `\`!buy ${key}\`` }; }) }
+];
+function buildShopEmbed(pageIndex, user, balance) {
+  const page = SHOP_PAGES[pageIndex], total = SHOP_PAGES.length, fields = page.fields(user);
+  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  ${CURRENCY_EMOJI} Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages` }).setColor(0x7289DA);
+}
+
+// ─── Trade embed ──────────────────────────────────────────────────────────────
+function buildTradeEmbed(trade) {
+  const iSide = trade.sides[trade.initiatorId], tSide = trade.sides[trade.targetId];
+  const sideVal = (side) => {
+    const lines = side.plants.map(p => { const r = getRarityConfig(p.rarity); return `${r.emoji} **${p.name}** \`v${p.version || '?'}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''} *(${p.rarity})*`; });
+    if (side.coins > 0) lines.push(`${CURRENCY_EMOJI} ${side.coins.toLocaleString()}`);
+    if (!lines.length) lines.push('*Nothing yet...*');
+    if (side.confirmed) lines.push('\n✅ **Confirmed**');
+    return lines.join('\n');
+  };
+  return new EmbedBuilder().setTitle('🔄 Live Trade Session')
+    .setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}**\n\nType a plant name or coins amount to add to your side.\n\`!remove <plant>\` to remove  •  \`!confirm\` when ready  •  \`!canceltrade\` to quit\n*Expires in 3 minutes.*`)
+    .addFields({ name: `📦 ${trade.initiatorName}'s offer`, value: sideVal(iSide), inline: true }, { name: `📦 ${trade.targetName}'s offer`, value: sideVal(tSide), inline: true })
+    .setColor(0x00CED1);
+}
+
+// ─── Ready ────────────────────────────────────────────────────────────────────
+client.once('ready', () => {
+  console.log(`✅ ${client.user.tag} online`);
+  startDropLoop();
+  startDecayLoop();
+
+  // Resume any auctions that were running before restart
+  const auctions = loadAuctions();
+  for (const auction of auctions) {
+    const remaining = auction.endsAt - Date.now();
+    if (remaining <= 0) {
+      endAuction(auction.id, null).catch(console.error);
+    } else {
+      setTimeout(() => endAuction(auction.id, null).catch(console.error), remaining);
+    }
+  }
+});
+
+// ─── Messages ─────────────────────────────────────────────────────────────────
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+
+  const registeredChId = dropChannels[message.guild?.id];
+  const relaxedChId    = relaxedDropChannels[message.guild?.id];
+
+  if (registeredChId && message.channel.id === registeredChId) {
+    channelActivity[message.channel.id] = Date.now();
+    // Strict mode — ignore all commands except claim
+    const isClaimAttempt = message.content.trim().toLowerCase().startsWith('claim ');
+    const isCommand = message.content.trim().startsWith(PREFIX);
+    const isMod = message.member?.permissions.has(PermissionsBitField.Flags.ManageMessages);
+    if (!isClaimAttempt && isCommand && !isMod) {
+      return;
+    }
+  } else if (relaxedChId && message.channel.id === relaxedChId) {
+    channelActivity[message.channel.id] = Date.now();
+    // Relaxed mode — drops appear but all commands work normally
+  }
+
+  const content = message.content.trim();
+  const lower   = content.toLowerCase();
+
+  // Touch activity for any message from a known user
+  {
+    const db = loadDB();
+    if (db[message.author.id]) {
+      touchActivity(db, message.author.id, message.author);
+      saveDB(db);
+    }
+  }
+
+  // ── LIVE TRADE INPUT ──────────────────────────────────────────────────────
+  const activeTId = userTrades[message.author.id];
+  if (activeTId && activeTrades[activeTId] && !content.startsWith(PREFIX) && !lower.startsWith('claim ') && !lower.startsWith('race ')) {
+    const trade = activeTrades[activeTId], mySide = trade.sides[message.author.id];
+    if (mySide && !mySide.confirmed && message.channel.id === trade.channelId) {
+      const asCoins = parseInt(content.replace(/,/g,''));
+      if (!isNaN(asCoins) && asCoins > 0) {
+        const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+        if (asCoins > user.currency) { await message.reply(`❌ You only have ${fmt(user.currency)}.`); }
+        else { mySide.coins = asCoins; const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null; if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {}); }
+      } else {
+        const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+        // Support "Plant Name", "Plant Name all", "Plant Name v3"
+        const vTradeMatch = content.match(/^(.+?)\s+v(\d+)$/i);
+        const allTradeMatch = content.match(/^(.+?)\s+all$/i);
+        const tradePlantName = (vTradeMatch ? vTradeMatch[1] : allTradeMatch ? allTradeMatch[1] : content).trim();
+        const tradeVersion = vTradeMatch ? parseInt(vTradeMatch[2]) : null;
+        const tradeAll = !!allTradeMatch;
+
+        const allMatches = user.collection.filter(p => p.name.toLowerCase() === tradePlantName.toLowerCase());
+
+        if (!allMatches.length) {
+          // not a plant name, ignore
+        } else if (tradeAll) {
+          // Add all copies the user owns that aren't already in the offer
+          const toAdd = allMatches.filter(p => !mySide.plants.find(o => o.name === p.name && o.version === p.version));
+          if (!toAdd.length) {
+            await message.reply(`All copies of **${tradePlantName}** are already in your offer.`);
+          } else {
+            for (const p of toAdd) mySide.plants.push(p);
+            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
+            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
+          }
+        } else if (tradeVersion !== null) {
+          // Specific version
+          const plant = allMatches.find(p => p.version === tradeVersion);
+          if (!plant) {
+            await message.reply(`You don't own **${tradePlantName}** v${tradeVersion}.`);
+          } else if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
+            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
+          } else {
+            mySide.plants.push(plant);
+            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
+            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
+          }
+        } else if (allMatches.length === 1) {
+          // Only one copy, add it directly
+          const plant = allMatches[0];
+          if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
+            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
+          } else {
+            mySide.plants.push(plant);
+            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
+            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
+          }
+        } else {
+          // Multiple copies, no version specified — show picker
+          const lines = allMatches.map(p => {
+            const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+            return `\`v${p.version || '?'}\`${mutStr}`;
+          }).join('  ·  ');
+          await message.reply(`You own **${allMatches.length}** copies of **${tradePlantName}**:\n${lines}\n\nUse \`${tradePlantName} v<number>\` for one or \`${tradePlantName} all\` for all.`);
+        }
+      }
+      return;
+    }
+  }
+
+  // ── CLAIM ─────────────────────────────────────────────────────────────────
+  if (lower.startsWith('claim ') && activeDrops[message.channel.id]) {
+    const input = content.slice(6).trim().toUpperCase();
+    const drop  = activeDrops[message.channel.id];
+    if (input !== drop.captcha) return;
+    if (!COOLDOWN_EXEMPT_IDS.includes(message.author.id)) {
+      const cdDb = loadDB(), cdUser = getUser(cdDb, message.author.id);
+      const cdMs = CLAIM_COOLDOWNS[drop.rarity.name] || 0;
+      const remaining = cdMs - (Date.now() - ((cdUser.claimCooldowns || {})[drop.rarity.name] || 0));
+      if (remaining > 0) {
+        const mins = Math.floor(remaining / 60000), secs = Math.ceil((remaining % 60000) / 1000);
+        const errMsg = await message.channel.send(`<@${message.author.id}> ⏳ Cooldown — **${drop.rarity.name}** drop in **${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}**.`);
+        setTimeout(() => errMsg.delete().catch(() => {}), 5000); return;
+      }
+    }
+    const elapsed = Date.now() - drop.dropTime;
+    drop.claimers.push({ userId: message.author.id, username: message.author.username, time: elapsed });
+    if (drop.claimers.length === 1) {
+      delete activeDrops[message.channel.id];
+      const db      = loadDB();
+      const user    = getUser(db, message.author.id);
+      touchActivity(db, message.author.id, message.author);
+      const version   = getAvailableVersion(drop.plant.name, db);
+      recordVersionHighWater(drop.plant.name, version);
+      const rCfg     = drop.rarity, mutation = drop.mutation;
+      const sellValue = calcSellValue(drop.plant, rCfg, mutation, version);
+      if (!TEST_IDS.has(message.author.id)) {
+        user.collection.push({ name: drop.plant.name, image: drop.plant.display, rarity: drop.rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue, claimedAt: new Date().toISOString() });
+        user.claimed++;
+      }
+
+      
+      const isTester = TEST_IDS.has(message.author.id);
+      let lvlUp = null, newAch = [];
+      if (!user.claimCooldowns) user.claimCooldowns = {};
+      if (!isTester) {
+        lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
+        newAch = checkAchievements(user);
+        user.claimCooldowns[drop.rarity.name] = Date.now();
+        saveDB(db);
+        recordClaim(message.author.id, message.author.username);
+      }
+      const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
+      await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${rCfg.emoji} **${drop.plant.name}** \`v${version}\` claimed by <@${message.author.id}>!${mutLine}`).setColor(mutation ? mutation.color : rCfg.color)] });
+
+      if (version === 1) {
+        const vPingChId = vPingChannels[message.guild?.id];
+        if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(drop.plant.display).setColor(mutation ? mutation.color : rCfg.color)] }).catch(console.error); } }
+      }
+      if (lvlUp) await message.channel.send(`<@${message.author.id}> levelled up to **Level ${lvlUp}**! ${getRank(lvlUp).emoji}`);
+      if (newAch.length) { const achLines = newAch.map(k => `${ACHIEVEMENTS[k].emoji} **${ACHIEVEMENTS[k].name}** — *${ACHIEVEMENTS[k].description}*`).join('\n'); await message.channel.send({ embeds: [new EmbedBuilder().setTitle('Achievement Unlocked!').setDescription(achLines).setColor(0xFFD700)] }); }
+    }
+    return;
+  }
+
+  // ── RACE ANSWER — just the captcha, no "race " prefix ────────────────────
+  if (activeRaces[message.channel.id] && !content.startsWith(PREFIX)) {
+    const input = content.trim().toUpperCase();
+    const race  = activeRaces[message.channel.id];
+    if (input !== race.captcha || race.finishers.some(f => f.userId === message.author.id)) {
+      // Not the right captcha or already finished — fall through
+    } else {
+      const elapsed = Date.now() - race.startTime;
+      race.finishers.push({ userId: message.author.id, username: message.author.username, time: elapsed });
+      const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+      touchActivity(db, message.author.id, message.author);
+      const lb         = loadRaceLB();
+      const prevRecord = lb.length > 0 ? lb[0].bestTime : null;
+      const isRecord   = prevRecord !== null && elapsed < prevRecord;
+      if (user.bestRaceTime === null || elapsed < user.bestRaceTime) user.bestRaceTime = elapsed;
+      const isWin = race.finishers.length === 1;
+      if (isWin) user.raceWins = (user.raceWins || 0) + 1;
+      addXP(db, message.author.id, isWin ? XP_REWARDS.race_win : XP_REWARDS.race_finish);
+      checkAchievements(user); saveDB(db);
+      if (!TEST_IDS.has(message.author.id)) {
+        const ex = lb.find(e => e.userId === message.author.id);
+        if (ex) { if (elapsed < ex.bestTime) { ex.bestTime = elapsed; ex.username = message.author.username; } }
+        else lb.push({ userId: message.author.id, username: message.author.username, bestTime: elapsed });
+        lb.sort((a,b) => a.bestTime - b.bestTime); saveRaceLB(lb);
+      }
+      await message.react(isRecord ? RACE_REACT_RECORD : RACE_REACT_CORRECT).catch(() => {});
+      if (race.finishers.length >= 5) await endRace(message.channel, race);
+      return;
+    }
+  }
+
+  // ── CRATE CAPTCHA ─────────────────────────────────────────────────────────
+  if (pendingCrates[message.author.id] && !content.startsWith(PREFIX)) {
+    const pending = pendingCrates[message.author.id];
+    if (content.trim().toUpperCase() !== pending.captcha) return;
+
+    clearTimeout(pending.expires);
+    delete pendingCrates[message.author.id];
+
+    const { crateKey } = pending;
+    const crate = CRATES[crateKey];
+    const db = loadDB();
+    const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    touchActivity(db, message.author.id, message.author);
+    if (!user.crateCooldowns) user.crateCooldowns = {};
+
+    const results = openCrate(crateKey, db, message.author.id);
+    if (!TEST_IDS.has(message.author.id)) {
+      user.currency -= crate.price;
+      user.crateCooldowns[crateKey] = Date.now();
+      for (const p of results) {
+        const ver = getAvailableVersion(p.name, db);
+        recordVersionHighWater(p.name, ver);
+        const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+        user.collection.push({
+          name: p.name, image: p.display, rarity: p.rarity,
+          mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
+          version: ver, sellValue: sv, claimedAt: new Date().toISOString()
+        });
+      }
+      user.cratesOpened = (user.cratesOpened || 0) + 1;
+      addXP(db, message.author.id, XP_REWARDS.crate_open);
+      checkAchievements(user);
+      saveDB(db);
+    }
+
+    const spoilerLines = results.map(p =>
+      `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+    );
+    return message.channel.send({
+      embeds: [new EmbedBuilder()
+        .setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`)
+        .setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`)
+        .setColor(crate.color)
+        .setFooter({ text: TEST_IDS.has(message.author.id) ? '🧪 Test mode' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })
+      ]
+    });
+  } 
+
+  // ── SELL CONFIRM ──────────────────────────────────────────────────────────
+  if (pendingSells[message.author.id]) {
+    if (lower === 'yes') {
+      const pending = pendingSells[message.author.id];
+      delete pendingSells[message.author.id];
+      const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+      touchActivity(db, message.author.id, message.author);
+
+      // Sell-all path
+      if (pending.sellAllCandidates) {
+        const { sellAllCandidates, totalVal } = pending;
+        // Remove from highest index down to avoid shift bugs
+        const sorted = [...sellAllCandidates].sort((a, b) => b.index - a.index);
+        for (const { index } of sorted) user.collection.splice(index, 1);
+        user.currency += totalVal;
+        saveDB(db);
+        const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
+        return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
+      }
+
+      // Single sell path
+      const { plant, index } = pending;
+      user.collection.splice(index, 1);
+      const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
+      user.currency += price;
+      // remove locks for plants no longer owned
+      const remaining = loadLocks(message.author.id).filter(l => {
+        if (!l.name) return true;
+        return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
+      });
+      saveLocks(message.author.id, remaining);
+      saveDB(db);
+      return message.reply(`✅ Sold **${plant.name}** v${plant.version || '?'}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
+    }
+    if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
+  }
+
+  // ── WIPE CONFIRMATION ──────────────────────────────────────────────────────
+  if (pendingWipes[message.author.id]) {
+    const wipe = pendingWipes[message.author.id];
+    delete pendingWipes[message.author.id];
+    if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
+    pendingWipes[`${message.author.id}_confirm`] = { phrase: wipe.phrase, ts: Date.now() };
+    setTimeout(() => delete pendingWipes[`${message.author.id}_confirm`], 30_000);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('☢️  FINAL WARNING — TYPE AGAIN TO CONFIRM').setDescription(`You've entered the phrase once.\n\n**Type it one more time to execute the wipe.**\n\`\`\`\n${wipe.phrase}\n\`\`\`\nYou have **30 seconds**. Any other input cancels.`).setColor(0xFF0000)] });
+  }
+  if (pendingWipes[`${message.author.id}_confirm`]) {
+    const wipe = pendingWipes[`${message.author.id}_confirm`];
+    delete pendingWipes[`${message.author.id}_confirm`];
+    if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }, null, 2));
+      fs.writeFileSync(RACE_LB_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(MARKET_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify([], null, 2));
+      activeDrops = {}; activeRaces = {}; pendingSells = {}; activeTrades = {}; userTrades = {};
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Wipe Complete').setDescription('All data has been wiped.').setColor(0x00FF00)] });
+    } catch (err) { return message.reply(`❌ Wipe failed: ${err.message}`); }
+  }
+
+  if (pendingWipes[`sellall_${message.author.id}`]) {
+    const wipe = pendingWipes[`sellall_${message.author.id}`];
+    delete pendingWipes[`sellall_${message.author.id}`];
+    if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Sale cancelled.');
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    if (!user.collection.length) return message.reply('You have no plants to sell.');
+    const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
+    const totalVal = sellable.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+    const count = sellable.length;
+    const meta = loadMeta();
+    for (const p of sellable) {
+      if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
+        meta.plantVersions[p.name]--;
+        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
+      }
+    }
+    user.collection = user.collection.filter(p => isLocked(message.author.id, p));
+    user.currency += totalVal;
+    saveMeta(meta); saveDB(db);
+    return message.channel.send({ embeds: [new EmbedBuilder()
+      .setTitle('💰 Entire Inventory Sold')
+      .setDescription(`Sold **${count} plants** for ${fmt(totalVal)}.\nNew balance: ${fmt(user.currency)}`)
+      .setColor(0x00C853)
+    ]});
+  }
+
+  if (pendingWipes[`cards_${message.author.id}`]) {
+    const wipe = pendingWipes[`cards_${message.author.id}`];
+    delete pendingWipes[`cards_${message.author.id}`];
+    if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
+    const db = loadDB();
+    const user = getUser(db, wipe.targetId);
+    const meta = loadMeta();
+    for (const p of user.collection) {
+      if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
+        meta.plantVersions[p.name]--;
+        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
+      }
+    }
+    user.collection = [];
+    saveMeta(meta);
+    saveDB(db);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Cards Wiped').setDescription(`All plants have been removed from **${wipe.targetName}**'s collection.`).setColor(0x00FF00)] });
+  }
+
+  if (pendingWipes[`user_${message.author.id}`]) {
+    const wipe = pendingWipes[`user_${message.author.id}`];
+    delete pendingWipes[`user_${message.author.id}`];
+    if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
+    try {
+      const db = loadDB(), meta = loadMeta(), user = db[wipe.targetId];
+      if (user && user.collection) { for (const p of user.collection) { if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) { meta.plantVersions[p.name]--; meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1); } } saveMeta(meta); }
+      delete db[wipe.targetId]; saveDB(db);
+      const raceLB = loadRaceLB().filter(e => e.userId !== wipe.targetId); saveRaceLB(raceLB);
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ User Wiped').setDescription(`All data for **${wipe.targetName}** has been deleted.`).setColor(0x00FF00)] });
+    } catch (err) { return message.reply(`❌ Wipe failed: ${err.message}`); }
+  }
+
+  if (!content.startsWith(PREFIX)) return;
+  const args = content.slice(PREFIX.length).trim().split(/\s+/);
+  const cmd  = args[0].toLowerCase();
+
+  // ── !auction ──────────────────────────────────────────────────────────────
+  // Usage: !auction <plant name> [-v version] [-start coins] [-buyout coins] [-hours n]
+  if (cmd === 'auction') {
+    const rawAuction = args.slice(1).join(' ');
+
+    // Sub-commands: !auction list, !auction cancel <id>, !auction end <id>
+    if (args[1] === 'list') {
+      const auctions = loadAuctions();
+      if (!auctions.length) return message.reply('No active auctions.');
+      const lines = auctions.map(a => {
+        const remaining = Math.max(0, a.endsAt - Date.now());
+        const hrs = Math.floor(remaining / 3600000), mins = Math.floor((remaining % 3600000) / 60000);
+        const topBid = a.bids.length ? a.bids[a.bids.length - 1] : null;
+        return `**${a.plant.name}** \`v${a.plant.version || '?'}\` — ID: \`${a.id}\` — Top: ${topBid ? fmt(topBid.amount) : 'No bids'} — Ends in: ${hrs}h ${mins}m`;
+      });
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🔨 Active Auctions').setDescription(lines.join('\n')).setColor(0xFFD700)] });
+    }
+
+    if (args[1] === 'cancel') {
+      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages) ) {
+        const auctionId = args[2];
+        const auctions = loadAuctions();
+        const auction  = auctions.find(a => a.id === auctionId);
+        if (!auction) return message.reply('Auction not found.');
+        if (auction.sellerId !== message.author.id) return message.reply('You can only cancel your own auctions.');
+        if (auction.bids.length) return message.reply('❌ Cannot cancel — this auction already has bids.');
+      }
+      const auctionId = args[2];
+      const auctions = loadAuctions().filter(a => a.id !== auctionId);
+      saveAuctions(auctions);
+      return message.reply(`✅ Auction \`${auctionId}\` cancelled.`);
+    }
+
+    if (args[1] === 'bid') {
+      const auctionId = args[2], bidAmount = parseInt(args[3]);
+      if (!auctionId || isNaN(bidAmount)) return message.reply('Usage: `!auction bid <id> <amount>`');
+      const auctions = loadAuctions();
+      const auction  = auctions.find(a => a.id === auctionId);
+      if (!auction) return message.reply('Auction not found.');
+      if (Date.now() > auction.endsAt) return message.reply('This auction has ended.');
+      if (auction.sellerId === message.author.id) return message.reply("You can't bid on your own auction.");
+      const topBid = auction.bids.length ? auction.bids[auction.bids.length - 1].amount : auction.startPrice;
+      const minBid = topBid + auction.minIncrement;
+      if (bidAmount < minBid) return message.reply(`❌ Minimum bid is ${fmt(minBid)}.`);
+      const db = loadDB(); const user = getUser(db, message.author.id);
+      if (user.currency < bidAmount) return message.reply(`❌ You only have ${fmt(user.currency)}.`);
+      auction.bids.push({ userId: message.author.id, username: message.author.username, amount: bidAmount, time: Date.now() });
+
+      // Soft-close: extend if bid lands near the end
+      const timeLeft     = auction.endsAt - Date.now();
+      const totalAdded   = auction.totalExtended || 0;
+      const remaining    = Math.max(0, AUCTION_MAX_EXTENSION - totalAdded);
+      let extended = 0;
+      if (remaining > 0) {
+        if (timeLeft <= AUCTION_EXTEND_THRESHOLD_2) {
+          extended = Math.min(AUCTION_EXTEND_AMOUNT_2, remaining);
+        } else if (timeLeft <= AUCTION_EXTEND_THRESHOLD_1) {
+          extended = Math.min(AUCTION_EXTEND_AMOUNT_1, remaining);
+        }
+      }
+      if (extended > 0) {
+        auction.endsAt += extended;
+        auction.totalExtended = totalAdded + extended;
+      }
+
+      saveAuctions(auctions);
+      touchActivity(db, message.author.id, message.author);
+      saveDB(db);
+
+      const extendedMsg = extended > 0 ? `\n⏱ Auction extended by **${Math.round(extended/1000)}s**!` : '';
+      const newTimeLeft = Math.max(0, auction.endsAt - Date.now());
+      const m = Math.floor(newTimeLeft / 60000), s = Math.floor((newTimeLeft % 60000) / 1000);
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setDescription(`🔨 **${message.author.username}** bid ${fmt(bidAmount)} on **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${extendedMsg}\n⏰ Ends in **${m}m ${s}s**`)
+        .setColor(0xFFD700)
+      ]});
+    }
+
+    if (args[1] === 'buyout') {
+      const auctionId = args[2];
+      if (!auctionId) return message.reply('Usage: `!auction buyout <id>`');
+      const auctions = loadAuctions();
+      const idx = auctions.findIndex(a => a.id === auctionId);
+      if (idx === -1) return message.reply('Auction not found.');
+      const auction = auctions[idx];
+      if (!auction.buyoutPrice) return message.reply('This auction has no buyout price.');
+      if (Date.now() > auction.endsAt) return message.reply('This auction has ended.');
+      if (auction.sellerId === message.author.id) return message.reply("You can't buy your own auction.");
+      const db = loadDB();
+      const buyer = getUser(db, message.author.id);
+      if (buyer.currency < auction.buyoutPrice) return message.reply(`❌ Need ${fmt(auction.buyoutPrice)}.`);
+      const seller = getUser(db, auction.sellerId);
+      buyer.currency -= auction.buyoutPrice;
+      seller.currency += auction.buyoutPrice;
+      buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      touchActivity(db, message.author.id, message.author);
+      saveDB(db);
+      auctions.splice(idx, 1);
+      saveAuctions(auctions);
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🔨 Auction Bought Out!')
+        .setDescription(`**${message.author.username}** bought **${auction.plant.name}** \`v${auction.plant.version || '?'}\` for ${fmt(auction.buyoutPrice)}!`)
+        .setColor(0x00C853)
+      ]});
+    }
+
+    // ── Create auction ────────────────────────────────────────────────────────
+    const vMatch      = rawAuction.match(/-v\s*(\d+)/i);
+    const startMatch  = rawAuction.match(/-start\s+(\d+)/i);
+    const buyoutMatch = rawAuction.match(/-buyout\s+(\d+)/i);
+    const hoursMatch  = rawAuction.match(/-hours?\s+(\d+)/i);
+    const incrMatch   = rawAuction.match(/-inc(?:rement)?\s+(\d+)/i);
+
+    const plantName   = rawAuction
+      .replace(/-v\s*\d+/i,'').replace(/-start\s+\d+/i,'').replace(/-buyout\s+\d+/i,'')
+      .replace(/-hours?\s+\d+/i,'').replace(/-inc(?:rement)?\s+\d+/i,'').trim();
+
+    if (!plantName) return message.reply([
+      '**Usage:** `!auction <plant name> [options]`',
+      '',
+      '**Options:**',
+      '`-v <version>` — specific version to list',
+      '`-start <coins>` — starting bid (default: plant sell value)',
+      '`-buyout <coins>` — instant buyout price (optional)',
+      '`-hours <n>` — duration in hours (default: 10 minutes)',
+      '`-increment <n>` — minimum bid increment (default: 100)',
+      '',
+      '**Other commands:**',
+      '`!auction list` — view active auctions',
+      '`!auction bid <id> <amount>` — place a bid',
+      '`!auction buyout <id>` — instant buy',
+      '`!auction cancel <id>` — cancel your auction (no bids only)',
+    ].join('\n'));
+
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+    const vFilter = vMatch ? parseInt(vMatch[1]) : null;
+    let candidates = user.collection.map((p, i) => ({ p, i })).filter(({ p }) => p.name.toLowerCase() === plantName.toLowerCase());
+    if (vFilter !== null) candidates = candidates.filter(({ p }) => p.version === vFilter);
+
+    if (!candidates.length) return message.reply(`You don't own **${plantName}**${vFilter !== null ? ` v${vFilter}` : ''}.`);
+    if (candidates.length > 1 && vFilter === null) {
+      const lines = candidates.map(({ p }) => `\`v${p.version || '?'}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}`).join('  ·  ');
+      return message.reply(`You own **${candidates.length}** copies of **${plantName}**: ${lines}\nUse \`-v <version>\` to specify which one.`);
+    }
+
+    const { p: plant, i: plantIndex } = candidates[0];
+    if (isLocked(message.author.id, plant)) return message.reply(`🔒 **${plant.name}** \`v${plant.version}\` is locked.`);
+
+    const hours       = Math.min(72, Math.max(1, hoursMatch ? parseInt(hoursMatch[1]) : 0.1667)); // default 10 min
+    const startPrice  = startMatch ? parseInt(startMatch[1]) : (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
+    const buyoutPrice = buyoutMatch ? parseInt(buyoutMatch[1]) : null;
+    const minIncrement = incrMatch ? parseInt(incrMatch[1]) : Math.max(100, Math.round(startPrice * 0.05));
+
+    if (buyoutPrice && buyoutPrice <= startPrice) return message.reply('❌ Buyout price must be higher than the starting bid.');
+
+    const auctionId = `a_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const endsAt    = Date.now() + hours * 3600000;
+
+    // Remove plant from seller's inventory
+    user.collection.splice(plantIndex, 1);
+    saveDB(db);
+
+    const auctions = loadAuctions();
+    auctions.push({
+      id: auctionId,
+      sellerId: message.author.id,
+      sellerName: message.author.username,
+      plant: { ...plant },
+      startPrice,
+      buyoutPrice,
+      minIncrement,
+      bids: [],
+      endsAt,
+      createdAt: Date.now(),
+    });
+    saveAuctions(auctions);
+
+    // Schedule auto-end
+    setTimeout(() => endAuction(auctionId, message.channel), hours * 3600000);
+
+    const rCfg = getRarityConfig(plant.rarity);
+    const embed = new EmbedBuilder()
+      .setTitle(`🔨 New Auction — ${rCfg.emoji} ${plant.name}`)
+      .setDescription([
+        `Listed by **${message.author.username}**`,
+        `\`v${plant.version || '?'}\`${plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : ''}`,
+        '',
+        `**Starting bid:** ${fmt(startPrice)}`,
+        buyoutPrice ? `**Buyout:** ${fmt(buyoutPrice)}` : '',
+        `**Min increment:** ${fmt(minIncrement)}`,
+        `**Duration:** ${hours} hour${hours !== 1 ? 's' : ''}`,
+        '',
+        `Use \`!auction bid ${auctionId} <amount>\` to bid`,
+        buyoutPrice ? `Use \`!auction buyout ${auctionId}\` to buy instantly` : '',
+      ].filter(Boolean).join('\n'))
+      .setColor(rCfg.color)
+      .setFooter({ text: `Auction ID: ${auctionId}` })
+      .setTimestamp(endsAt);
+
+    if (auctionChannels[message.guild?.id]) {
+      const ch = client.channels.cache.get(auctionChannels[message.guild.id]);
+      if (ch) await ch.send({ embeds: [embed] });
+    }
+
+    return message.channel.send({ embeds: [embed] });
+  }
+
+  // ── !setauction ───────────────────────────────────────────────────────────
+  if (cmd === 'setauction') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[1]?.toLowerCase() === 'stop') {
+      delete auctionChannels[message.guild.id];
+      const s = loadSettings(); s.auctionChannels = auctionChannels; saveSettings(s);
+      return message.reply('✅ Auction channel disabled.');
+    }
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply('❌ Channel not found.');
+    auctionChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.auctionChannels = auctionChannels; saveSettings(s);
+    return message.reply(`✅ Auction announcements → <#${targetCh.id}>.`);
+  }
+
+  // ── !say ──────────────────────────────────────────────────────────────────
+  if (cmd === 'say') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const channelId = args[args.length - 1];
+    const text = args.slice(1, args.length - 1).join(' ');
+    if (!text || !channelId) return message.reply('Usage: `!say <text> <channelId>`');
+    const target = client.channels.cache.get(channelId);
+    if (!target) return message.reply('❌ Channel not found.');
+    await target.send(text);
+    message.delete().catch(() => {});
+    return;
+  }
+
+  // ── !setdrop ──────────────────────────────────────────────────────────────
+  if (cmd === 'setdrop') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[1]?.toLowerCase() === 'stop') { delete dropChannels[message.guild.id]; delete channelActivity[message.channel.id]; const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s); return message.reply(`✅ Drops disabled.`); }
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply(`❌ Channel not found. Use a channel mention, ID, or run the command inside the target channel.`);
+    dropChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s);
+    return message.reply(`✅ Activity-based drops enabled in <#${targetCh.id}>!`);
+  }
+
+  // ── !setdropchat ──────────────────────────────────────────────────────────
+  if (cmd === 'setdropchat') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[1]?.toLowerCase() === 'stop') {
+      delete relaxedDropChannels[message.guild.id];
+      const s = loadSettings(); s.relaxedDropChannels = relaxedDropChannels; saveSettings(s);
+      return message.reply('✅ Relaxed drop channel disabled.');
+    }
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply('❌ Channel not found.');
+    relaxedDropChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.relaxedDropChannels = relaxedDropChannels; saveSettings(s);
+    return message.reply(`✅ Relaxed drop channel set to <#${targetCh.id}> — drops will appear but all commands still work.`);
+  }
+
+  // ── !setvping ─────────────────────────────────────────────────────────────
+  if (cmd === 'setvping') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[1]?.toLowerCase() === 'stop') { delete vPingChannels[message.guild.id]; const s = loadSettings(); s.vPingChannels = vPingChannels; saveSettings(s); return message.reply('✅ v1 pings disabled.'); }
+    const rawId = args[1]?.replace(/[<#>]/g, ''), targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply(`❌ Channel not found.`);
+    vPingChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.vPingChannels = vPingChannels; saveSettings(s);
+    return message.reply(`✅ v1 pings → <#${targetCh.id}>.`);
+  }
+
+  // ── !lock / !unlock ───────────────────────────────────────────────────────
+  if (cmd === 'lock' || cmd === 'unlock') {
+    const raw = args.slice(1).join(' ');
+    const vMatch = raw.match(/-v\s*(\d+)/i);
+    const mMatch = raw.match(/-m\s+([a-z]+)/i);
+    const rMatch = raw.match(/-r\s+([a-z]+)/i);
+    const plantName = raw.replace(/-v\s*\d+/i,'').replace(/-m\s+\S+/i,'').replace(/-r\s+\S+/i,'').trim();
+
+    if (!plantName && !rMatch && !mMatch) return message.reply(
+      `Usage: \`!lock <plant name> [-v version] [-m mutation] [-r rarity]\`\n` +
+      `Examples:\n` +
+      `\`!lock Carrot\` — lock all carrots\n` +
+      `\`!lock Carrot -v 1\` — lock carrot v1 specifically\n` +
+      `\`!lock -r legendary\` — lock all legendaries\n` +
+      `\`!lock -m starstruck\` — lock all starstruck plants`
+    );
+
+    const lockEntry = {};
+    if (plantName) lockEntry.name = plantName;
+    if (vMatch) lockEntry.version = parseInt(vMatch[1]);
+    if (mMatch) lockEntry.mutation = mMatch[1].toLowerCase();
+    if (rMatch) lockEntry.rarity = rMatch[1].toLowerCase();
+
+    const locks = loadLocks(message.author.id);
+
+    if (cmd === 'lock') {
+      if (plantName) {
+        const db = loadDB(); const user = getUser(db, message.author.id);
+        const exists = PLANTS.some(p => p.name.toLowerCase() === plantName.toLowerCase());
+        if (!exists) return message.reply(`❌ **${plantName}** isn't a plant. Check your spelling!`);
+        const owned = user.collection.some(p => p.name.toLowerCase() === plantName.toLowerCase());
+        if (!owned) return message.reply(`❌ You don't own any **${plantName}**.`);
+      }
+      const already = locks.some(l => JSON.stringify(l) === JSON.stringify(lockEntry));
+      if (already) return message.reply('That lock already exists.');
+      locks.push(lockEntry);
+      saveLocks(message.author.id, locks);
+      const desc = Object.entries(lockEntry).map(([k,v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`🔒 Locked — ${desc}`);
+    } else {
+      const before = locks.length;
+      const filtered = locks.filter(l => JSON.stringify(l) !== JSON.stringify(lockEntry));
+      if (filtered.length === before) return message.reply('No matching lock found.');
+      saveLocks(message.author.id, filtered);
+      const desc = Object.entries(lockEntry).map(([k,v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`🔓 Unlocked — ${desc}`);
+    }
+  }
+
+  // ── !locks ────────────────────────────────────────────────────────────────
+  if (cmd === 'locks') {
+    const locks = loadLocks(message.author.id);
+    if (!locks.length) return message.reply('You have no locks set.');
+    const lines = locks.map((l, i) => {
+      const desc = Object.entries(l).map(([k,v]) => `${k}: **${v}**`).join('  ·  ');
+      return `\`${i+1}.\` ${desc}`;
+    });
+    return message.channel.send({ embeds: [new EmbedBuilder()
+      .setTitle('🔒 Your Locks')
+      .setDescription(lines.join('\n'))
+      .setFooter({ text: '!unlock <same filters> to remove a lock  ·  !cleanlocks to remove ghost locks' })
+      .setColor(0x4d96ff)
+    ]});
+  }
+
+  // ── !cleanlocks ───────────────────────────────────────────────────────────
+  if (cmd === 'cleanlocks') {
+    const db = loadDB();
+    const user = getUser(db, message.author.id);
+    const locks = loadLocks(message.author.id);
+    const cleaned = locks.filter(l => {
+      if (!l.name) return true; // keep rarity/mutation-only locks
+      return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
+    });
+    const removed = locks.length - cleaned.length;
+    saveLocks(message.author.id, cleaned);
+    if (!removed) return message.reply('No ghost locks found — all your locks match plants you own.');
+    return message.reply(`🧹 Removed **${removed}** ghost lock${removed !== 1 ? 's' : ''} for plants you no longer own.`);
+  }
+
+  // ── !togglev10 ────────────────────────────────────────────────────────────
+  if (cmd === 'togglev10') {
+    sellbatchV10Protection = !sellbatchV10Protection;
+    return message.reply(`✅ Sellbatch v1–v10 protection is now **${sellbatchV10Protection ? 'ON' : 'OFF'}**.`);
+  }
+
+  // ── !wipecards ────────────────────────────────────────────────────────────
+  if (cmd === 'wipecards') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!wipecards @user`');
+    const CONFIRM_PHRASE = `WIPECARDS-${target.id.slice(-6).toUpperCase()}`;
+    pendingWipes[`cards_${message.author.id}`] = { targetId: target.id, targetName: target.username, phrase: CONFIRM_PHRASE, ts: Date.now() };
+    setTimeout(() => delete pendingWipes[`cards_${message.author.id}`], 60_000);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🗑️  Wipe Cards — ${target.username}`).setDescription(`**This will delete all plants from ${target.username}'s collection.**\n\nTo confirm:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`).setColor(0xFF6600)] });
+  }
+
+
+  // ── !wipeall ──────────────────────────────────────────────────────────────
+  if (cmd === 'wipeall') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const CONFIRM_PHRASE = `WIPE-${message.guild.id.slice(-6).toUpperCase()}`;
+    pendingWipes[message.author.id] = { guildId: message.guild.id, phrase: CONFIRM_PHRASE, ts: Date.now() };
+    setTimeout(() => delete pendingWipes[message.author.id], 60_000);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('☢️  NUCLEAR DATA WIPE').setDescription(`**This cannot be undone.**\n\nTo confirm:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`).setColor(0xFF0000)] });
+  }
+
+  // ── !drop ─────────────────────────────────────────────────────────────────
+  if (cmd === 'drop') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('Need **Manage Messages**.');
+    const dropArgs = args.slice(1).join(' ');
+    const rMatch = dropArgs.match(/-r\s+([a-z]+)/i), pMatch = dropArgs.match(/-p\s+"([^"]+)"|(-p\s+([A-Za-z ]+?)(?:\s+-[rpm]|$))/i), mMatch = dropArgs.match(/-m\s+([a-z]+)/i);
+    await sendDrop(message.channel, { rarityName: rMatch ? rMatch[1] : null, plantName: pMatch ? (pMatch[1] || pMatch[3]?.trim()) : null, mutationName: mMatch ? mMatch[1] : null });
+    return;
+  }
+
+  // ── !setrarity ────────────────────────────────────────────────────────────
+  if (cmd === 'setrarity') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!args[1] || args[1] === 'clear') { devRarity = null; return message.reply('🔧 Dev rarity cleared.'); }
+    const match = RARITIES.find(r => r.name.toLowerCase() === args[1].toLowerCase());
+    if (!match) return message.reply(`Options: ${RARITIES.map(r=>r.name).join(', ')}`);
+    devRarity = match.name; return message.reply(`🔧 Drops locked to **${match.name}** ${match.emoji}`);
+  }
+
+  // ── !level / !lvl ─────────────────────────────────────────────────────────
+  if (cmd === 'level' || cmd === 'lvl') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    const { level, needed, progress, pct } = xpToNextLevel(user.xp || 0);
+    const rank = getRank(level), title = getActiveTitle(user);
+    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id, u]) => ({ id, xp: u.xp || 0 })).sort((a,b) => b.xp - a.xp);
+    const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
+    const imgBuf = await generateLevelCardImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, needed, progress, rankEmoji: rank.emoji, rankName: rank.name, title, totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length });
+    const att = new AttachmentBuilder(imgBuf, { name: 'level.png' });
+    return message.channel.send({ files: [att], embeds: [new EmbedBuilder().setImage('attachment://level.png').setColor(0x5C6BC0)] });
+  }
+
+  // ── !levellb / !llb ───────────────────────────────────────────────────────
+  if (cmd === 'levellb' || cmd === 'llb') {
+    const page = parseInt(args[1]) || 1, db = loadDB();
+    const { entries, totalPages } = await buildLevelLBData(db, page);
+    if (!entries.length) return message.reply('No data yet!');
+    const imgBuffer = await generateLevelLBImage(entries);
+    const attachment = new AttachmentBuilder(imgBuffer, { name: 'levellb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://levellb.png').setFooter({ text: `Page ${page} of ${totalPages}  •  !llb <page>` }).setColor(0x5C6BC0)], files: [attachment] });
+  }
+
+  // ── !profile / !prof ──────────────────────────────────────────────────────
+  if (cmd === 'profile' || cmd === 'prof') {
+    let target = message.mentions.users.first();
+    if (!target && args[1]) { try { target = await client.users.fetch(args[1]); } catch {} }
+    target = target || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    const { level, pct } = xpToNextLevel(user.xp || 0);
+    const rank = getRank(level), title = getActiveTitle(user);
+    const allUsers = Object.entries(db).map(([id, u]) => ({ id, xp: u.xp||0 })).sort((a,b)=>b.xp-a.xp);
+    const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
+    const gardenScore = calcWeightedGardenScore(user.collection);
+    const gardenTier  = getGardenTier(gardenScore);
+    const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.emoji || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
+    const att = new AttachmentBuilder(imgBuf, { name: 'profile.png' });
+    return message.channel.send({ files: [att], embeds: [new EmbedBuilder().setImage('attachment://profile.png').setColor(0x4d96ff)] });
+  }
+
+  // ── !invlb ────────────────────────────────────────────────────────────────
+  if (cmd === 'invlb' || cmd === 'ilb') {
+    const db = loadDB();
+    const scored = await Promise.all(
+      Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(async ([id, u]) => {
+        const score = calcWeightedGardenScore(u.collection || []);
+        let username = `User#${id.slice(-4)}`;
+        try { const discordUser = await client.users.fetch(id); username = discordUser.username; } catch {}
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score) };
+      })
+    );
+    const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
+    if (!sorted.length) return message.reply('No garden data yet!');
+    const imgBuf = await generateInvLBImage(sorted);
+    const att    = new AttachmentBuilder(imgBuf, { name: 'invlb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://invlb.png').setFooter({ text: `Garden Rankings  ·  !invlb` }).setColor(0x9B59B6)], files: [att] });
+  }
+
+  // ── !testrank — admin: preview all 9 garden tiers in one image ────────────
+  if (cmd === 'testrank') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    // Build a fake leaderboard with one entry per tier, scores set just above each threshold
+    const fakeEntries = GARDEN_TIERS.map((tier, i) => ({
+      username:   `[${tier.name} Preview]`,
+      score:      tier.minScore === 0 ? 0 : tier.minScore,
+      plantCount: 0,
+      tier,
+    })).reverse(); // show highest tier first
+    const imgBuf = await generateInvLBImage(fakeEntries);
+    const att    = new AttachmentBuilder(imgBuf, { name: 'testrank.png' });
+
+    // Also send a text summary so it's easy to see thresholds
+    const lines = [...GARDEN_TIERS].reverse().map(t =>
+      `${t.emoji} **${t.name}** — score ≥ \`${t.minScore.toLocaleString()}\``
+    );
+    return message.channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('🛠️ Garden Tier Preview')
+          .setDescription(lines.join('\n'))
+          .setFooter({ text: 'Replace tier emojis in GARDEN_TIERS to update icons' })
+          .setColor(0x9B59B6),
+        new EmbedBuilder().setImage('attachment://testrank.png').setColor(0x9B59B6),
+      ],
+      files: [att],
+    });
+  }
+
+  // ── !achievements / !ach ──────────────────────────────────────────────────
+  if (cmd === 'achievements' || cmd === 'ach') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    const lines = Object.entries(ACHIEVEMENTS).map(([key, a]) => { const done = user.achievements.includes(key); return `${done ? a.emoji : '⬛'} **${a.name}** — ${a.description}${done ? '' : ' *(locked)*'}`; });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🏅 ${target.username}'s Achievements (${user.achievements.length}/${Object.keys(ACHIEVEMENTS).length})`).setDescription(lines.join('\n')).setColor(0xFFD700)] });
+  }
+
+  // ── !settitle / !title ────────────────────────────────────────────────────
+  if (cmd === 'settitle' || cmd === 'title') {
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    if (!args[1] || args[1] === 'none') { user.activeTitle = null; saveDB(db); return message.reply('Title cleared.'); }
+    const key = args[1].toLowerCase();
+    if (!user.titles.includes(key)) return message.reply(`You don't own that title.`);
+    user.activeTitle = key; saveDB(db);
+    return message.reply(`✅ Title set to **${getActiveTitle(user)}**`);
+  }
+
+  // ── !titles ───────────────────────────────────────────────────────────────
+  if (cmd === 'titles') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    if (!user.titles.length) return message.reply(`${target.username} has no titles yet!`);
+    const lines = user.titles.map(key => { const ach = ACHIEVEMENTS[key]; const st = SHOP_TITLES[key]; if (ach) return `${ach.emoji} **${ach.title}** *(Achievement)*`; if (st) return `${st.emoji} **${st.name}** *(Purchased)*`; return key; });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🏷️ ${target.username}'s Titles`).setDescription(lines.join('\n') + '\n\nUse `!title <key>` to equip one.').setColor(0x7289DA)] });
+  }
+
+  if (cmd === 'setrace') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('Need **Manage Messages**.');
+    const seconds = parseInt(args[1]);
+    if (!seconds || seconds < 5 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300)');
+    raceTimer = seconds;
+    return message.reply(`✅ Race timer set to **${raceTimer} seconds**.`);
+  }
+
+  // ── !race ─────────────────────────────────────────────────────────────────
+  if (cmd === 'race') {
+    if (activeRaces[message.channel.id]) return message.reply('A race is already active!');
+    const captcha = randomCaptcha(6), startTime = Date.now();
+    const W = 480, H = 160, rCanvas = createCanvas(W, H), rCtx = rCanvas.getContext('2d');
+    rCtx.fillStyle = '#0d0d0d'; rCtx.fillRect(0, 0, W, H);
+    const barGrad = rCtx.createLinearGradient(0, 0, W, 0); barGrad.addColorStop(0, '#FFAA00'); barGrad.addColorStop(1, '#ff6b6b');
+    rCtx.fillStyle = barGrad; rCtx.fillRect(0, 0, W, 4);
+    rCtx.font = '13px Arial'; rCtx.fillStyle = 'rgba(255,255,255,0.35)'; rCtx.textBaseline = 'top';
+    rCtx.fillText('type the captcha to win  ·  first 5 finish', 16, 14);
+    const colors = ['#ffffff','#ffffff','#ffffff','#ffffff','#ffffff','#ffffff'], letters = captcha.split('');
+    const CHAR_W = 68, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.4, midY = H / 2 + 12;
+    letters.forEach((char, i) => { rCtx.save(); rCtx.font = 'bold 64px Arial'; rCtx.fillStyle = colors[i % colors.length]; rCtx.shadowColor = colors[i % colors.length]; rCtx.shadowBlur = 14; rCtx.textBaseline = 'middle'; rCtx.translate(startX + i * CHAR_W, midY + (Math.random() - 0.5) * 6); rCtx.rotate((Math.random() - 0.5) * 0.12); rCtx.fillText(char, 0, 0); rCtx.restore(); });
+    for (let i = 0; i < 18; i++) { rCtx.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`; rCtx.beginPath(); rCtx.arc(Math.random() * W, Math.random() * H, Math.random() * 2, 0, Math.PI * 2); rCtx.fill(); }
+    const rImgBuf = rCanvas.toBuffer('image/png'), rAtt = new AttachmentBuilder(rImgBuf, { name: 'race.png' });
+    const msg = await message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://race.png').setColor(0xFFAA00)], files: [rAtt] });
+    activeRaces[message.channel.id] = { captcha, messageId: msg.id, startTime, finishers: [] };
+    setTimeout(async () => { const r = activeRaces[message.channel.id]; if (r && r.messageId === msg.id) await endRace(message.channel, r); }, raceTimer * 1000);
+    return;
+  }
+
+  // ── !racelb / !rlb ────────────────────────────────────────────────────────
+  if (cmd === 'racelb' || cmd === 'rlb') {
+    const lb = loadRaceLB().slice(0, 10);
+    if (!lb.length) return message.reply('No race times yet!');
+    const imgBuf = generateRaceLBImage(lb.map(e => ({ username: e.username, bestTime: e.bestTime })));
+    const att    = new AttachmentBuilder(imgBuf, { name: 'racelb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://racelb.png').setFooter({ text: `Top ${lb.length} Racers  ·  !rlb` }).setColor(0xFFAA00)], files: [att] });
+  }
+
+  if (cmd === 'dailylb' || cmd === 'dlb') {
+    const lb = loadClaimsLB();
+    const DAY = 24 * 60 * 60 * 1000;
+    const sorted = lb
+      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, DAY), userId: e.userId }))
+      .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    if (!sorted.length) return message.reply('No claims in the last 24 hours!');
+    const imgBuf = generateClaimsLBImage(sorted, '🌱 Daily Claims', 'Claims in the last 24 hours  ·  !dailylb');
+    const att = new AttachmentBuilder(imgBuf, { name: 'dailylb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://dailylb.png').setColor(0x00C853)], files: [att] });
+  }
+
+  if (cmd === 'weeklylb' || cmd === 'wlb') {
+    const lb = loadClaimsLB();
+    const WEEK = 167 * 60 * 60 * 1000;
+    const sorted = lb
+      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, WEEK), userId: e.userId }))
+      .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    if (!sorted.length) return message.reply('No claims in the last 167 hours!');
+    const imgBuf = generateClaimsLBImage(sorted, '🌿 Weekly Claims', 'Claims in the last 167 hours  ·  !weeklylb');
+    const att = new AttachmentBuilder(imgBuf, { name: 'weeklylb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://weeklylb.png').setColor(0x4CAF50)], files: [att] });
+  }
+
+  // ── !moneylb / !mlb ───────────────────────────────────────────────────────
+  if (cmd === 'moneylb' || cmd === 'mlb') {
+    const db = loadDB();
+    const sorted = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, currency: u.currency||0 })).sort((a,b) => b.currency-a.currency).slice(0, 10);
+    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency }; }));
+    const imgBuf = generateMoneyLBImage(entries);
+    const att    = new AttachmentBuilder(imgBuf, { name: 'moneylb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://moneylb.png').setFooter({ text: `Top ${entries.length} Richest  ·  !mlb` }).setColor(0x00C853)], files: [att] });
+  }
+
+  // ── !inventory / !inv ─────────────────────────────────────────────────────
+  if (cmd === 'inventory' || cmd === 'inv') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    if (!user.collection.length) return message.reply(`${target.username} has no plants yet.`);
+    const rawArgs = args.slice(1).join(' ');
+    let versionFilter = null;
+    const verMatch = rawArgs.match(/-version\s*([<>=!]+)\s*(\d+)/i);
+    if (verMatch) versionFilter = { op: verMatch[1], n: parseInt(verMatch[2]) };
+    let mutationFilter = null, rarityFilter = null;
+    const mutMatch = rawArgs.match(/-m\s+([a-z]+)/i), rarMatch = rawArgs.match(/-r\s+([a-z]+)/i);
+    if (mutMatch) mutationFilter = mutMatch[1].toLowerCase();
+    if (rarMatch) rarityFilter = rarMatch[1].toLowerCase();
+
+    // Plant name filter — any word/phrase that matches a known plant name
+    const cleanForPlant = rawArgs.replace(/-version\s*[<>=!]+\s*\d+/i,'').replace(/-m\s+\S+/i,'').replace(/-r\s+\S+/i,'').replace(/<@!?\d+>/g,'').replace(/\b\d{17,20}\b/,'').trim();
+    const matchedPlant = PLANTS.find(p => cleanForPlant.toLowerCase().includes(p.name.toLowerCase()));
+    const plantNameFilter = matchedPlant ? matchedPlant.name : null;
+
+    const cleanArgs = cleanForPlant.replace(plantNameFilter || '', '').trim();
+    const pageArg = parseInt(cleanArgs) || 1;
+    const RARITY_SORT = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    let filtered = [...user.collection].sort((a, b) => { const ri = RARITY_SORT.indexOf(a.rarity) - RARITY_SORT.indexOf(b.rarity); if (ri !== 0) return ri; return (a.version || 999) - (b.version || 999); });
+    if (versionFilter) { const { op, n } = versionFilter; filtered = filtered.filter(p => { const v = p.version || 0; if (op==='>'||op==='gt') return v>n; if (op==='>='||op==='gte') return v>=n; if (op==='<'||op==='lt') return v<n; if (op==='<='||op==='lte') return v<=n; if (op==='='||op==='==') return v===n; return true; }); }
+    if (mutationFilter) { if (mutationFilter === 'none') filtered = filtered.filter(p => !p.mutation); else filtered = filtered.filter(p => p.mutation && p.mutation.name.toLowerCase() === mutationFilter); }
+    if (rarityFilter) filtered = filtered.filter(p => p.rarity.toLowerCase().startsWith(rarityFilter));
+    if (plantNameFilter) filtered = filtered.filter(p => p.name.toLowerCase() === plantNameFilter.toLowerCase());
+    if (!filtered.length) return message.reply('No plants match those filters.');
+    const gardenScore = calcWeightedGardenScore(user.collection);
+    const gardenTier  = getGardenTier(gardenScore);
+    const PER_PAGE = 10, totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+const defaultPage = 1;
+const page = Math.max(1, Math.min(pageArg, totalPages));
+    const slice = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+    const filterParts = [];
+    if (versionFilter)  filterParts.push(`v${versionFilter.op}${versionFilter.n}`);
+    if (mutationFilter) filterParts.push(`mut:${mutationFilter}`);
+    if (rarityFilter)   filterParts.push(`rarity:${rarityFilter}`);
+    if (plantNameFilter) filterParts.push(`plant:${plantNameFilter}`);
+    const filterStr = filterParts.length ? `  ·  filter: ${filterParts.join(' + ')}` : '';
+    const topRarity = getRarityConfig(slice[0].rarity);
+    const lines = slice.map((p, i) => {
+      const rCfg = getRarityConfig(p.rarity), mutBadge = p.mutation ? ` ${p.mutation.emoji} **${p.mutation.name}**` : '', verStr = p.version === 1 ? '`v1` 🔖' : `\`v${p.version || '?'}\``;
+      const num = (page - 1) * PER_PAGE + i + 1;
+      const sellVal = p.sellValue || rCfg.sellPrice;
+      const lockBadge = isLocked(message.author.id, p) ? ' `[L]`' : '';
+return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${sellVal.toLocaleString()}`;
+    });
+    const tierHex = '#' + gardenTier.color.toString(16).padStart(6, '0');
+    const statsLine = `**${target.username}** · ${user.collection.length} plants · ${gardenTier.emoji} **${gardenTier.name}** · Score: **${gardenScore.toLocaleString()}**`;
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🎒 Inventory — Page ${page}/${totalPages}${filterStr}`).setDescription(statsLine + '\n\u200b\n' + lines.join('\n')).setColor(topRarity.color).setFooter({ text: `Showing ${filtered.length} plants  ·  !inv [page] [-r rarity] [-m mutation] [-version op#]` })] });
+  }
+
+  // ── !view <plant> [-v <version>] ─────────────────────────────────────────
+  if (cmd === 'view') {
+    const rawView = args.slice(1).join(' '), vvMatch = rawView.match(/-v\s*(\d+)/i), vFilter = vvMatch ? parseInt(vvMatch[1]) : null;
+    const plantName = rawView.replace(/-v\s*\d+/i, '').trim();
+    if (!plantName) return message.reply('Usage: `!view <plant name> [-v version]`');
+    const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
+    if (!plant) return message.reply(`Plant **${plantName}** not found.`);
+    const rCfg = getRarityConfig(plant.rarity), db = loadDB(), user = getUser(db, message.author.id);
+    let owned = user.collection.filter(p => p.name === plant.name);
+    if (vFilter !== null) owned = owned.filter(p => p.version === vFilter);
+    const mktMult = getMarketMultiplier(plant.name);
+    const mktStr = mktMult > 1.05 ? `📈 +${Math.round((mktMult-1)*100)}% demand` : mktMult < 0.95 ? `📉 ${Math.round((mktMult-1)*100)}% demand` : `📊 Normal demand`;
+    let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** \`v${p.version}\``; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(plant.display).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })] });
+  }
+
+  // ── !sell / !s — with optional -v <version> flag ──────────────────────────
+  if (cmd === 'sell' || cmd === 's') {
+    if (args[1]?.toLowerCase() === 'all') {
+      const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+      if (!user.collection.length) return message.reply('You have no plants to sell.');
+      const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
+      const locked = user.collection.length - sellable.length;
+      const totalVal = sellable.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+      const CONFIRM_PHRASE = `SELLALL-${message.author.id.slice(-4).toUpperCase()}`;
+      pendingWipes[`sellall_${message.author.id}`] = { phrase: CONFIRM_PHRASE, ts: Date.now() };
+      setTimeout(() => delete pendingWipes[`sellall_${message.author.id}`], 60_000);
+      if (!sellable.length) return message.reply('All your plants are locked — nothing to sell.');
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('⚠️  Sell Entire Inventory?')
+        .setDescription(
+          `**This will sell ${sellable.length} plants for ${fmt(totalVal)}.**${locked > 0 ? `\n🔒 ${locked} locked plant${locked !== 1 ? 's' : ''} will be kept.` : ''}\n\n` +
+          `This **cannot be undone**.\n\nTo confirm, type:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`
+        )
+        .setColor(0xFF0000)
+      ]});
+    }
+    const rawSell = args.slice(1).join(' ');
+    const vSellMatch = rawSell.match(/-v\s*(\d+)/i);
+    const vSellFilter = vSellMatch ? parseInt(vSellMatch[1]) : null;
+    let plantName = rawSell.replace(/-v\s*\d+/i, '').trim();
+    // Strip trailing "all" keyword before doing the plant name lookup
+    const hasSellAll = /\ball\b$/i.test(plantName);
+    if (hasSellAll) plantName = plantName.replace(/\s*\ball\b$/i, '').trim();
+    if (!plantName) return message.reply('Usage: `!sell <plant name> [-v version]`');
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+    // Collect all matching plants
+    let candidates = user.collection
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.name.toLowerCase() === plantName.toLowerCase());
+
+    if (vSellFilter !== null) {
+      candidates = candidates.filter(({ p }) => p.version === vSellFilter);
+    }
+
+    if (!candidates.length) {
+      const allOwned = user.collection.filter(p => p.name.toLowerCase() === plantName.toLowerCase());
+      if (allOwned.length > 0 && vSellFilter !== null) return message.reply(`You don't own **${plantName}** v${vSellFilter}. You own: ${allOwned.map(p => `v${p.version}`).join(', ')}`);
+      return message.reply(`You don't own **${plantName}**.`);
+    }
+
+    // "!sell <plant> all" — sell all copies at once
+    if (hasSellAll && vSellFilter === null) {
+      candidates = candidates.filter(({ p }) => !isLocked(message.author.id, p));
+      if (!candidates.length) return message.reply(`All copies of **${plantName}** are locked.`);
+      const rCfg      = getRarityConfig(candidates[0].p.rarity);
+      const totalVal  = candidates.reduce((sum, { p }) => sum + (p.sellValue || rCfg.sellPrice), 0);
+      const lines     = candidates.map(({ p }) => {
+        const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+        const val    = p.sellValue || rCfg.sellPrice;
+        return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+      });
+      // Store all indices for the confirm handler
+      pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, index: c.i })), totalVal };
+      setTimeout(() => delete pendingSells[message.author.id], 30_000);
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle(`💰 Sell All ${plantName}? (${candidates.length} copies)`)
+        .setDescription(lines.join('\n') + `\n\n**Total payout: ${CURRENCY_EMOJI} ${totalVal.toLocaleString()}**\n\nType \`yes\` to sell all, \`no\` to cancel. *(30s)*`)
+        .setColor(rCfg.color)
+      ]});
+    }
+
+    // If multiple copies and no version/all specified, show picker prompt
+    if (candidates.length > 1 && vSellFilter === null) {
+      const rCfg  = getRarityConfig(candidates[0].p.rarity);
+      const lines = candidates.map(({ p }) => {
+        const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+        const val    = p.sellValue || rCfg.sellPrice;
+        return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+      });
+      const totalVal = candidates.reduce((sum, { p }) => sum + (p.sellValue || rCfg.sellPrice), 0);
+      return message.reply({ embeds: [new EmbedBuilder()
+        .setTitle(`Which **${plantName}** would you like to sell?`)
+        .setDescription(
+          lines.join('\n') +
+          `\n\n` +
+          `**Select a copy:**\n` +
+          `\`!sell ${plantName} -v <version>\`  — sell a specific copy\n` +
+          `\`!sell ${plantName} all\`  — sell all ${candidates.length} copies for ${CURRENCY_EMOJI} ${totalVal.toLocaleString()}`
+        )
+        .setColor(rCfg.color)
+      ]});
+    }
+
+    
+
+    // Single match — confirm
+    if (isLocked(message.author.id, candidates[0].p) && !candidates[0].p.version || isLocked(message.author.id, candidates[0].p) && candidates[0].p.version > 0) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
+    const { p: plant, i: index } = candidates[0];
+    const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
+    const rCfg  = getRarityConfig(plant.rarity);
+    pendingSells[message.author.id] = { plant, index };
+    setTimeout(() => delete pendingSells[message.author.id], 30_000);
+    const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
+    const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** \`v${plant.version || '?'}\`?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setThumbnail(plant.display).setColor(rCfg.color)] });
+  }
+
+  // ── !sellbatch / !sb — sell multiple plants by filter ────────────────────
+  // Usage: !sellbatch [-r rarity] [-m mutation|none] [-v op#] [-p plant name] [--confirm]
+  // Without --confirm it shows a preview. With --confirm it executes.
+  if (cmd === 'sellbatch' || cmd === 'sb') {
+    const rawBatch = args.slice(1).join(' ');
+
+    // Parse flags
+    const rMatch  = rawBatch.match(/-r\s+([a-z]+)/i);
+    const mMatch  = rawBatch.match(/-m\s+([a-z]+(?:\s+[a-z]+)?)/i);
+    const vMatch  = rawBatch.match(/-v\s*([<>=!]+)\s*(\d+)/i);
+    const pMatch  = rawBatch.match(/-p\s+"([^"]+)"|(?:-p\s+)([\w\s]+?)(?=\s+-|--confirm|$)/i);
+    const doConfirm = rawBatch.includes('--confirm');
+
+    const rarityFilter   = rMatch  ? rMatch[1].toLowerCase()  : null;
+    const mutationFilter = mMatch  ? mMatch[1].toLowerCase()  : null;
+    const vOp            = vMatch  ? vMatch[1]                : null;
+    const vNum           = vMatch  ? parseInt(vMatch[2])      : null;
+    const plantFilter    = pMatch  ? (pMatch[1] || pMatch[2]).trim().toLowerCase() : null;
+
+    if (!rarityFilter && !mutationFilter && !vOp && !plantFilter) {
+      return message.reply([
+        '**Usage:** `!sellbatch [filters] [--confirm]`',
+        'Filters (combine freely):',
+        '`-r <rarity>` — e.g. `-r common`',
+        '`-m <mutation>` or `-m none` — e.g. `-m starstruck`',
+        '`-v <op><n>` — e.g. `-v >10` `-v >=5` `-v =3`',
+        '`-p "<plant name>"` — e.g. `-p "Bell Pepper"`',
+        '',
+        'Without `--confirm`: shows preview of what would be sold.',
+        'Add `--confirm` to actually execute the sale.',
+        '',
+        '**Examples:**',
+        '`!sellbatch -r common` → preview all commons',
+        '`!sellbatch -r common --confirm` → sell all commons',
+        '`!sellbatch -v >20 -m none --confirm` → sell all v20+ without mutations',
+        '`!sellbatch -p carrot -v >5 --confirm` → sell all Carrot v5+',
+      ].join('\n'));
+    }
+
+    const db   = loadDB();
+    const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+    // Version comparison helper
+    const passesVersion = (v) => {
+      if (!vOp) return true;
+      const ver = v || 0;
+      if (vOp === '>'  || vOp === 'gt')  return ver >  vNum;
+      if (vOp === '>=' || vOp === 'gte') return ver >= vNum;
+      if (vOp === '<'  || vOp === 'lt')  return ver <  vNum;
+      if (vOp === '<=' || vOp === 'lte') return ver <= vNum;
+      if (vOp === '='  || vOp === '==')  return ver === vNum;
+      return true;
+    };
+
+    // Build candidates — never sell v1–v10 in a batch (protected)
+    const BATCH_SAFE_MIN_VER = 10;
+    const candidates = user.collection
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => {
+        if (sellbatchV10Protection && (p.version || 0) <= BATCH_SAFE_MIN_VER) return false;
+        if (isLocked(message.author.id, p)) return false;
+        if (rarityFilter   && p.rarity.toLowerCase()                    !== rarityFilter)   return false;
+        if (mutationFilter && mutationFilter !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== mutationFilter)) return false;
+        if (mutationFilter === 'none' && p.mutation)                                        return false;
+        if (plantFilter    && p.name.toLowerCase() !== plantFilter)                         return false;
+        if (!passesVersion(p.version))                                                      return false;
+        return true;
+      });
+
+    if (!candidates.length) {
+      return message.reply('No plants match those filters. *(v1–v10 are always protected from batch sells.)*');
+    }
+
+    // Tally up
+    const totalCoins = candidates.reduce((sum, { p }) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+
+    // Build a summary grouped by rarity
+    const byRarity = {};
+    for (const { p } of candidates) {
+      if (!byRarity[p.rarity]) byRarity[p.rarity] = 0;
+      byRarity[p.rarity]++;
+    }
+    const RARITY_ORDER = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const summaryLines = RARITY_ORDER
+      .filter(r => byRarity[r])
+      .map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
+
+    // Active filter summary
+    const filterParts = [];
+    if (rarityFilter)                  filterParts.push(`rarity: **${rarityFilter}**`);
+    if (mutationFilter)                filterParts.push(`mutation: **${mutationFilter}**`);
+    if (vOp)                           filterParts.push(`version **${vOp}${vNum}**`);
+    if (plantFilter)                   filterParts.push(`plant: **${plantFilter}**`);
+    const filterStr = filterParts.join('  ·  ');
+
+    if (!doConfirm) {
+      // Preview mode
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle(`🔍 Batch Sell Preview — ${candidates.length} plants`)
+        .setDescription(
+          `**Filters:** ${filterStr}\n\n` +
+          summaryLines.join('\n') +
+          `\n\n**Total payout:** ${fmt(totalCoins)}\n\n` +
+          `⚠️ *v1–v10 and locked plants are always excluded.*\n` +
+          `Add \`--confirm\` to your command to execute.`
+        )
+        .setColor(0xFFAA00)
+      ]});
+    }
+
+    // Execute — remove from highest index down to avoid index shift bugs
+    const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
+    for (const idx of indexesToRemove) user.collection.splice(idx, 1);
+    user.currency += totalCoins;
+    touchActivity(db, message.author.id, message.author);
+    checkAchievements(user);
+    saveDB(db);
+
+    return message.channel.send({ embeds: [new EmbedBuilder()
+      .setTitle(`✅ Batch Sold — ${candidates.length} plants`)
+      .setDescription(
+        `**Filters:** ${filterStr}\n\n` +
+        summaryLines.join('\n') +
+        `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`
+      )
+      .setColor(0x00C853)
+    ]});
+  }
+
+  // ── !daily ────────────────────────────────────────────────────────────────
+  if (cmd === 'daily') {
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    touchActivity(db, message.author.id, message.author);
+    const now = Date.now(), DAY = 86400000;
+    if (user.lastDaily && now - user.lastDaily < DAY) { const rem = DAY - (now - user.lastDaily); const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000); return message.reply(`⏳ Come back in **${h}h ${m}m**.`); }
+    const rarity = pickRarityWithCharms(db, message.author.id), plant = pickPlant(rarity.name), mutation = rollMutation();
+    const version = getAvailableVersion(plant.name, db); recordVersionHighWater(plant.name, version);
+    const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
+    if (!TEST_IDS.has(message.author.id)) {
+      user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
+      user.currency += coins; user.lastDaily = now;
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db);
+    }
+    const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
+  }
+
+  // ── !weekly ───────────────────────────────────────────────────────────────
+  if (cmd === 'weekly') {
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    touchActivity(db, message.author.id, message.author);
+    const now = Date.now(), WEEK = 604800000;
+    if (user.lastWeekly && now - user.lastWeekly < WEEK) { const rem = WEEK - (now - user.lastWeekly); const d = Math.floor(rem/86400000), h = Math.floor((rem%86400000)/3600000); return message.reply(`⏳ Come back in **${d}d ${h}h**.`); }
+    const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
+    const coins = Math.floor(Math.random()*1000)+500;
+    if (!TEST_IDS.has(message.author.id)) {
+      for (const p of plants) {
+        user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
+      }
+      user.currency += coins; user.lastWeekly = now;
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); saveDB(db);
+    }
+    const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
+  }
+
+  // ── !shop ─────────────────────────────────────────────────────────────────
+  if (cmd === 'shop') {
+    const page = Math.max(0, Math.min(SHOP_PAGES.length-1, (parseInt(args[1])||1) - 1));
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    return message.channel.send({ embeds: [buildShopEmbed(page, user, user.currency)] });
+  }
+
+  // ── !buy / !b ─────────────────────────────────────────────────────────────────
+  if (cmd === 'buy' || cmd === 'b') {
+    const itemKey = args[1]?.toLowerCase();
+    if (!itemKey) return message.reply('Usage: `!buy <item>`. See `!shop` for items.');
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    touchActivity(db, message.author.id, message.author);
+    if (CHARMS[itemKey]) {
+      const ch = CHARMS[itemKey];
+      if (user.charms.includes(itemKey)) return message.reply(`You already own **${ch.name}**!`);
+      if (user.currency < ch.price) return message.reply(`❌ Need ${fmt(ch.price)}.`);
+      user.currency -= ch.price; user.charms.push(itemKey); saveDB(db);
+      return message.reply(`${ch.emoji} Purchased **${ch.name}**! Use \`!equip ${itemKey}\` to activate.`);
+    }
+    if (SHOP_TITLES[itemKey]) {
+      const t = SHOP_TITLES[itemKey];
+      if (user.titles.includes(itemKey)) return message.reply(`You already own the **${t.name}** title!`);
+      if (user.currency < t.price) return message.reply(`❌ Need ${fmt(t.price)}.`);
+      user.currency -= t.price; user.titles.push(itemKey); saveDB(db);
+      return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
+    }
+    const crateKey = Object.keys(CRATES).find(k => CRATES[k].name.split(' ')[0].toLowerCase() === itemKey || k === itemKey);
+    if (!crateKey) return message.reply('Unknown item. Check `!shop`.');
+    const crate = CRATES[crateKey];
+    const userLevel = getLevelFromXP(user.xp || 0);
+    if (userLevel < crate.minLevel) {
+      return message.reply(`❌ You need to be **Level ${crate.minLevel}** to open ${crate.name}. You're currently Level ${userLevel}.`);
+    }
+    if (user.currency < crate.price) return message.reply(`❌ Need ${fmt(crate.price)}.`);
+    if (!user.crateCooldowns) user.crateCooldowns = {};
+    const lastUsed = user.crateCooldowns[crateKey] || 0;
+    const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
+    const remaining = cdMs - (Date.now() - lastUsed);
+    if (remaining > 0) {
+      const mins = Math.floor(remaining / 60000), secs = Math.ceil((remaining % 60000) / 1000);
+      return message.reply(`⏳ **${crate.name}** cooldown: **${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}** remaining.`);
+    }
+    const results = openCrate(crateKey, db, message.author.id);
+    if (!TEST_IDS.has(message.author.id)) {
+      user.currency -= crate.price;
+      user.crateCooldowns[crateKey] = Date.now();
+      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); user.collection.push({ name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }); }
+      user.cratesOpened = (user.cratesOpened||0) + 1;
+      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); saveDB(db);
+    }
+    const spoilerLines = results.map(p => `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
+  }
+
+  // ── !equip / !unequip ─────────────────────────────────────────────────────
+  if (cmd === 'equip' || cmd === 'unequip') {
+    const key = args[1]?.toLowerCase();
+    if (!key || !CHARMS[key]) return message.reply('Usage: `!equip <charm_key>`');
+    const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    if (!user.charms.includes(key)) return message.reply(`You don't own **${CHARMS[key].name}**.`);
+    const ch = CHARMS[key];
+    if (cmd === 'equip') { if (user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Already equipped.`); user.equippedCharms.push(key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** equipped!`); }
+    else { if (!user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Not equipped.`); user.equippedCharms = user.equippedCharms.filter(k => k !== key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** unequipped.`); }
+  }
+
+  // ── !coins ────────────────────────────────────────────────────────────────
+  if (cmd === 'coins') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    return message.reply(`${target.username}'s balance: ${fmt(user.currency)}`);
+  }
+
+  // ── Admin: currency/xp management ────────────────────────────────────────
+  if (cmd === 'addcurrency' || cmd === 'givecoin') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
+    if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
+    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
+    return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
+  }
+  if (cmd === 'addxp') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
+    if (!target || isNaN(amount)) return message.reply('Usage: `!addxp @user <amount>`');
+    const db = loadDB(); addXP(db, target.id, amount); saveDB(db);
+    return message.reply(`✅ Gave **${amount} XP** to **${target.username}**.`);
+  }
+  if (cmd === 'removexp') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
+    if (!target || isNaN(amount)) return message.reply('Usage: `!removexp @user <amount>`');
+    const db = loadDB(); const user = getUser(db, target.id); user.xp = Math.max(0, (user.xp || 0) - amount); saveDB(db);
+    return message.reply(`✅ Removed **${amount} XP** from **${target.username}**.`);
+  }
+  if (cmd === 'removecurrency' || cmd === 'removecoin') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
+    if (!target || isNaN(amount)) return message.reply('Usage: `!removecurrency @user <amount>`');
+    const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db);
+    return message.reply(`✅ Removed ${fmt(amount)} from **${target.username}**.`);
+  }
+  if (cmd === 'removeplant') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!removeplant @user <plant name> [-v version] [-m mutation] [-r rarity] [--all]`');
+    const db = loadDB(); const user = getUser(db, target.id);
+
+    const rawRemove = args.slice(2).join(' ');
+    const vMatch = rawRemove.match(/-v\s*(\d+)/i);
+    const mMatch = rawRemove.match(/-m\s+([a-z]+)/i);
+    const rMatch = rawRemove.match(/-r\s+([a-z]+)/i);
+    const doAll  = rawRemove.includes('--all');
+    const plantName = rawRemove.replace(/-v\s*\d+/i,'').replace(/-m\s+\S+/i,'').replace(/-r\s+\S+/i,'').replace('--all','').trim();
+
+    if (!plantName && !rMatch && !mMatch) return message.reply('Usage: `!removeplant @user <plant name> [-v version] [-m mutation] [-r rarity] [--all]`');
+
+    let candidates = user.collection
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => {
+        if (plantName && p.name.toLowerCase() !== plantName.toLowerCase()) return false;
+        if (vMatch && p.version !== parseInt(vMatch[1])) return false;
+        if (mMatch && (!p.mutation || p.mutation.name.toLowerCase() !== mMatch[1].toLowerCase())) return false;
+        if (rMatch && p.rarity.toLowerCase() !== rMatch[1].toLowerCase()) return false;
+        return true;
+      });
+
+    if (!candidates.length) return message.reply(`No matching plants found on **${target.username}**.`);
+
+    // If multiple matches and no --all, show list
+    if (candidates.length > 1 && !doAll) {
+      const lines = candidates.map(({ p }) => {
+        const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+        return `${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version || '?'}\`${mutStr} *(${p.rarity})*`;
+      });
+      return message.reply({ embeds: [new EmbedBuilder()
+        .setTitle(`Found ${candidates.length} matching plants`)
+        .setDescription(lines.join('\n') + '\n\nAdd `--all` to remove all of them, or narrow your filters.')
+        .setColor(0xFF6600)
+      ]});
+    }
+
+    // Remove all candidates
+    const meta = loadMeta();
+    const removed = [];
+    for (const { p } of candidates) {
+      if (meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
+        meta.plantVersions[p.name]--;
+        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
+      }
+      removed.push(p);
+    }
+    // Remove from highest index down
+    candidates.sort((a, b) => b.i - a.i);
+    for (const { i } of candidates) user.collection.splice(i, 1);
+    saveMeta(meta); saveDB(db);
+
+    const lines = removed.map(p => {
+      const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+      return `${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version || '?'}\`${mutStr}`;
+    });
+    return message.reply({ embeds: [new EmbedBuilder()
+      .setTitle(`✅ Removed ${removed.length} plant${removed.length !== 1 ? 's' : ''} from ${target.username}`)
+      .setDescription(lines.join('\n'))
+      .setColor(0x00FF00)
+    ]});
+  }
+
+  // ── !wipeuser ─────────────────────────────────────────────────────────────
+  if (cmd === 'wipeuser') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!wipeuser @user`');
+    const CONFIRM_PHRASE = `WIPE-USER-${target.id.slice(-6).toUpperCase()}`;
+    pendingWipes[`user_${message.author.id}`] = { targetId: target.id, targetName: target.username, phrase: CONFIRM_PHRASE, ts: Date.now() };
+    setTimeout(() => delete pendingWipes[`user_${message.author.id}`], 60_000);
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`☢️  Wipe User — ${target.username}`).setDescription(`**Cannot be undone.**\n\nTo confirm:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`).setColor(0xFF6600)] });
+  }
+
+  // ── !trade / !t ───────────────────────────────────────────────────────────
+  if (cmd === 'trade' || cmd === 't') {
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!trade @user`');
+    if (target.id === message.author.id) return message.reply("Can't trade with yourself.");
+    if (target.bot) return message.reply("Can't trade with a bot.");
+    if (userTrades[message.author.id]) return message.reply('You already have an active trade.');
+    if (userTrades[target.id]) return message.reply(`**${target.username}** is in a trade.`);
+    const tradeId = generateTradeId();
+    const trade = { initiatorId: message.author.id, initiatorName: message.author.username, targetId: target.id, targetName: target.username, channelId: message.channel.id, sides: { [message.author.id]: { plants:[], coins:0, confirmed:false }, [target.id]: { plants:[], coins:0, confirmed:false } }, messageId: null, _timeout: null };
+    activeTrades[tradeId] = trade; userTrades[message.author.id] = tradeId; userTrades[target.id] = tradeId;
+    const msg = await message.channel.send({ embeds: [buildTradeEmbed(trade)] }); trade.messageId = msg.id;
+    trade._timeout = setTimeout(() => { if (activeTrades[tradeId]) { delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId]; msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Expired').setDescription('Trade timed out.').setColor(0x555555)] }).catch(()=>{}); } }, 3*60_000);
+    return;
+  }
+
+  // ── !remove ───────────────────────────────────────────────────────────────
+  if (cmd === 'remove') {
+    const tradeId = userTrades[message.author.id];
+    if (!tradeId || !activeTrades[tradeId]) return;
+    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
+    if (mySide.confirmed) return message.reply("Already confirmed. Use `!canceltrade` to restart.");
+    const plantName = args.slice(1).join(' ');
+    const idx = mySide.plants.findIndex(p => p.name.toLowerCase() === plantName.toLowerCase());
+    if (idx === -1) return message.reply(`**${plantName}** isn't in your offer.`);
+    mySide.plants.splice(idx, 1);
+    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
+    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
+    await message.react('🗑️').catch(()=>{}); return;
+  }
+
+  // ── !confirm ──────────────────────────────────────────────────────────────
+  if (cmd === 'confirm') {
+    const tradeId = userTrades[message.author.id];
+    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
+    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
+    if (!mySide.plants.length && mySide.coins === 0) return message.reply("Add something to your side first!");
+    mySide.confirmed = true;
+    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
+    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
+    if (!Object.values(trade.sides).every(s => s.confirmed)) { await message.reply('✅ Locked in! Waiting for the other person...'); return; }
+    clearTimeout(trade._timeout);
+    delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
+    const db = loadDB(); const iUser = getUser(db, trade.initiatorId); const tUser = getUser(db, trade.targetId);
+    const iSide = trade.sides[trade.initiatorId]; const tSide = trade.sides[trade.targetId];
+    for (const p of iSide.plants) { const idx = iUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
+    for (const p of tSide.plants) { const idx = tUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
+    if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
+    if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+    touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
+    saveDB(db);
+    const iLines = iSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
+    const tLines = tSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
+    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}** traded!`).addFields({ name:`${trade.targetName} received`, value: iLines+(iSide.coins>0?`\n${CURRENCY_EMOJI} ${iSide.coins.toLocaleString()}`:''), inline:true }, { name:`${trade.initiatorName} received`, value: tLines+(tSide.coins>0?`\n${CURRENCY_EMOJI} ${tSide.coins.toLocaleString()}`:''), inline:true }).setColor(0x00FF7F)] }).catch(()=>{});
+    return;
+  }
+
+  // ── !canceltrade / !ct ────────────────────────────────────────────────────
+  if (cmd === 'canceltrade' || cmd === 'ct' || cmd === 'decline') {
+    const tradeId = userTrades[message.author.id];
+    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
+    const trade = activeTrades[tradeId];
+    clearTimeout(trade._timeout); delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
+    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
+    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Cancelled').setDescription(`**${message.author.username}** cancelled the trade.`).setColor(0xFF4444)] }).catch(()=>{});
+    return;
+  }
+
+  // ── !market / !m ─────────────────────────────────────────────────────────
+  if (cmd === 'market' || cmd === 'm') {
+    const rawSlice = args.slice(1).join(' ');
+    let versionFilter = null, mutationFilter = null;
+    const vfMatch = rawSlice.match(/-version\s*([<>=!]+)\s*(\d+)/i), mfMatch = rawSlice.match(/-m\s+([a-z]+)/i);
+    if (vfMatch) versionFilter = { op: vfMatch[1], n: parseInt(vfMatch[2]) };
+    if (mfMatch) mutationFilter = mfMatch[1].toLowerCase();
+    const cleanSlice = rawSlice.replace(/-version\s*[<>=!]+\s*\d+/i,'').replace(/-m\s+\S+/i,'').trim();
+    const trailingPageMatch = cleanSlice.match(/^(.*?)\s+(\d+)$/);
+    let plantName = cleanSlice, explicitPage = null;
+    if (trailingPageMatch) { const possiblePlant = trailingPageMatch[1].trim(), possiblePage = parseInt(trailingPageMatch[2]); if (possiblePlant && PLANTS.some(p => p.name.toLowerCase() === possiblePlant.toLowerCase())) { plantName = possiblePlant; explicitPage = possiblePage; } }
+    if (plantName) {
+      const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
+      if (!plant) return message.reply(`Plant **${plantName}** not found.`);
+      const rCfg = getRarityConfig(plant.rarity), mult = getMarketMultiplier(plant.name);
+      const trend = mult > 1.1 ? '📈 Rising' : mult < 0.9 ? '📉 Falling' : '📊 Stable';
+      const db = loadDB(), versionEntries = {};
+      for (const [uid, userData] of Object.entries(db)) { for (const p of (userData.collection || [])) { if (p.name !== plant.name || !p.version) continue; if (!versionEntries[p.version]) versionEntries[p.version] = []; versionEntries[p.version].push({ userId: uid, mutation: p.mutation || null }); } }
+      const marketPage = Math.max(1, explicitPage || 1), PER_PAGE = 10;
+      const knownVersions = Object.keys(versionEntries).map(Number), maxKnownVersion = knownVersions.length > 0 ? Math.max(...knownVersions) : 0;
+      const totalVersions = Math.max(10, maxKnownVersion), totalPages = Math.ceil(totalVersions / PER_PAGE), page = Math.min(marketPage, totalPages);
+      const startV = (page - 1) * PER_PAGE + 1, endV = Math.min(startV + PER_PAGE - 1, totalVersions);
+      let versionLines = '';
+      for (let v = startV; v <= endV; v++) {
+        if (versionFilter) { const { op, n } = versionFilter; const pass = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n); if (!pass) continue; }
+        const holders = (versionEntries[v] || []).filter(e => { if (!mutationFilter) return true; if (mutationFilter === 'none') return !e.mutation; return e.mutation && e.mutation.name.toLowerCase() === mutationFilter; });
+        if (mutationFilter && holders.length === 0 && (versionEntries[v] || []).length > 0) continue;
+        const verPill = `\`v${String(v).padStart(2, ' ')}\``;
+        const ownerStr = !versionEntries[v] || versionEntries[v].length === 0 ? '*unclaimed*' : holders.length === 0 ? '*no matches*' : holders.map(e => { const mutTag = e.mutation ? ` ${e.mutation.emoji}` : ''; return `<@${e.userId}>${mutTag}`; }).join('  ');
+        versionLines += `${verPill}  ${ownerStr}\n`;
+      }
+      if (!versionLines) versionLines = '*No versions match those filters on this page.*\n';
+      const filterParts = []; if (versionFilter) filterParts.push(`version ${versionFilter.op}${versionFilter.n}`); if (mutationFilter) filterParts.push(`mutation: ${mutationFilter}`);
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${plant.name} — Version Ownership`).setDescription(`${rCfg.emoji} **${plant.rarity}**  ·  Demand: **${trend}**${filterParts.length ? `  ·  filter: ${filterParts.join(' + ')}` : ''}\n\n${versionLines}`).setThumbnail(plant.display).setColor(rCfg.color).setFooter({ text: `v${startV}–v${endV}  ·  Page ${page}/${totalPages}` })] });
+    } else {
+      const trending = PLANTS.map(p => ({ name: p.name, rarity: p.rarity, mult: getMarketMultiplier(p.name) })).sort((a,b) => b.mult - a.mult).slice(0, 8);
+      const lines = trending.map(p => { const r = getRarityConfig(p.rarity); const arrow = p.mult > 1.1 ? '📈' : p.mult < 0.9 ? '📉' : '📊'; return `${arrow} ${r.emoji} **${p.name}** — ×${p.mult.toFixed(2)}`; });
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle('📊 Plant Market — Trending').setDescription(lines.join('\n') + '\n\n*Use `!m <plant>` to see version owners*').setColor(0x4CAF50)] });
+    }
+  }
+
+  // ── !help / !h ────────────────────────────────────────────────────────────
+  if (cmd === 'help' || cmd === 'h') {
+    const sub = args[1]?.toLowerCase();
+
+    // ── Category menu ────────────────────────────────────────────────────────
+    if (!sub) {
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🌿 Plant Bot — Help')
+        .setDescription('Welcome to Plant Bot! Choose a category to learn more.')
+        .addFields(
+          { name: '📖  !help info', value: 'Rarities, mutations, charm effects & how the game works' },
+          { name: '🎮  !help play', value: 'Claims, daily/weekly, inventory, selling, trading, market, profile' },
+          { name: '🏆  !help compete', value: 'Races, leaderboards & garden ranking explained' },
+          { name: '🛒  !help shop', value: 'Crates, charms and titles — prices & effects' },
+          { name: '🔧  !help admin', value: 'Mod & admin commands *(restricted)*' }
+        )
+        .setFooter({ text: 'Type !help <category> to expand it  ·  !guide for a full beginner walkthrough' })
+        .setColor(0x57F287)
+      ]});
+    }
+
+    // ── Info ─────────────────────────────────────────────────────────────────
+    if (sub === 'info') {
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('📖 Info — Rarities, Mutations & Charms')
+        .addFields(
+          {
+            name: '⭐ Rarities',
+            value: [
+              '⚪ **Common** — very frequent · sell: 10 coins',
+              '🟢 **Uncommon** — frequent · sell: 25 coins',
+              '🔵 **Rare** — occasional · sell: 75 coins',
+              '🟣 **Epic** — uncommon · sell: 200 coins',
+              '🌟 **Legendary** — rare · sell: 750 coins',
+              '🔥 **Mythic** — very rare · sell: 5,000 coins',
+              '*There are rumours of something even rarer...*',
+            ].join('\n'),
+          },
+          {
+            name: '✨ Mutations',
+            value: [
+              'Mutations are rare bonuses that increase a plant\'s sell value. They can appear on any rarity.',
+              '',
+              '<:starstruck:1477666927135428650> **Starstruck** — ×1.65 value',
+              '🌊 **Flooded** — ×1.50 value',
+              '<:shocked:1477666867890884628> **Shocked** — ×1.45 value',
+              '<:soaked:1477666816745537546> **Soaked** — ×1.30 value',
+              '🏜️ **Sandy** — ×1.25 value',
+              '<:snowy:1477666846382620683> **Snowy** — ×1.20 value',
+              '',
+              '*Overall mutation chance is ~5%. Starstruck is the rarest.*',
+            ].join('\n'),
+          },
+          {
+            name: '🔮 How Charms Work',
+            value: [
+              'Charms boost your rarity odds in `!daily`, `!weekly` and crate openings.',
+              '⚠️ Charms do **not** affect channel drops — the rarity is decided when the plant spawns.',
+              '',
+              '🥉 **Bronze Charm** — Rare+ weights ×1.05',
+              '🥈 **Silver Charm** — Rare+ weights ×1.15',
+              '🥇 **Gold Charm** — Epic+ weights ×1.30',
+              '🌀 **Void Charm** — Legendary+ ×1.75, Mythic+ ×1.75',
+              '',
+              'Use `!equip <charm>` to activate · `!unequip <charm>` to remove',
+            ].join('\n'),
+          },
+          {
+            name: '📦 Versions & Value',
+            value: [
+              'Every plant has a version number (v1, v2, v3...). Lower versions are worth more.',
+              '🔖 **v1** is the first ever copy claimed — highly valued in trades, never sell it!',
+              'Version multipliers: v1 = ×3.5 · v2 = ×2.2 · v3 = ×1.7 · v4 = ×1.4 · v5 = ×1.2 · v6+ = ×1.0',
+            ].join('\n'),
+          },
+          {
+            name: '⏳ Decay',
+            value: [
+              'If you go **3 days** without activity your plants start decaying — 1 random plant removed per hour.',
+              'You\'ll get a DM warning after **2 days** of inactivity.',
+              '🛡️ **v1–v10 plants are always safe from decay.**',
+            ].join('\n'),
+          }
+        )
+        .setFooter({ text: '!guide for a full beginner walkthrough  ·  !help for categories' })
+        .setColor(0x9C27B0)
+      ]});
+    }
+
+    // ── Play ─────────────────────────────────────────────────────────────────
+    if (sub === 'play') {
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🎮 Play — Commands')
+        .addFields(
+          {
+            name: '🌱 Getting Plants',
+            value: [
+              '`claim <captcha>` — Claim a plant from an active drop in the drop channel',
+              '`!daily` — Free plant + coins once per day',
+              '`!weekly` — 3 free plants + coins once per week',
+            ].join('\n'),
+          },
+          {
+            name: '🎒 Inventory',
+            value: [
+              '`!inv [page]` — View your plants',
+              '`!inv [@user] [plant name]` — View someone\'s plants, optionally filtered by plant',
+              '`!inv -r <rarity>` — Filter by rarity (e.g. `-r legendary`)',
+              '`!inv -m <mutation>` — Filter by mutation (e.g. `-m starstruck`)',
+              '`!inv -version <op><n>` — Filter by version (e.g. `-version >10`)',
+              '`!view <plant> [-v version]` — Detailed view of a specific plant',
+            ].join('\n'),
+          },
+          {
+            name: '💰 Selling',
+            value: [
+              '`!sell <plant>` — Sell a plant (prompts version picker if you own multiple)',
+              '`!sell <plant> -v <n>` — Sell a specific version',
+              '`!sell <plant> all` — Sell all copies at once',
+              '`!sellbatch [-r rarity] [-m mutation] [-v op#] [-p plant] [--confirm]` — Bulk sell by filter',
+              '*v1–v10 are always protected from batch sells.*',
+            ].join('\n'),
+          },
+          {
+            name: '🔒 Locking Plants',
+            value: [
+              'Locks protect plants from being sold accidentally — locked plants are skipped by `!sell all`, `!sellbatch`, and `!sell` attempts.',
+              '',
+              '`!lock <plant>` — Lock all copies of a plant',
+              '`!lock <plant> -v <n>` — Lock a specific version only',
+              '`!lock -r <rarity>` — Lock all plants of a rarity (e.g. `-r legendary`)',
+              '`!lock -m <mutation>` — Lock all plants with a mutation (e.g. `-m starstruck`)',
+              '`!unlock <same filters>` — Remove a matching lock',
+              '`!locks` — View all your active locks',
+              '',
+              '**Examples:**',
+              '`!lock Carrot -v 1` — protect your v1 Carrot',
+              '`!lock -r mythic` — protect all mythics',
+              '`!lock -m starstruck` — protect all starstruck plants',
+            ].join('\n'),
+          },
+          {
+            name: '🔄 Trading',
+            value: [
+              '`!trade @user` — Start a trade session',
+              'During a trade, type to add to your offer:',
+              '> `Carrot` — adds your only copy, or shows picker if multiple',
+              '> `Carrot v3` — adds a specific version',
+              '> `Carrot all` — adds every copy you own',
+              '> `500` — offer 500 coins',
+              '`!remove <plant>` — Remove a plant from your offer',
+              '`!confirm` — Lock in your side (both must confirm to complete)',
+              '`!canceltrade` — Cancel at any time',
+            ].join('\n'),
+          },
+          {
+            name: '📈 Market',
+            value: [
+              '`!market` — See trending plants by demand',
+              '`!market <plant>` — See who owns each version of a plant',
+              '`!market <plant> -version <op><n>` — Filter by version',
+              '`!market <plant> -m <mutation>` — Filter by mutation',
+            ].join('\n'),
+          },
+          {
+            name: '👤 Profile & Progress',
+            value: [
+              '`!prof [@user]` — View your profile card',
+              '`!lvl [@user]` — View your level card',
+              '`!coins [@user]` — Check coin balance',
+              '`!ach [@user]` — View achievements',
+              '`!titles [@user]` — View owned titles',
+              '`!title <key>` — Equip a title · `!title none` to clear',
+            ].join('\n'),
+          }
+        )
+        .setFooter({ text: '!help for categories  ·  !guide for a beginner walkthrough' })
+        .setColor(0x4d96ff)
+      ]});
+    }
+
+    // ── Compete ───────────────────────────────────────────────────────────────
+    if (sub === 'compete') {
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🏆 Compete — Races & Leaderboards')
+        .addFields(
+          {
+            name: '🏁 Races',
+            value: [
+              '`!race` *(Mod only)* — Starts a race in the current channel',
+              'Type the captcha shown as fast as possible — first 5 to finish place on the board',
+              'Winners earn XP and improve their best time',
+            ].join('\n'),
+          },
+          {
+            name: '📊 Leaderboards',
+            value: [
+              '`!invlb` — Garden leaderboard ranked by weighted garden score',
+              '`!llb [page]` — Level leaderboard',
+              '`!mlb` — Richest players by coins',
+              '`!rlb` — Fastest race times',
+              '`!streaklb` — Longest claim streaks',
+            ].join('\n'),
+          },
+          {
+            name: '🌿 Garden Score & Tiers',
+            value: [
+              'Your garden score is calculated using a **weighted ranking system** — higher rarity plants contribute more, but with diminishing returns so 100 commons can\'t beat 1 legendary.',
+              '',
+              '🪨 Iron · 🥉 Bronze · 🥈 Silver · 🥇 Gold · 💠 Platinum · 💎 Diamond · 🔮 Master · 👑 Grandmaster · 🌌 Celestial',
+              '',
+              'Mutations and low version numbers both increase a plant\'s contribution to your score.',
+            ].join('\n'),
+          },
+          {
+            name: '⬆️ Levels & Ranks',
+            value: [
+              'Earn XP by claiming drops, daily/weekly, races and opening crates.',
+              '',
+              '🌱 Seedling (Lv.1) · 🌿 Sprout (Lv.5) · 🌾 Gardener (Lv.10) · 🌺 Botanist (Lv.20)',
+              '💐 Florist (Lv.35) · 🌳 Arborist (Lv.50) · 🍃 Naturalist (Lv.75) · ✨ Verdant (Lv.100)',
+            ].join('\n'),
+          }
+        )
+        .setFooter({ text: '!help for categories' })
+        .setColor(0xFFAA00)
+      ]});
+    }
+
+    // ── Shop ──────────────────────────────────────────────────────────────────
+    if (sub === 'shop') {
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🛒 Shop — Crates, Charms & Titles')
+        .setDescription('Use `!shop` to browse in-game · `!buy <item>` to purchase')
+        .addFields(
+          {
+            name: '📦 Crates — open 10 plants at once',
+            value: [
+              '`bronze` — 1,000 coins',
+              '`silver` — 5,000 coins',
+              '`gold` — 10,000 coins',
+              '`diamond` — 30,000 coins',
+              '`ruby` — 75,000 coins',
+              '*Higher tier crates have significantly better rarity odds.*',
+            ].join('\n'),
+          },
+          {
+            name: '🔮 Charms — boost daily/weekly/crate odds',
+            value: [
+              '🥉 `bronze_charm` — Rare+ ×1.05 · 50,000 coins',
+              '🥈 `silver_charm` — Rare+ ×1.15 · 250,000 coins',
+              '🥇 `gold_charm` — Epic+ ×1.30 · 1,000,000 coins',
+              '🌀 `void_charm` — Legendary+ ×1.75 · 5,000,000 coins',
+              '⚠️ Charms do **not** affect channel drops.',
+              'Use `!equip <key>` · `!unequip <key>`',
+            ].join('\n'),
+          },
+          {
+            name: '🏷️ Titles — cosmetic flair on your profile',
+            value: [
+              '🗺️ `wanderer` — 2,000 coins',
+              '🛡️ `guardian` — 5,000 coins',
+              '👻 `phantom` — 15,000 coins',
+              '👑 `sovereign` — 50,000 coins',
+              '🌙 `celestial` — 200,000 coins',
+              'Use `!title <key>` to equip · `!title none` to clear',
+            ].join('\n'),
+          }
+        )
+        .setFooter({ text: '!help for categories  ·  !shop to see your balance alongside items' })
+        .setColor(0xFFD700)
+      ]});
+    }
+
+    // ── Admin ─────────────────────────────────────────────────────────────────
+    if (sub === 'admin') {
+      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('You don\'t have permission to view admin commands.');
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🔧 Admin & Mod Commands')
+        .addFields(
+          {
+            name: '🌱 Drop Management *(Manage Messages)*',
+            value: [
+              '`!setdrop [#channel or ID]` — Set the drop channel',
+              '`!setdrop stop` — Disable drops',
+              '`!setvping [#channel or ID]` — Set the v1 ping channel',
+              '`!setvping stop` — Disable v1 pings',
+              '`!drop [-r rarity] [-p "plant"] [-m mutation]` — Force a drop',
+              '`!race` — Start a race in the current channel',
+            ].join('\n'),
+          },
+          {
+            name: '⚙️ Server Settings *(Administrator)*',
+            value: [
+              '`!setrarity <rarity>` — Lock all drops to a specific rarity',
+              '`!setrarity clear` — Remove the lock',
+              '`!testrank` — Preview all garden tier icons',
+            ].join('\n'),
+          },
+          {
+            name: '👤 User Management *(Administrator)*',
+            value: [
+              '`!addcurrency @user <amount>` — Give coins',
+              '`!removecurrency @user <amount>` — Remove coins',
+              '`!addxp @user <amount>` — Give XP',
+              '`!removexp @user <amount>` — Remove XP',
+              '`!removeplant @user <plant>` — Remove a plant from a user',
+              '`!wipeuser @user` — Delete all data for a user',
+              '`!wipeall` — Wipe all server data *(nuclear, requires confirmation)*',
+            ].join('\n'),
+          }
+        )
+        .setFooter({ text: 'Admin commands require confirmation phrases for destructive actions' })
+        .setColor(0xFF6600)
+      ]});
+    }
+
+    // Unknown subcommand
+    return message.reply('Unknown category. Use `!help` to see available categories.');
+  }
+}); 
+
+// ─── End Auction ──────────────────────────────────────────────────────────────
+async function endAuction(auctionId, fallbackChannel) {
+  const auctions = loadAuctions();
+  const idx = auctions.findIndex(a => a.id === auctionId);
+  if (idx === -1) return; // already resolved
+  const auction = auctions.splice(idx, 1)[0];
+  saveAuctions(auctions);
+
+  const rCfg = getRarityConfig(auction.plant.rarity);
+
+  if (!auction.bids.length) {
+    // No bids — return plant to seller
+    const db = loadDB();
+    const seller = getUser(db, auction.sellerId);
+    seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+    saveDB(db);
+    const embed = new EmbedBuilder()
+      .setTitle(`🔨 Auction Ended — No Bids`)
+      .setDescription(`**${auction.plant.name}** \`v${auction.plant.version || '?'}\` returned to **${auction.sellerName}**.`)
+      .setColor(0x9E9E9E);
+    if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
+    return;
+  }
+
+  const winner = auction.bids[auction.bids.length - 1];
+  const db = loadDB();
+  const buyer  = getUser(db, winner.userId);
+  const seller = getUser(db, auction.sellerId);
+
+  if (buyer.currency < winner.amount) {
+    // Winner can't pay — find next highest bidder who can
+    let paid = false;
+    for (let i = auction.bids.length - 2; i >= 0; i--) {
+      const fallback = auction.bids[i];
+      const fb = getUser(db, fallback.userId);
+      if (fb.currency >= fallback.amount) {
+        fb.currency -= fallback.amount;
+        seller.currency += fallback.amount;
+        fb.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+        saveDB(db);
+        const embed = new EmbedBuilder()
+          .setTitle('🔨 Auction Complete')
+          .setDescription(`**${auction.plant.name}** sold to **${fallback.username}** for ${fmt(fallback.amount)}!\n*(Winner couldn't pay — next bidder awarded.)*`)
+          .setColor(rCfg.color);
+        if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
+        paid = true; break;
+      }
+    }
+    if (!paid) {
+      seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      saveDB(db);
+      if (fallbackChannel) fallbackChannel.send({ embeds: [new EmbedBuilder().setTitle('🔨 Auction Failed').setDescription(`No valid bidder could pay. **${auction.plant.name}** returned to **${auction.sellerName}**.`).setColor(0x9E9E9E)] }).catch(() => {});
+    }
+    return;
+  }
+
+  buyer.currency -= winner.amount;
+  seller.currency += winner.amount;
+  buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+  saveDB(db);
+
+  const embed = new EmbedBuilder()
+    .setTitle('🔨 Auction Complete!')
+    .setDescription(`${rCfg.emoji} **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
+    .setColor(rCfg.color)
+    .setFooter({ text: `Seller: ${auction.sellerName}` });
+
+  if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
+
+  // DM winner
+  try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [embed] }); } catch {}
+}
+
+// ─── End Race ─────────────────────────────────────────────────────────────────
+async function endRace(channel, race) {
+  if (!activeRaces[channel.id]) return;
+  delete activeRaces[channel.id];
+  if (!race.finishers.length) return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Over — No Finishers!').setColor(0x555555)] });
+  race.finishers.sort((a,b) => a.time-b.time);
+  const lines = race.finishers.slice(0,5).map((f,i) => `${medal(i)} <@${f.userId}> — **${msToStr(f.time)}**`);
+  return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Results!').setDescription(`${medal(0)} Winner: <@${race.finishers[0].userId}> in **${msToStr(race.finishers[0].time)}**\n\n**Standings:**\n${lines.join('\n')}`).setColor(0xFFAA00)] });
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+const TOKEN = process.env.BOT_TOKEN;
+if (!TOKEN) { console.error('❌ No BOT_TOKEN'); process.exit(1); }
+// ─── Web Server ───────────────────────────────────────────────────────────────
+const path = require('path');
+const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const passport = require('passport');
+const { Strategy: DiscordStrategy } = require('passport-discord');
+const app = express();
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(session({
+  secret: 'gardenhorizons_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { sameSite: 'lax', httpOnly: true },
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+app.use('/images', express.static('C:\\Users\\Leo\\Desktop\\bot2026\\images'));
+app.use(express.static('C:\\Users\\Leo\\Desktop\\bot2026'));
+
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+passport.use(new DiscordStrategy({
+  clientID: '1476939322493112332',
+  clientSecret: '9dut8W5aU-tFi2K9ncIDxfCYjGGrNxJA',
+  callbackURL: 'http://localhost:3000/auth/discord/callback',
+  scope: ['identify'],
+}, (accessToken, refreshToken, profile, done) => {
+  return done(null, { id: profile.id, username: profile.username, avatar: profile.avatar });
+}));
+
+app.get('/auth/discord', passport.authenticate('discord'));
+app.get('/auth/discord/callback',
+  passport.authenticate('discord', { failureRedirect: '/' }),
+  (req, res) => res.redirect('/')
+);
+app.get('/auth/logout', (req, res) => { req.logout(() => {}); res.redirect('/'); });
+app.get('/auth/me', (req, res) => {
+  if (!req.user) return res.json({ user: null });
+  res.json({ user: req.user });
+});
+
+app.get('/api/leaderboards', (req, res) => {
+  try {
+    const db   = loadDB();
+    const meta = loadMeta();
+    const raceLB = loadRaceLB();
+    const claimsLB = loadClaimsLB();
+    const now = Date.now();
+    const DAY  = 24 * 60 * 60 * 1000;
+    const WEEK = 167 * 60 * 60 * 1000;
+
+    const garden = Object.entries(db)
+      .filter(([id]) => !TEST_IDS.has(id))
+      .map(([id, u]) => ({ id, score: calcWeightedGardenScore(u.collection||[]), plants: (u.collection||[]).length, tier: getGardenTier(calcWeightedGardenScore(u.collection||[])) }))
+      .filter(e => e.score > 0).sort((a,b) => b.score - a.score).slice(0,10);
+
+    const level = Object.entries(db)
+      .filter(([id]) => !TEST_IDS.has(id))
+      .map(([id, u]) => ({ id, xp: u.xp||0, level: getLevelFromXP(u.xp||0) }))
+      .sort((a,b) => b.xp - a.xp).slice(0,10);
+
+    const money = Object.entries(db)
+      .filter(([id]) => !TEST_IDS.has(id))
+      .map(([id, u]) => ({ id, currency: u.currency||0 }))
+      .sort((a,b) => b.currency - a.currency).slice(0,10);
+
+    const race = raceLB.filter(e => !TEST_IDS.has(e.userId)).slice(0,10);
+
+    const daily = claimsLB
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, DAY) }))
+      .filter(e => e.count > 0).sort((a,b) => b.count - a.count).slice(0,10);
+
+    const weekly = claimsLB
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
+      .filter(e => e.count > 0).sort((a,b) => b.count - a.count).slice(0,10);
+
+    const name = (id) => {
+      const u = db[id];
+      return u?.username || `User#${id.slice(-4)}`;
+    };
+
+    res.json({
+      garden: garden.map(e => ({ ...e, username: name(e.id), tierName: e.tier.name, tierEmoji: e.tier.emoji })),
+      level:  level.map(e  => ({ ...e, username: name(e.id), rank: getRank(e.level) })),
+      money:  money.map(e  => ({ ...e, username: name(e.id) })),
+      race:   race.map(e   => ({ ...e })),
+      daily,
+      weekly,
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/profile/:id', (req, res) => {
+  try {
+    const db   = loadDB();
+    const user = db[req.params.id];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const xp    = user.xp || 0;
+    const level = getLevelFromXP(xp);
+    const rank  = getRank(level);
+    const { pct, needed, progress } = xpToNextLevel(xp);
+    const score = calcWeightedGardenScore(user.collection||[]);
+    const tier  = getGardenTier(score);
+    const title = getActiveTitle(user);
+    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, xp: u.xp||0 })).sort((a,b) => b.xp-a.xp);
+    const serverRank = allUsers.findIndex(e => e.id === req.params.id) + 1;
+    res.json({
+      id: req.params.id,
+      username: user.username || `User#${req.params.id.slice(-4)}`,
+      level, xp, pct, needed, progress,
+      rank: { name: rank.name, emoji: rank.emoji },
+      currency: user.currency || 0,
+      plants: user.collection?.length || 0,
+      achievements: user.achievements?.length || 0,
+      collection: (user.collection||[]),
+      gardenScore: score,
+      gardenTier: { name: tier.name, emoji: tier.emoji, color: tier.color },
+      title,
+      serverRank,
+      serverTotal: allUsers.length,
+      cratesOpened: user.cratesOpened || 0,
+      raceWins: user.raceWins || 0,
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/players', (req, res) => {
+  try {
+    const db = loadDB();
+    const players = Object.entries(db)
+      .filter(([id]) => !TEST_IDS.has(id))
+      .map(([id, u]) => {
+        const score = calcWeightedGardenScore(u.collection||[]);
+        const level = getLevelFromXP(u.xp||0);
+        const tier  = getGardenTier(score);
+        const rank  = getRank(level);
+        return { id, username: u.username || `User#${id.slice(-4)}`, avatarUrl: u.avatarUrl || null, level, score, plants: (u.collection||[]).length, tierName: tier.name, tierEmoji: tier.emoji, rankEmoji: rank.emoji, rankName: rank.name };
+      })
+      .filter(e => e.plants > 0)
+      .sort((a,b) => b.score - a.score);
+    res.json(players);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+    const { amount, buyout } = req.body;
+
+    // Buy now path
+    if (buyout) {
+      const auctions = loadAuctions();
+      const idx = auctions.findIndex(a => a.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Auction not found' });
+      const auction = auctions[idx];
+      if (!auction.buyoutPrice) return res.status(400).json({ error: 'No buyout price set' });
+      if (Date.now() > auction.endsAt) return res.status(400).json({ error: 'Auction has ended' });
+      if (auction.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own auction" });
+      const db = loadDB();
+      const buyer = getUser(db, req.user.id);
+      if (buyer.currency < auction.buyoutPrice) return res.status(400).json({ error: `Not enough coins`, balance: buyer.currency });
+      const seller = getUser(db, auction.sellerId);
+      buyer.currency -= auction.buyoutPrice;
+      seller.currency += auction.buyoutPrice;
+      buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      saveDB(db);
+      auctions.splice(idx, 1);
+      saveAuctions(auctions);
+      return res.json({ success: true, buyout: true });
+    }
+
+    const bidAmount = parseInt(amount);
+    if (isNaN(bidAmount) || bidAmount <= 0) return res.status(400).json({ error: 'Invalid bid amount' });
+
+    const auctions = loadAuctions();
+    const auction  = auctions.find(a => a.id === req.params.id);
+    if (!auction)              return res.status(404).json({ error: 'Auction not found' });
+    if (Date.now() > auction.endsAt) return res.status(400).json({ error: 'This auction has already ended' });
+    if (auction.sellerId === req.user.id) return res.status(400).json({ error: "You can't bid on your own auction" });
+
+    const db   = loadDB();
+    const user = getUser(db, req.user.id);
+
+    const topBid = auction.bids.length ? auction.bids[auction.bids.length - 1].amount : auction.startPrice - 1;
+    const minBid = Math.max(topBid + 1, Math.ceil(topBid * 1.05));
+    if (bidAmount < minBid) return res.status(400).json({ error: `Minimum bid is ${minBid.toLocaleString()} coins (5% above current)`, minBid });
+
+    if (!user || user.currency === undefined) return res.status(400).json({ error: 'Your account was not found. Use the bot first to register.' });
+    if (user.currency < bidAmount) return res.status(400).json({ error: `You only have ${user.currency.toLocaleString()} coins`, balance: user.currency });
+
+    // Soft-close extension
+    const timeLeft   = auction.endsAt - Date.now();
+    const totalAdded = auction.totalExtended || 0;
+    const remaining  = Math.max(0, AUCTION_MAX_EXTENSION - totalAdded);
+    let extended = 0;
+    if (remaining > 0) {
+      if (timeLeft <= AUCTION_EXTEND_THRESHOLD_2)      extended = Math.min(AUCTION_EXTEND_AMOUNT_2, remaining);
+      else if (timeLeft <= AUCTION_EXTEND_THRESHOLD_1) extended = Math.min(AUCTION_EXTEND_AMOUNT_1, remaining);
+    }
+    if (extended > 0) {
+      auction.endsAt += extended;
+      auction.totalExtended = totalAdded + extended;
+    }
+
+    auction.bids.push({ userId: req.user.id, username: req.user.username, amount: bidAmount, time: Date.now() });
+    saveAuctions(auctions);
+    touchActivity(db, req.user.id);
+    saveDB(db);
+
+    res.json({
+      success: true,
+      extended: extended,
+      endsAt: auction.endsAt,
+      newMin: Math.ceil(bidAmount * 1.05),
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/auctions', (req, res) => {
+  try {
+    const auctions = loadAuctions();
+    const db = loadDB();
+    res.json(auctions.map(a => {
+      const rCfg = getRarityConfig(a.plant.rarity);
+      const topBid = a.bids.length ? a.bids[a.bids.length - 1] : null;
+      return {
+        id: a.id,
+        sellerId: a.sellerId,
+        sellerName: a.sellerName,
+        plant: {
+          name: a.plant.name,
+          rarity: a.plant.rarity,
+          version: a.plant.version,
+          mutation: a.plant.mutation,
+          image: a.plant.image,
+          localImage: (() => {
+            const match = PLANTS.find(p => p.name === a.plant.name);
+            return match ? '/images/' + match.file.replace('./images/', '') : null;
+          })(),
+          color: rCfg.color,
+          emoji: rCfg.emoji,
+        },
+        startPrice: a.startPrice,
+        buyoutPrice: a.buyoutPrice || null,
+        minIncrement: a.minIncrement,
+        currentBid: topBid ? topBid.amount : a.startPrice || 0,
+        topBidder: topBid ? topBid.username : null,
+        bidCount: a.bids.length,
+        bids: a.bids.slice(-10).reverse(), // last 10 bids, newest first
+        endsAt: a.endsAt,
+        timeLeft: Math.max(0, a.endsAt - Date.now()),
+      };
+    }));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/avatar/:id', async (req, res) => {
+  try {
+    const user = await client.users.fetch(req.params.id, { force: true });
+    const url  = user.displayAvatarURL({ extension: 'png', size: 128 });
+    res.json({ url });
+  } catch(err) { res.json({ url: null }); }
+});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
+
+client.login(TOKEN);
