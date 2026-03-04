@@ -3705,8 +3705,8 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use('/images', express.static('C:\\Users\\Leo\\Desktop\\bot2026\\images'));
-app.use(express.static('C:\\Users\\Leo\\Desktop\\bot2026'));
+app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use(express.static(__dirname));
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
@@ -3714,7 +3714,7 @@ passport.deserializeUser((user, done) => done(null, user));
 passport.use(new DiscordStrategy({
   clientID: '1476939322493112332',
   clientSecret: '9dut8W5aU-tFi2K9ncIDxfCYjGGrNxJA',
-  callbackURL: 'http://localhost:3000/auth/discord/callback',
+  callbackURL: process.env.CALLBACK_URL || 'http://localhost:3000/auth/discord/callback',
   scope: ['identify'],
 }, (accessToken, refreshToken, profile, done) => {
   return done(null, { id: profile.id, username: profile.username, avatar: profile.avatar });
