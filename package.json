@@ -15,12 +15,13 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "passport": "^0.7.0",
-    "passport-discord": "^0.1.4"
+    "passport-discord": "^0.1.4",
+    "undici": "^7.22.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
   },
   "engines": {
-    "node": ">=16.9.0"
+    "node": "18"
   }
 }
