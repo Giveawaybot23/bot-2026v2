@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Garden Horizons</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap"></noscript>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -819,7 +822,6 @@
 <nav>
   <a class="nav-logo" href="#" onclick="showPage('home')">🌿 <span>Garden</span> Horizons</a>
   <div class="nav-links">
-    <a onclick="showPage('profiles')" id="nav-profiles" style="display:none">Profiles</a>
     <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
     <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
     <div class="nav-dropdown-wrap" id="nav-shop-wrap">
@@ -1161,12 +1163,11 @@ function triggerReveal() {
 // ── LIVE DATA ──
 async function loadLiveData() {
   try {
-    const [lbRes, playersRes] = await Promise.all([
-  window._cachedLB ? Promise.resolve({ json: () => window._cachedLB }) : fetch('/api/leaderboards'),
-  fetch('/api/players')
+    const [lb, players] = await Promise.all([
+  window._cachedLB ? Promise.resolve(window._cachedLB) : fetch('/api/leaderboards').then(r => r.json()),
+  fetch('/api/players').then(r => r.json())
 ]);
-const lb      = await lbRes.json();
-const players = await playersRes.json();
+window._cachedLB = lb;
 
     // Garden
     const gardenHTML = lb.garden.map((e,i) =>
@@ -1257,7 +1258,7 @@ async function loadAvatars(players) {
     const url = _avatarCache[p.id];
     if (!url) return;
     const el = document.getElementById(`av-${p.id}`);
-    if (el) el.innerHTML = `<img src="${url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
+    if (el) el.innerHTML = `<img src="${url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
   });
 }
 
@@ -1687,7 +1688,7 @@ async function loadLBAvatars(entries, idField) {
     const url = _avatarCache[id];
     const el  = document.getElementById(`lb-av-${e.username}`);
     if (!el) return;
-    if (url) el.innerHTML = `<img src="${url}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
+    if (url) el.innerHTML = `<img src="${url}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
     else el.textContent = e.username[0].toUpperCase();
   });
 }
@@ -1854,7 +1855,7 @@ async function loadAuctionData() {
           <div class="auction-card-live">LIVE</div>
           <div class="market-card-rarity-bar" style="background:${color}"></div>
           ${a.plant.localImage
-            ? `<img src="${a.plant.localImage}" style="width:56px;height:56px;object-fit:contain;margin-bottom:10px;border-radius:8px;background:var(--bg2);padding:4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="auction-card-emoji" style="display:none">${a.plant.emoji}</span>`
+            ? `<img src="${a.plant.localImage}" loading="lazy" width="56" height="56" style="width:56px;height:56px;object-fit:contain;margin-bottom:10px;border-radius:8px;background:var(--bg2);padding:4px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="auction-card-emoji" style="display:none">${a.plant.emoji}</span>`
             : `<span class="auction-card-emoji">${a.plant.emoji}</span>`
           }
           <div class="auction-card-name">${a.plant.name}</div>
@@ -2031,7 +2032,7 @@ async function showAuctionDetail(auctionId) {
           <div style="width:100%;aspect-ratio:1/1;max-height:480px;border-radius:20px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);position:relative;margin-bottom:20px">
             <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${color};z-index:2"></div>
             ${a.plant.localImage
-              ? `<img src="${a.plant.localImage}" style="width:100%;height:100%;object-fit:contain;padding:24px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+              ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:24px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
               : ''}
             <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage ? 'none' : 'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:120px">${a.plant.emoji}</div>
             <!-- Rarity badge overlay -->
