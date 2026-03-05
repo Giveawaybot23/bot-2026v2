@@ -361,7 +361,7 @@ const PLANTS = [
   { name: 'Rose',           file: './images/rose.png',           display: 'https://gardenhorizonswiki.com/images/plants/rose.webp',           rarity: 'Rare'      },
   { name: 'Apple',          file: './images/apple.png',          display: 'https://gardenhorizonswiki.com/images/plants/apple.webp',          rarity: 'Rare'      },
   { name: 'Amberpine',      file: './images/amberpine.png',      display: 'https://gardenhorizonswiki.com/images/plants/amberpine.webp',      rarity: 'Rare'      },
-  { name: 'Bitch',          file: './images/birch.png',          display: 'https://gardenhorizonswiki.com/images/plants/birch.webp',          rarity: 'Rare'      },
+  { name: 'Birch',          file: './images/birch.png',          display: 'https://gardenhorizonswiki.com/images/plants/birch.webp',          rarity: 'Rare'      },
   { name: 'Starvine',       file: './images/starvine.png',       display: 'https://gardenhorizonswiki.com/images/plants/starvine.webp',       rarity: 'Secret'      },
   { name: 'Wheat',          file: './images/wheat.png',          display: 'https://gardenhorizonswiki.com/images/plants/wheat.webp',          rarity: 'Epic'      },
   { name: 'Banana',         file: './images/banana.png',         display: 'https://gardenhorizonswiki.com/images/plants/banana.webp',         rarity: 'Epic'      },
