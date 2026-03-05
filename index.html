@@ -1169,15 +1169,15 @@ async function loadLiveData() {
 ]);
 window._cachedLB = lb;
 
-    // Garden
-    const gardenHTML = lb.garden.map((e,i) =>
-      renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
-    ).join('');
-    document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) =>
-      const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k'; renderLBEntry(e.username, e.tierEmoji + ' ' + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
-    ).join('');
-    document.getElementById('lb-garden-full').innerHTML = gardenHTML;
-
+   // Garden
+const gardenHTML = lb.garden.map((e,i) =>
+  renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
+).join('');
+document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
+  const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
+  return renderLBEntry(e.username, e.tierEmoji + ' ' + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId);
+}).join('');
+document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     // Level
     const levelHTML = lb.level.map((e,i) =>
       renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/lb.level[0].xp*100), i, e.id||e.userId)
