@@ -75,13 +75,13 @@ const RACE_REACT_RECORD  = '⭐';
 
 // ─── Claim cooldowns per rarity (ms) ─────────────────────────────────────────
 const CLAIM_COOLDOWNS = {
-  Common:    40 * 1000,
-  Uncommon:  70 * 1000,
-  Rare:      75 * 1000,
-  Epic:      100 * 1000,
-  Legendary: 120 * 1000,
-  Mythic:    60 * 60 * 1000,
-  Secret:    0,
+  Common:    1,
+  Uncommon:  1,
+  Rare:      1,
+  Epic:      1,
+  Legendary: 1,
+  Mythic:    1,
+  Secret:    1,
 };
 
 const CRATE_COOLDOWNS = {
