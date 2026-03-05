@@ -1,11 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage } = require('canvas');
-const fs = require('fs');
-const https = require('https');
-const http  = require('http');
-require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
