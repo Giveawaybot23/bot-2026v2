@@ -1253,13 +1253,30 @@ async function fetchAvatar(id) {
 }
 
 async function loadAvatars(players) {
-  await Promise.all(players.map(p => fetchAvatar(p.id)));
   players.forEach(p => {
-    const url = _avatarCache[p.id];
-    if (!url) return;
-    const el = document.getElementById(`av-${p.id}`);
-    if (el) el.innerHTML = `<img src="${url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
+    if (_avatarCache[p.id] !== undefined) {
+      if (_avatarCache[p.id]) {
+        const el = document.getElementById(`av-${p.id}`);
+        if (el) el.innerHTML = `<img src="${_avatarCache[p.id]}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
+      }
+      return;
+    }
+    fetch(`/api/avatar/${p.id}`)
+      .then(r => r.json())
+      .then(data => {
+        _avatarCache[p.id] = data.url || null;
+        if (!data.url) return;
+        const el = document.getElementById(`av-${p.id}`);
+        if (el) el.innerHTML = `<img src="${data.url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
+      })
+      .catch(() => { _avatarCache[p.id] = null; });
   });
+}
+
+function applyAvatar(id, url) {
+  if (!url) return;
+  const el = document.getElementById(`av-${id}`);
+  if (el) el.innerHTML = `<img src="${url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
 }
 
 async function loadProfile(id) {
@@ -1740,31 +1757,25 @@ async function initAuth() {
 
 async function loadNavCoins(userId) {
   try {
-    const [profileRes, lbRes] = await Promise.all([
-      fetch(`/api/profile/${userId}`),
-      fetch('/api/leaderboards')
-    ]);
+    const profileRes = await fetch(`/api/profile/${userId}`);
     const data = await profileRes.json();
-    const lb   = await lbRes.json();
 
-    // Cache the leaderboard so loadLiveData can reuse it
+    const lb = window._cachedLB || await fetch('/api/leaderboards').then(r => r.json());
     window._cachedLB = lb;
 
-    const rankIndex = lb.garden.findIndex(e => e.id === userId || e.userId === userId);
+    const rankIndex = lb.garden.findIndex(e => (e.id || e.userId) === userId);
     const rankNum   = rankIndex === -1 ? null : rankIndex + 1;
 
     if (data.currency !== undefined) {
       const c = data.currency;
       const amount = c >= 1000000 ? (c/1000000).toFixed(1)+'M' : c >= 1000 ? (c/1000).toFixed(1)+'k' : c.toLocaleString();
 
+      const rankClass = rankNum && rankNum <= 3 ? ` rank-${rankNum}` : '';
       const rankLabel = rankNum
-        ? `<span class="coin-badge-rank${rankNum <= 3 ? ' coin-badge-rank--podium rank-'+rankNum : ''}" style="font-size:12px;font-weight:700;align-self:center;flex-shrink:0">#${rankNum}</span>`
+        ? `<span class="coin-rank-badge${rankClass}">#${rankNum}</span>`
         : '';
 
       const el = document.getElementById('coin-display');
-      el.style.display = 'inline-flex';
-      el.style.alignItems = 'center';
-      el.style.gap = '8px';
       el.innerHTML = `${rankLabel}<div class="coin-badge">
         <div class="coin-badge-icon">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1775,15 +1786,21 @@ async function loadNavCoins(userId) {
           <span class="coin-badge-amount">${amount}</span>
         </div>
       </div>`;
+      el.style.display = 'inline-flex';
+      el.style.alignItems = 'center';
+      el.style.gap = '8px';
       requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
     }
   } catch(e) {}
 }
 
 // ── INIT ──
-loadLiveData();
-initAuth().then(() => triggerReveal());
-triggerReveal();
+// Auth first, then everything else — eliminates coin flicker
+initAuth().then(() => {
+  loadLiveData();
+  triggerReveal();
+});
+triggerReveal(); // still run reveal for hero immediately
 
 // ── SHOP DATA ──
 async function loadShopData() {
@@ -1822,10 +1839,18 @@ async function loadMarketData() {
 }
 
 let _auctionTimers = [];
+let _auctionCache = null;
+let _auctionCacheTime = 0;
+async function getAuctions(forceRefresh = false) {
+  if (!forceRefresh && _auctionCache && Date.now() - _auctionCacheTime < 8000) return _auctionCache;
+  const res = await fetch('/api/auctions');
+  _auctionCache = await res.json();
+  _auctionCacheTime = Date.now();
+  return _auctionCache;
+}
 async function loadAuctionData() {
   try {
-    const res      = await fetch('/api/auctions');
-    const auctions = await res.json();
+    const auctions = await getAuctions(true);
     const grid     = document.getElementById('auction-grid');
 
     _auctionTimers.forEach(clearInterval);
@@ -1968,6 +1993,7 @@ async function submitWebBid(auctionId, currentBid) {
     btn.textContent = 'Bid';
 
     // Refresh the detail view after a short delay
+    _auctionCache = null;
     setTimeout(() => showAuctionDetail(auctionId), 1200);
 
   } catch(err) {
@@ -1985,8 +2011,7 @@ async function showAuctionDetail(auctionId) {
   content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:60vh;font-size:32px;opacity:0.3">🔨</div>`;
 
   try {
-    const res      = await fetch('/api/auctions');
-    const auctions = await res.json();
+    const auctions = await getAuctions();
     const a        = auctions.find(x => x.id === auctionId);
     if (!a) { content.innerHTML = '<p style="padding:40px;color:var(--ink3)">Auction not found or has ended.</p>'; return; }
 
@@ -1998,17 +2023,21 @@ async function showAuctionDetail(auctionId) {
 
     // load avatars for bids
     const bidAvatarMap = {};
-    await Promise.all(a.bids.map(async b => {
-      try {
-        const r = await fetch(`/api/avatar/${b.userId}`);
-        const d = await r.json();
-        if (d.url) bidAvatarMap[b.userId] = d.url;
-      } catch {}
-    }));
+    a.bids.forEach(b => {
+      if (_avatarCache[b.userId]) bidAvatarMap[b.userId] = _avatarCache[b.userId];
+    });
+    a.bids.forEach(b => {
+      if (_avatarCache[b.userId] !== undefined) return;
+      fetchAvatar(b.userId).then(url => {
+        if (!url) return;
+        const el = document.getElementById(`bid-av-${b.userId}`);
+        if (el) el.innerHTML = `<img src="${url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`;
+      });
+    });
 
     const bidsHtmlFull = a.bids.length ? a.bids.map((b, i) => `
       <div class="bid-entry${i === 0 ? ' top-bid' : ''}">
-        <div class="bid-entry-avatar" style="overflow:hidden;padding:0">
+        <div class="bid-entry-avatar" id="bid-av-${b.userId}" style="overflow:hidden;padding:0">
           ${bidAvatarMap[b.userId]
             ? `<img src="${bidAvatarMap[b.userId]}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
             : `<span style="font-size:12px;font-weight:700;color:var(--green)">${b.username[0].toUpperCase()}</span>`}
