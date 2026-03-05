@@ -3114,6 +3114,69 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
+  if (cmd === 'addplant') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!addplant @user <plant name> [-v version] [-m mutation] [-r rarity]`');
+
+    const rawAdd = args.slice(2).join(' ');
+    const vMatch = rawAdd.match(/-v\s*(\d+)/i);
+    const mMatch = rawAdd.match(/-m\s+([a-z]+)/i);
+    const rMatch = rawAdd.match(/-r\s+([a-z]+)/i);
+    const plantName = rawAdd.replace(/-v\s*\d+/i,'').replace(/-m\s+\S+/i,'').replace(/-r\s+\S+/i,'').trim();
+
+    if (!plantName) return message.reply('Usage: `!addplant @user <plant name> [-v version] [-m mutation] [-r rarity]`');
+
+    const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
+    if (!plant) return message.reply(`❌ Plant **${plantName}** not found. Check spelling.`);
+
+    const db = loadDB();
+    const user = getUser(db, target.id);
+
+    // Rarity — use plant's natural rarity unless overridden
+    const rarity = rMatch ? getRarityConfig(rMatch[1]) : getRarityConfig(plant.rarity);
+
+    // Mutation
+    let mutation = null;
+    if (mMatch) {
+      mutation = MUTATIONS.find(m => m.name.toLowerCase() === mMatch[1].toLowerCase());
+      if (!mutation) return message.reply(`❌ Mutation **${mMatch[1]}** not found. Options: ${MUTATIONS.map(m => m.name).join(', ')}`);
+    }
+
+    // Version
+    let version;
+    if (vMatch) {
+      version = parseInt(vMatch[1]);
+      recordVersionHighWater(plant.name, version);
+    } else {
+      version = getAvailableVersion(plant.name, db);
+      recordVersionHighWater(plant.name, version);
+    }
+
+    const sellValue = calcSellValue(plant, rarity, mutation, version);
+
+    user.collection.push({
+      name: plant.name,
+      image: plant.display,
+      rarity: rarity.name,
+      mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null,
+      version,
+      sellValue,
+      claimedAt: new Date().toISOString(),
+    });
+
+    saveDB(db);
+
+    const mutLine = mutation ? `  ${mutation.emoji} **${mutation.name}**` : '';
+    const v1Badge = version === 1 ? '  🔖 *First copy!*' : '';
+    return message.reply({ embeds: [new EmbedBuilder()
+      .setTitle('✅ Plant Added')
+      .setDescription(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
+      .setThumbnail(plant.display)
+      .setColor(mutation ? mutation.color : rarity.color)
+    ]});
+  }
+
   if (cmd === 'addxp') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
