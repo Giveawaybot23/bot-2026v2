@@ -8,13 +8,6 @@ const http  = require('http');
 registerFont('./Roboto-Bold.ttf', { family: 'Arial' });
 registerFont('/run/current-system/sw/share/X11/fonts/NotoColorEmoji.ttf', { family: 'NotoEmoji' });
 
-const { execSync } = require('child_process');
-try {
-  const path = execSync('fc-list | grep -i noto.*emoji').toString();
-  console.log('Emoji font path:', path);
-} catch(e) {
-  console.log('Emoji font not found:', e.message);
-}
 
 function fetchImageBuffer(url) {
   return new Promise((resolve, reject) => {
