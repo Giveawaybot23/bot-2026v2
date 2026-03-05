@@ -3831,6 +3831,7 @@ const passport = require('passport');
 const { Strategy: DiscordStrategy } = require('passport-discord');
 const app = express();
 
+app.set('trust proxy', 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(session({
