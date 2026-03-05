@@ -871,7 +871,13 @@ async function sendDrop(channel, opts = {}) {
     .setImage('attachment://drop.png')
     .setColor(mutation ? mutation.color : rarity.color)
     .setTimestamp();
-  const msg = await channel.send({ embeds: [embed], files: [attachment] });
+  const rarityRoles = {
+  Legendary: '1479162308587426004',
+  Mythic: '1479162306943520930',
+  Secret: '1479162311276232951'
+};
+const pingContent = rarityRoles[rarity.name] ? `<@&${rarityRoles[rarity.name]}>` : undefined;
+const msg = await channel.send({ content: pingContent, embeds: [embed], files: [attachment] });
   activeDrops[channel.id] = { plant, rarity, captcha, mutation, messageId: msg.id, dropTime, claimers: [] };
   setTimeout(() => {
     if (activeDrops[channel.id]?.messageId === msg.id) {
