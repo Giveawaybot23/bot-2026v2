@@ -25,22 +25,26 @@ const client = new Client({
 });
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const PREFIX         = '!';
-const DROP_COOLDOWN  = 2 * 60 * 1000;
+const PREFIX          = '!';
+const DROP_COOLDOWN   = 2 * 60 * 1000;
 const ACTIVITY_WINDOW = 2 * 60 * 1000;
-const DB_FILE        = './data/users.json';
-const META_FILE      = './data/meta.json';
-const RACE_LB_FILE   = './data/race_lb.json';
-const CLAIMS_LB_FILE = './data/claims_lb.json';
-const LOCKS_FILE     = './data/locks.json';
-const MARKET_FILE    = './data/market.json';
-const SETTINGS_FILE  = './data/settings.json';
-const CURRENCY_NAME  = 'Coins';
-const CURRENCY_EMOJI = '<:coins:1477684491320426601>';
-const SERVER_NAME    = 'Horizon Hub';
-const WATERMARK      = 'LA';
-const AUCTION_FILE = './data/auctions.json';
-let   auctionChannels = {};
+
+const DATA_DIR        = process.env.DATA_DIR || './data';
+const DB_FILE         = `${DATA_DIR}/users.json`;
+const META_FILE       = `${DATA_DIR}/meta.json`;
+const RACE_LB_FILE    = `${DATA_DIR}/race_lb.json`;
+const CLAIMS_LB_FILE  = `${DATA_DIR}/claims_lb.json`;
+const LOCKS_FILE      = `${DATA_DIR}/locks.json`;
+const MARKET_FILE     = `${DATA_DIR}/market.json`;
+const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
+const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
+
+const CURRENCY_NAME   = 'Coins';
+const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
+const SERVER_NAME     = 'Horizon Hub';
+const WATERMARK       = 'LA';
+
+let auctionChannels = {};
 
 let sellbatchV10Protection = true;
 
@@ -3708,10 +3712,15 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(session({
-  secret: 'gardenhorizons_secret',
+  secret: process.env.SESSION_SECRET || 'gardenhorizons_secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { sameSite: 'lax', httpOnly: true },
+  cookie: { 
+    sameSite: 'lax', 
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  },
 }));
 app.use(passport.initialize());
 app.use(passport.session());

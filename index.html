@@ -847,6 +847,16 @@
 </div>
 
 <script>
+
+  // Nav dropdown toggle
+document.getElementById('nav-shop-wrap').addEventListener('click', function(e) {
+  e.stopPropagation();
+  this.classList.toggle('open');
+});
+document.addEventListener('click', function() {
+  document.getElementById('nav-shop-wrap')?.classList.remove('open');
+});
+
 // ── PAGE ROUTING ──
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -860,6 +870,7 @@ function showPage(name) {
   } else {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
   }
+  document.getElementById('nav-shop-wrap')?.classList.remove('open');
   window.scrollTo(0,0);
   triggerReveal();
 }
