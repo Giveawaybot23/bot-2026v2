@@ -182,12 +182,12 @@ function getRank(level) {
 
 const RARITY_WEIGHT_BONUS = {
   Common:    1.00,
-  Uncommon:  1.05,
-  Rare:      1.15,
-  Epic:      1.35,
-  Legendary: 1.65,
-  Mythic:    2.20,
-  Secret:    3.50,
+  Uncommon:  1.00,
+  Rare:      1.00,
+  Epic:      1.00,
+  Legendary: 1.00,  // let base price + version do the work
+  Mythic:    1.00,
+  Secret:    1.00,  // was 3.50 — this was the whole problem
 };
 
 function calcWeightedGardenScore(collection) {
@@ -267,7 +267,14 @@ const RARITIES = [
 ];
 
 // ─── Base plant sell prices (version-weighted) ────────────────────────────────
-const VERSION_MULTIPLIERS = { 1: 3.50, 2: 2.20, 3: 1.70, 4: 1.40, 5: 1.20, 6: 1.05 };
+const VERSION_MULTIPLIERS = { 
+  1: 3.50,   // keep exactly as-is — the scaling you like
+  2: 2.20, 
+  3: 1.70, 
+  4: 1.40, 
+  5: 1.20, 
+  6: 1.05 
+};
 function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 1.00; }
 
 // ─── Market / Demand system ───────────────────────────────────────────────────
@@ -336,8 +343,8 @@ const CHARMS = {
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
 const CRATES = {
-  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 1000,  minLevel: 5,  plants: 10, weights: { Common: 800000, Uncommon: 170000, Rare: 19900, Epic: 9000, Legendary: 10000, Mythic: 1000, Secret: 100 } },
-  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 5000,  minLevel: 10, plants: 10, weights: { Common: 700000, Uncommon: 186000, Rare: 30000, Epic: 20000, Legendary: 12500, Mythic: 1124, Secret: 112 } },
+  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 1000,  minLevel: 5,  plants: 10, weights: { Common: 800000, Uncommon: 170000, Rare: 19900, Epic: 9000, Legendary: 10000, Mythic: 1000, Secret: 0 } },
+  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 5000,  minLevel: 10, plants: 10, weights: { Common: 700000, Uncommon: 186000, Rare: 30000, Epic: 20000, Legendary: 12500, Mythic: 1124, Secret: 0 } },
   gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 10000, minLevel: 15, plants: 10, weights: { Common: 600000, Uncommon: 200000, Rare: 50000, Epic: 25000, Legendary: 25000, Mythic: 3333, Secret: 143 } },
   diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 30000, minLevel: 30, plants: 10, weights: { Common: 500000, Uncommon: 200000, Rare: 100000, Epic: 50000, Legendary: 40000, Mythic: 1538, Secret: 154 } },
   ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 75000, minLevel: 50, plants: 10, weights: { Common: 400000, Uncommon: 200000, Rare: 150000, Epic: 100000, Legendary: 50000, Mythic: 2000, Secret: 200 } },
@@ -1742,50 +1749,6 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     }
   }
 
-    // ── SELL CONFIRM ──────────────────────────────────────────────────────────
-  if (pendingSells[message.author.id]) {
-    if (lower === 'yes') {
-      const pending = pendingSells[message.author.id];
-      delete pendingSells[message.author.id];
-      const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-      touchActivity(db, message.author.id, message.author);
-
-      // Sell-all path
-      if (pending.sellAllCandidates) {
-        const { sellAllCandidates, totalVal } = pending;
-        // Remove from highest index down to avoid shift bugs
-        for (const { name, version } of sellAllCandidates) {
-          const idx = user.collection.findIndex(p => p.name === name && p.version === version);
-          if (idx !== -1) user.collection.splice(idx, 1);
-        }
-        user.currency += totalVal;
-        saveDB(db);
-        const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
-        return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
-      }
-
-      // Single sell path
-      const { plant, plantName, plantVersion } = pending;
-      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
-      if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
-      user.collection.splice(index, 1);
-      const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
-      user.currency += price;
-      // remove locks for plants no longer owned
-      const remaining = loadLocks(message.author.id).filter(l => {
-        if (!l.name) return true;
-        return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
-      });
-      saveLocks(message.author.id, remaining);
-      saveDB(db);
-      return message.reply(`✅ Sold **${plant.name}** v${plant.version || '?'}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
-    }
-    if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
-  }
-
-
   // ── LIVE TRADE INPUT ──────────────────────────────────────────────────────
   const activeTId = userTrades[message.author.id];
   if (activeTId && activeTrades[activeTId] && !content.startsWith(PREFIX) && !lower.startsWith('claim ') && !lower.startsWith('race ')) {
@@ -1996,6 +1959,48 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     });
   } 
 
+  // ── SELL CONFIRM ──────────────────────────────────────────────────────────
+  if (pendingSells[message.author.id]) {
+    if (lower === 'yes') {
+      const pending = pendingSells[message.author.id];
+      delete pendingSells[message.author.id];
+      const db = loadDB(); const user = getUser(db, message.author.id);
+    user.username = message.author.username;
+    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+      touchActivity(db, message.author.id, message.author);
+
+      // Sell-all path
+      if (pending.sellAllCandidates) {
+        const { sellAllCandidates, totalVal } = pending;
+        // Remove from highest index down to avoid shift bugs
+        for (const { name, version } of sellAllCandidates) {
+          const idx = user.collection.findIndex(p => p.name === name && p.version === version);
+          if (idx !== -1) user.collection.splice(idx, 1);
+        }
+        user.currency += totalVal;
+        saveDB(db);
+        const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
+        return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
+      }
+
+      // Single sell path
+      const { plant, plantName, plantVersion } = pending;
+      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+      if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
+      user.collection.splice(index, 1);
+      const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
+      user.currency += price;
+      // remove locks for plants no longer owned
+      const remaining = loadLocks(message.author.id).filter(l => {
+        if (!l.name) return true;
+        return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
+      });
+      saveLocks(message.author.id, remaining);
+      saveDB(db);
+      return message.reply(`✅ Sold **${plant.name}** v${plant.version || '?'}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
+    }
+    if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
+  }
 
   // ── WIPE CONFIRMATION ──────────────────────────────────────────────────────
   if (pendingWipes[message.author.id]) {
