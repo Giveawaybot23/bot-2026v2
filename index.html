@@ -1113,13 +1113,12 @@
 
 <script>
 
-  // Nav dropdown toggle
-document.getElementById('nav-shop-wrap').addEventListener('click', function(e) {
-  e.stopPropagation();
-  this.classList.toggle('open');
+  // Nav dropdown toggle — hover only
+document.getElementById('nav-shop-wrap').addEventListener('mouseenter', function() {
+  this.classList.add('open');
 });
-document.addEventListener('click', function() {
-  document.getElementById('nav-shop-wrap')?.classList.remove('open');
+document.getElementById('nav-shop-wrap').addEventListener('mouseleave', function() {
+  this.classList.remove('open');
 });
 
 // ── PAGE ROUTING ──
@@ -1240,7 +1239,7 @@ async function loadLiveData() {
 }
 
 async function loadAvatars(players) {
-  for (const p of players) {
+  await Promise.all(players.map(async p => {
     try {
       const res  = await fetch(`/api/avatar/${p.id}`);
       const data = await res.json();
@@ -1249,7 +1248,7 @@ async function loadAvatars(players) {
         if (el) el.innerHTML = `<img src="${data.url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
       }
     } catch {}
-  }
+  }));
 }
 
 async function loadProfile(id) {
@@ -1669,9 +1668,9 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  for (const e of entries) {
+  await Promise.all(entries.map(async e => {
     const id = e[idField] || e.userId || e.id;
-    if (!id) continue;
+    if (!id) return;
     try {
       const res  = await fetch(`/api/avatar/${id}`);
       const data = await res.json();
@@ -1679,7 +1678,7 @@ async function loadLBAvatars(entries, idField) {
       if (el && data.url) el.innerHTML = `<img src="${data.url}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
       else if (el) el.textContent = e.username[0].toUpperCase();
     } catch {}
-  }
+  }));
 }
 
 function filterMarket(rarity, btn) {
@@ -1768,7 +1767,7 @@ async function loadNavCoins(userId) {
 
 // ── INIT ──
 loadLiveData();
-initAuth();
+initAuth().then(() => triggerReveal());
 triggerReveal();
 
 // ── SHOP DATA ──
@@ -2098,9 +2097,9 @@ async function showAuctionDetail(auctionId) {
               ${!(_auctionChats[auctionId] || []).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
             </div>
             <div class="chat-input-wrap">
-              <input class="chat-input" id="chat-input-${auctionId}" placeholder="${window._loggedInUsername ? 'Say something...' : 'Log in to chat'}" ${window._loggedInUsername ? '' : 'disabled'}
+              <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
                 onkeydown="if(event.key==='Enter')sendChatMsg('${auctionId}')">
-              <button class="chat-send" onclick="sendChatMsg('${auctionId}')" ${window._loggedInUsername ? '' : 'disabled'}>Send</button>
+              <button class="chat-send" onclick="sendChatMsg('${auctionId}')">Send</button>
             </div>
           </div>
 
@@ -2156,7 +2155,7 @@ function renderChatMsg(m) {
 }
 
 function sendChatMsg(auctionId) {
-  if (!window._loggedInUsername) return;
+  if (!window._loggedInUsername) { alert('Log in with Discord to chat.'); return; }
   const input = document.getElementById(`chat-input-${auctionId}`);
   const text  = input?.value?.trim();
   if (!text) return;
