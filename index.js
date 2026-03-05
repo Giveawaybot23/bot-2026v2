@@ -374,6 +374,8 @@ const PLANTS = [
   { name: 'Olive',          file: './images/olive.png',          display: 'https://gardenhorizonswiki.com/images/plants/olive.webp',          rarity: 'Mythic'    },
 ];
 
+const processedMessages = new Set();
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeDrops  = {};
 let activeRaces  = {};
@@ -1680,6 +1682,9 @@ client.once('ready', () => {
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 client.on('messageCreate', async (message) => {
+  if (processedMessages.has(message.id)) return;
+processedMessages.add(message.id);
+setTimeout(() => processedMessages.delete(message.id), 30000);
   if (message.author.bot) return;
 
   const registeredChId = dropChannels[message.guild?.id];
