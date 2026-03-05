@@ -3065,8 +3065,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
     const remaining = cdMs - (Date.now() - lastUsed);
     if (remaining > 0) {
-      const mins = Math.floor(remaining / 60000), secs = Math.ceil((remaining % 60000) / 1000);
-      return message.reply(`⏳ **${crate.name}** cooldown: **${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}** remaining.`);
+      const unixTimestamp = Math.floor((Date.now() + remaining) / 1000);
+      return message.reply(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
     }
     const results = openCrate(crateKey, db, message.author.id);
     if (!TEST_IDS.has(message.author.id)) {
