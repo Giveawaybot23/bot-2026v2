@@ -3847,9 +3847,9 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
 passport.use(new DiscordStrategy({
-  clientID: '1476939322493112332',
-  clientSecret: '9dut8W5aU-tFi2K9ncIDxfCYjGGrNxJA',
-  callbackURL: process.env.CALLBACK_URL || 'http://localhost:3000/auth/discord/callback',
+  clientID: process.env.DISCORD_CLIENT_ID,
+  clientSecret: process.env.DISCORD_CLIENT_SECRET,
+  callbackURL: process.env.CALLBACK_URL,
   scope: ['identify'],
 }, (accessToken, refreshToken, profile, done) => {
   return done(null, { id: profile.id, username: profile.username, avatar: profile.avatar });
