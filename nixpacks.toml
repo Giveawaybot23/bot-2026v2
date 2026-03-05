@@ -2,4 +2,4 @@
 nixPkgs = ["fontconfig", "freetype", "liberation_ttf", "fontconfig.lib", "noto-fonts-emoji"]
 
 [phases.build]
-cmds = ["fc-cache -fv"]
+cmds = ["fc-cache -fv", "fc-list"]
