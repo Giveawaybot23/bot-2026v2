@@ -6,7 +6,6 @@ const https = require('https');
 const http  = require('http');
 
 registerFont('./Roboto-Bold.ttf', { family: 'Arial' });
-registerFont('/run/current-system/sw/share/X11/fonts/NotoColorEmoji.ttf', { family: 'NotoEmoji' });
 
 
 function fetchImageBuffer(url) {
