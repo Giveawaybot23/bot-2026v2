@@ -1001,7 +1001,7 @@ async function generateInvLBImage(entries) {
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
 
-  // Deep dark background with subtle grid
+  // Background
   ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 1;
   for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
@@ -1012,18 +1012,18 @@ async function generateInvLBImage(entries) {
   hGrad.addColorStop(0, '#1a0533'); hGrad.addColorStop(0.5, '#0d1a40'); hGrad.addColorStop(1, '#08080f');
   ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HEADER_H);
 
-  // Accent line — rainbow-ish
+  // Accent line
   const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
-  accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700'); accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
+  accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700');
+  accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
   ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
 
   // Header text
   ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.fillText('🌿  Garden Rankings', 20, HEADER_H / 2 - 8);
+  ctx.fillText('Garden Rankings', 20, HEADER_H / 2 - 8);
   ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.fillText('Weighted score · Higher rarity = greater impact', 20, HEADER_H / 2 + 14);
 
-  // Column headers
   ctx.font = 'bold 11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.textAlign = 'right';
   ctx.fillText('SCORE', W - 16, HEADER_H - 12);
   ctx.textAlign = 'left';
@@ -1032,66 +1032,96 @@ async function generateInvLBImage(entries) {
     const e   = entries[i];
     const y   = HEADER_H + i * ROW_H;
     const mid = y + ROW_H / 2;
+    const tierHex = '#' + e.tier.color.toString(16).padStart(6, '0');
 
     // Alternating row bg
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
     ctx.fillRect(0, y, W, ROW_H);
 
-    // Tier-colored left bar
-    const tierHex = '#' + e.tier.color.toString(16).padStart(6, '0');
-    ctx.save();
-    ctx.shadowColor = tierHex; ctx.shadowBlur = 16;
-    ctx.fillStyle   = tierHex;
-    ctx.fillRect(0, y + 8, 4, ROW_H - 16);
-    ctx.restore();
-
     // Top 3 glow
     if (i < 3) {
       const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
       ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
-      const sideCol = ['#FFD700','#C0C0C0','#CD7F32'][i];
-      ctx.save(); ctx.shadowColor = sideCol; ctx.shadowBlur = 14;
-      ctx.fillStyle = sideCol; ctx.fillRect(0, y, 4, ROW_H); ctx.restore();
     }
 
-    // Rank number / medal
+    // Tier-colored left bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : tierHex;
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 28, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (i < 3) {
-      ctx.save(); ctx.font = '24px Arial';
-      ctx.fillStyle = ['#FFD700','#C0C0C0','#CD7F32'][i];
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
-      ctx.fillText(['🥇','🥈','🥉'][i], 32, mid); ctx.restore();
-    } else {
-      ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillText(`${i + 1}`, 32, mid);
-    }
+    ctx.fillText(`${i + 1}`, rankX, mid);
+    ctx.restore();
 
-    // Tier emoji
-    ctx.font = '20px Arial'; ctx.textAlign = 'left';
-    ctx.fillText(e.tier.emoji, 58, mid);
+    // Avatar circle
+    const avatarX = 68, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      // Fallback: colored circle with initial
+      ctx.fillStyle = tierHex;
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : tierHex;
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
 
     // Username
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
     ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
-    ctx.fillText(e.username, 88, mid - 8);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(e.username, 100, mid - 8);
 
     // Tier name
-    ctx.font = '12px Arial';
-    ctx.fillStyle = tierHex;
-    ctx.fillText(e.tier.name.toUpperCase(), 88, mid + 10);
+    ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
+    ctx.fillText(e.tier.name.toUpperCase(), 100, mid + 10);
 
-    // Score — right aligned, big
+    // Score
     ctx.textAlign = 'right';
     ctx.font = 'bold 18px Arial';
     ctx.fillStyle = i === 0 ? tierHex : 'rgba(255,255,255,0.75)';
     ctx.save();
     if (i === 0) { ctx.shadowColor = tierHex; ctx.shadowBlur = 12; }
-    ctx.fillText(e.score.toLocaleString(), W - 16, mid - 8); ctx.restore();
+    ctx.fillText(e.score.toLocaleString(), W - 16, mid - 8);
+    ctx.restore();
 
-    // Plant count sub-text
     ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.fillText(`${e.plantCount} plants`, W - 16, mid + 10);
-
     ctx.textAlign = 'left';
 
     // Divider
@@ -2520,8 +2550,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(async ([id, u]) => {
         const score = calcWeightedGardenScore(u.collection || []);
         let username = `User#${id.slice(-4)}`;
-        try { const discordUser = await client.users.fetch(id); username = discordUser.username; } catch {}
-        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score) };
+        let avatarURL = null;
+        try { const discordUser = await client.users.fetch(id); username = discordUser.username; avatarURL = discordUser.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL };
       })
     );
     const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
