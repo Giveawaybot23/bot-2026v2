@@ -328,7 +328,7 @@ const SHOP_TITLES = {
 
 // ─── Charms ───────────────────────────────────────────────────────────────────
 const CHARMS = {
-  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×1.05**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
+  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×5**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
   silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15**',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
   gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.30**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
   void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
@@ -3065,8 +3065,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
     const remaining = cdMs - (Date.now() - lastUsed);
     if (remaining > 0) {
-      const mins = Math.floor(remaining / 60000), secs = Math.ceil((remaining % 60000) / 1000);
-      return message.reply(`⏳ **${crate.name}** cooldown: **${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}** remaining.`);
+      const unixTimestamp = Math.floor((Date.now() + remaining) / 1000);
+      return message.reply(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
     }
     const results = openCrate(crateKey, db, message.author.id);
     if (!TEST_IDS.has(message.author.id)) {
