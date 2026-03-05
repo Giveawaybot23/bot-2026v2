@@ -57,7 +57,7 @@ const AUCTION_MAX_EXTENSION      = 10 * 60 * 1000;  // cap: 10 min total added
 
 // ─── Auctions ─────────────────────────────────────────────────────────────────
 function loadAuctions() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(AUCTION_FILE)) fs.writeFileSync(AUCTION_FILE, '[]');
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
@@ -114,7 +114,7 @@ let   vPingChannels    = {};
 
 // ─── Settings persistence ─────────────────────────────────────────────────────
 function loadSettings() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(SETTINGS_FILE)) fs.writeFileSync(SETTINGS_FILE, '{}');
   return JSON.parse(fs.readFileSync(SETTINGS_FILE));
 }
@@ -269,7 +269,7 @@ function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 
 
 // ─── Market / Demand system ───────────────────────────────────────────────────
 function loadMarket() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(MARKET_FILE)) fs.writeFileSync(MARKET_FILE, '{}');
   return JSON.parse(fs.readFileSync(MARKET_FILE));
 }
@@ -393,27 +393,27 @@ function generateTradeId() { return `t_${Date.now()}_${Math.random().toString(36
 
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_FILE))  fs.writeFileSync(DB_FILE, '{}');
   return JSON.parse(fs.readFileSync(DB_FILE));
 }
 function saveDB(db) { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
 function loadMeta() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
   return JSON.parse(fs.readFileSync(META_FILE));
 }
 function saveMeta(m) { fs.writeFileSync(META_FILE, JSON.stringify(m, null, 2)); }
 
 function loadLocks(userId) {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
   const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
   return all[userId] || [];
 }
 function saveLocks(userId, locks) {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
   const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
   all[userId] = locks;
@@ -434,7 +434,7 @@ function isLocked(userId, plant) {
 }
 
 function loadClaimsLB() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(CLAIMS_LB_FILE)) fs.writeFileSync(CLAIMS_LB_FILE, '[]');
   return JSON.parse(fs.readFileSync(CLAIMS_LB_FILE));
 }
@@ -1669,6 +1669,19 @@ process.on('SIGTERM', () => {
 // ─── Ready ────────────────────────────────────────────────────────────────────
 client.once('ready', () => {
   console.log(`✅ ${client.user.tag} online`);
+
+  // One-time data restore
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  const backups = ['users','meta','race_lb','claims_lb','auctions','market','settings','locks'];
+  for (const f of backups) {
+    const dest = `${DATA_DIR}/${f}.json`;
+    const src  = `./${f}.json_backup`;
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, dest);
+      console.log(`✅ Restored ${f}.json`);
+    }
+  }
+
   startDropLoop();
   startDecayLoop();
 
@@ -3291,6 +3304,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('📊 Plant Market — Trending').setDescription(lines.join('\n') + '\n\n*Use `!m <plant>` to see version owners*').setColor(0x4CAF50)] });
     }
   }
+
+  if (cmd === 'restoredata') {
+  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  return message.reply('✅ Data directory ensured. Now redeploy and your bot will recreate fresh files.');
+}
 
   // ── !help / !h ────────────────────────────────────────────────────────────
   if (cmd === 'help' || cmd === 'h') {
