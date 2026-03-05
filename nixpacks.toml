@@ -1,2 +1,5 @@
 [phases.setup]
-nixPkgs = ["fontconfig", "freetype", "liberation_ttf"]
+nixPkgs = ["fontconfig", "freetype", "liberation_ttf", "fontconfig.lib"]
+
+[phases.build]
+cmds = ["fc-cache -fv"]
