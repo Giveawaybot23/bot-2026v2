@@ -1682,17 +1682,8 @@ process.on('SIGTERM', () => {
 client.once('ready', () => {
   console.log(`✅ ${client.user.tag} online`);
 
-  // One-time data restore
+  // Ensure data directory exists
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const backups = ['users','meta','race_lb','claims_lb','auctions','market','settings','locks'];
-  for (const f of backups) {
-    const dest = `${DATA_DIR}/${f}.json`;
-    const src  = `./${f}.json_backup`;
-    if (fs.existsSync(src)) {
-      fs.copyFileSync(src, dest);
-      console.log(`✅ Restored ${f}.json`);
-    }
-  }
 
   startDropLoop();
   startDecayLoop();

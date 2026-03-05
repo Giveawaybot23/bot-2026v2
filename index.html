@@ -1162,11 +1162,11 @@ function triggerReveal() {
 async function loadLiveData() {
   try {
     const [lbRes, playersRes] = await Promise.all([
-      fetch('/api/leaderboards'),
-      fetch('/api/players')
-    ]);
-    const lb      = await lbRes.json();
-    const players = await playersRes.json();
+  window._cachedLB ? Promise.resolve({ json: () => window._cachedLB }) : fetch('/api/leaderboards'),
+  fetch('/api/players')
+]);
+const lb      = await lbRes.json();
+const players = await playersRes.json();
 
     // Garden
     const gardenHTML = lb.garden.map((e,i) =>
@@ -1238,17 +1238,27 @@ async function loadLiveData() {
   }
 }
 
+const _avatarCache = {};
+async function fetchAvatar(id) {
+  if (_avatarCache[id] !== undefined) return _avatarCache[id];
+  try {
+    const res  = await fetch(`/api/avatar/${id}`);
+    const data = await res.json();
+    _avatarCache[id] = data.url || null;
+  } catch {
+    _avatarCache[id] = null;
+  }
+  return _avatarCache[id];
+}
+
 async function loadAvatars(players) {
-  await Promise.all(players.map(async p => {
-    try {
-      const res  = await fetch(`/api/avatar/${p.id}`);
-      const data = await res.json();
-      if (data.url) {
-        const el = document.getElementById(`av-${p.id}`);
-        if (el) el.innerHTML = `<img src="${data.url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
-      }
-    } catch {}
-  }));
+  await Promise.all(players.map(p => fetchAvatar(p.id)));
+  players.forEach(p => {
+    const url = _avatarCache[p.id];
+    if (!url) return;
+    const el = document.getElementById(`av-${p.id}`);
+    if (el) el.innerHTML = `<img src="${url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
+  });
 }
 
 async function loadProfile(id) {
@@ -1668,17 +1678,18 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  await Promise.all(entries.map(async e => {
+  await Promise.all(entries.map(e => {
     const id = e[idField] || e.userId || e.id;
-    if (!id) return;
-    try {
-      const res  = await fetch(`/api/avatar/${id}`);
-      const data = await res.json();
-      const el   = document.getElementById(`lb-av-${e.username}`);
-      if (el && data.url) el.innerHTML = `<img src="${data.url}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
-      else if (el) el.textContent = e.username[0].toUpperCase();
-    } catch {}
+    return id ? fetchAvatar(id) : Promise.resolve();
   }));
+  entries.forEach(e => {
+    const id  = e[idField] || e.userId || e.id;
+    const url = _avatarCache[id];
+    const el  = document.getElementById(`lb-av-${e.username}`);
+    if (!el) return;
+    if (url) el.innerHTML = `<img src="${url}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
+    else el.textContent = e.username[0].toUpperCase();
+  });
 }
 
 function filterMarket(rarity, btn) {
@@ -1730,10 +1741,13 @@ async function loadNavCoins(userId) {
   try {
     const [profileRes, lbRes] = await Promise.all([
       fetch(`/api/profile/${userId}`),
-      fetch(`/api/leaderboards`)
+      fetch('/api/leaderboards')
     ]);
     const data = await profileRes.json();
     const lb   = await lbRes.json();
+
+    // Cache the leaderboard so loadLiveData can reuse it
+    window._cachedLB = lb;
 
     const rankIndex = lb.garden.findIndex(e => e.id === userId || e.userId === userId);
     const rankNum   = rankIndex === -1 ? null : rankIndex + 1;
