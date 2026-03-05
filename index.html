@@ -1241,13 +1241,15 @@ window._cachedLB = lb;
 
 const _avatarCache = {};
 async function fetchAvatar(id) {
-  if (_avatarCache[id]) return _avatarCache[id];
+  if (_avatarCache[id] !== undefined) return _avatarCache[id];
   try {
     const res  = await fetch(`/api/avatar/${id}`);
     const data = await res.json();
-    if (data.url) _avatarCache[id] = data.url;
-  } catch {}
-  return _avatarCache[id] || null;
+    _avatarCache[id] = data.url || null;
+  } catch {
+    _avatarCache[id] = null;
+  }
+  return _avatarCache[id];
 }
 
 async function loadAvatars(players) {
