@@ -1736,8 +1736,8 @@ async function initAuth() {
     const el   = document.getElementById('nav-auth');
     if (data.user) {
       const avatarUrl = data.user.avatar
-        ? `https://cdn.discordapp.com/avatars/${data.user.id}/${data.user.avatar}.png?size=64`
-        : null;
+    ? `https://cdn.discordapp.com/avatars/${data.user.id}/${data.user.avatar}.png?size=64`
+    : `https://cdn.discordapp.com/embed/avatars/${parseInt(data.user.id) % 5}.png`;
       el.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
         <div onclick="showPage('profiles');loadProfile('${data.user.id}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.2s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
           ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--green)">` : ''}
