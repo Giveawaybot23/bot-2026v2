@@ -1969,8 +1969,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (pending.sellAllCandidates) {
         const { sellAllCandidates, totalVal } = pending;
         // Remove from highest index down to avoid shift bugs
-        const sorted = [...sellAllCandidates].sort((a, b) => b.index - a.index);
-        for (const { index } of sorted) user.collection.splice(index, 1);
+        for (const { name, version } of sellAllCandidates) {
+          const idx = user.collection.findIndex(p => p.name === name && p.version === version);
+          if (idx !== -1) user.collection.splice(idx, 1);
+        }
         user.currency += totalVal;
         saveDB(db);
         const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
@@ -1978,7 +1980,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       }
 
       // Single sell path
-      const { plant, index } = pending;
+      const { plant, plantName, plantVersion } = pending;
+      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+      if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
       user.collection.splice(index, 1);
       const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
       user.currency += price;
@@ -2807,7 +2811,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       // Store all indices for the confirm handler
-      pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, index: c.i })), totalVal };
+      pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, name: c.p.name, version: c.p.version })), totalVal };
       setTimeout(() => delete pendingSells[message.author.id], 30_000);
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle(`💰 Sell All ${plantName}? (${candidates.length} copies)`)
@@ -2845,7 +2849,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const { p: plant, i: index } = candidates[0];
     const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
     const rCfg  = getRarityConfig(plant.rarity);
-    pendingSells[message.author.id] = { plant, index };
+    pendingSells[message.author.id] = { plant, plantName: plant.name, plantVersion: plant.version };
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
     const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
     const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
@@ -2995,6 +2999,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const version = getAvailableVersion(plant.name, db); recordVersionHighWater(plant.name, version);
     const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
     if (!TEST_IDS.has(message.author.id)) {
+      if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
       addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db);
@@ -3014,6 +3019,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
     const coins = Math.floor(Math.random()*1000)+500;
     if (!TEST_IDS.has(message.author.id)) {
+      if (user.lastWeekly && now - user.lastWeekly < WEEK) return message.reply(`⏳ Already claimed this week.`);
       for (const p of plants) {
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
