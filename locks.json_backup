@@ -1,0 +1,134 @@
+{
+  "1235868416192286791": [
+    {
+      "name": "dawn blossom"
+    },
+    {
+      "name": "dawn fruit"
+    },
+    {
+      "name": "-r",
+      "version": 1
+    },
+    {
+      "rarity": "mythical"
+    },
+    {
+      "name": "pomegranate"
+    },
+    {
+      "name": "bamboo"
+    },
+    {
+      "name": "cherry"
+    },
+    {
+      "name": "Betroot",
+      "version": 1
+    },
+    {
+      "name": "betroot"
+    },
+    {
+      "name": "beetroot",
+      "version": 1
+    }
+  ],
+  "1263885067227496472": [
+    {
+      "rarity": "mythic"
+    },
+    {
+      "version": 1,
+      "rarity": "common"
+    },
+    {
+      "version": 2,
+      "rarity": "uncommon"
+    },
+    {
+      "version": 1,
+      "rarity": "uncommon"
+    },
+    {
+      "name": "strawberry",
+      "version": 1
+    },
+    {
+      "rarity": "common"
+    },
+    {
+      "name": "birch",
+      "version": 1
+    },
+    {
+      "name": "tomato",
+      "version": 1
+    },
+    {
+      "name": "plum",
+      "version": 1
+    },
+    {
+      "name": "wheat",
+      "version": 1
+    },
+    {
+      "name": "amberpine",
+      "version": 1
+    },
+    {
+      "name": "emberwood"
+    },
+    {
+      "rarity": "epic"
+    },
+    {
+      "rarity": "legendary"
+    }
+  ],
+  "734159803995259042": [
+    {
+      "rarity": "secret"
+    }
+  ],
+  "1392813014692139069": [
+    {
+      "rarity": "legendary"
+    }
+  ],
+  "751535003308916897": [
+    {
+      "name": "orange"
+    },
+    {
+      "name": "rose v1"
+    },
+    {
+      "name": "plum"
+    },
+    {
+      "name": "plum v2"
+    },
+    {
+      "name": "mango v8"
+    },
+    {
+      "name": "mango"
+    },
+    {
+      "name": "starvine"
+    },
+    {
+      "name": "rose",
+      "version": 1
+    },
+    {
+      "name": "cabbage"
+    },
+    {
+      "name": "potato"
+    }
+  ],
+  "1059694845595242537": []
+}

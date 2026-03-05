@@ -1,9 +1,12 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
 const http  = require('http');
+
+registerFont('./Roboto-Bold.ttf', { family: 'Arial' });
+
 
 function fetchImageBuffer(url) {
   return new Promise((resolve, reject) => {
@@ -25,22 +28,26 @@ const client = new Client({
 });
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const PREFIX         = '!';
-const DROP_COOLDOWN  = 2 * 60 * 1000;
+const PREFIX          = '!';
+const DROP_COOLDOWN   = 2 * 60 * 1000;
 const ACTIVITY_WINDOW = 2 * 60 * 1000;
-const DB_FILE        = './data/users.json';
-const META_FILE      = './data/meta.json';
-const RACE_LB_FILE   = './data/race_lb.json';
-const CLAIMS_LB_FILE = './data/claims_lb.json';
-const LOCKS_FILE     = './data/locks.json';
-const MARKET_FILE    = './data/market.json';
-const SETTINGS_FILE  = './data/settings.json';
-const CURRENCY_NAME  = 'Coins';
-const CURRENCY_EMOJI = '<:coins:1477684491320426601>';
-const SERVER_NAME    = 'Horizon Hub';
-const WATERMARK      = 'LA';
-const AUCTION_FILE = './data/auctions.json';
-let   auctionChannels = {};
+
+const DATA_DIR        = process.env.DATA_DIR || './data';
+const DB_FILE         = `${DATA_DIR}/users.json`;
+const META_FILE       = `${DATA_DIR}/meta.json`;
+const RACE_LB_FILE    = `${DATA_DIR}/race_lb.json`;
+const CLAIMS_LB_FILE  = `${DATA_DIR}/claims_lb.json`;
+const LOCKS_FILE      = `${DATA_DIR}/locks.json`;
+const MARKET_FILE     = `${DATA_DIR}/market.json`;
+const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
+const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
+
+const CURRENCY_NAME   = 'Coins';
+const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
+const SERVER_NAME     = 'Horizon Hub';
+const WATERMARK       = 'LA';
+
+let auctionChannels = {};
 
 let sellbatchV10Protection = true;
 
@@ -53,7 +60,7 @@ const AUCTION_MAX_EXTENSION      = 10 * 60 * 1000;  // cap: 10 min total added
 
 // ─── Auctions ─────────────────────────────────────────────────────────────────
 function loadAuctions() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(AUCTION_FILE)) fs.writeFileSync(AUCTION_FILE, '[]');
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
@@ -110,7 +117,7 @@ let   vPingChannels    = {};
 
 // ─── Settings persistence ─────────────────────────────────────────────────────
 function loadSettings() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(SETTINGS_FILE)) fs.writeFileSync(SETTINGS_FILE, '{}');
   return JSON.parse(fs.readFileSync(SETTINGS_FILE));
 }
@@ -265,7 +272,7 @@ function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 
 
 // ─── Market / Demand system ───────────────────────────────────────────────────
 function loadMarket() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(MARKET_FILE)) fs.writeFileSync(MARKET_FILE, '{}');
   return JSON.parse(fs.readFileSync(MARKET_FILE));
 }
@@ -374,6 +381,8 @@ const PLANTS = [
   { name: 'Olive',          file: './images/olive.png',          display: 'https://gardenhorizonswiki.com/images/plants/olive.webp',          rarity: 'Mythic'    },
 ];
 
+const processedMessages = new Set();
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeDrops  = {};
 let activeRaces  = {};
@@ -387,27 +396,27 @@ function generateTradeId() { return `t_${Date.now()}_${Math.random().toString(36
 
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_FILE))  fs.writeFileSync(DB_FILE, '{}');
   return JSON.parse(fs.readFileSync(DB_FILE));
 }
 function saveDB(db) { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
 function loadMeta() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
   return JSON.parse(fs.readFileSync(META_FILE));
 }
 function saveMeta(m) { fs.writeFileSync(META_FILE, JSON.stringify(m, null, 2)); }
 
 function loadLocks(userId) {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
   const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
   return all[userId] || [];
 }
 function saveLocks(userId, locks) {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
   const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
   all[userId] = locks;
@@ -420,15 +429,12 @@ function isLocked(userId, plant) {
     if (l.version && l.version !== plant.version) return false;
     if (l.mutation && (!plant.mutation || plant.mutation.name.toLowerCase() !== l.mutation.toLowerCase())) return false;
     if (l.rarity && plant.rarity.toLowerCase() !== l.rarity.toLowerCase()) return false;
-    // if lock has no version specified, it only matches if the plant version is > 10
-    // unless the lock was created with explicit version
-    if (!l.version && !l.rarity && !l.mutation && plant.version && plant.version <= 10) return false;
     return true;
   });
 }
 
 function loadClaimsLB() {
-  if (!fs.existsSync('./data')) fs.mkdirSync('./data');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(CLAIMS_LB_FILE)) fs.writeFileSync(CLAIMS_LB_FILE, '[]');
   return JSON.parse(fs.readFileSync(CLAIMS_LB_FILE));
 }
@@ -987,102 +993,114 @@ function drawLBFooter(ctx, W, H, PADDING, label) {
 
 // ─── Inventory Rank Leaderboard Image ─────────────────────────────────────────
 async function generateInvLBImage(entries) {
-  const W = 600, ROW_H = 64, HEADER_H = 80, FOOTER_H = 36;
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
   const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
 
-  // Deep dark background with subtle grid
+ // Background
   ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-  // Header gradient
-  const hGrad = ctx.createLinearGradient(0, 0, W, HEADER_H);
-  hGrad.addColorStop(0, '#1a0533'); hGrad.addColorStop(0.5, '#0d1a40'); hGrad.addColorStop(1, '#08080f');
-  ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HEADER_H);
-
-  // Accent line — rainbow-ish
+  // Accent line
   const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
-  accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700'); accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
+  accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700');
+  accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
   ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
-
-  // Header text
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.fillText('🌿  Garden Rankings', 20, HEADER_H / 2 - 8);
-  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Weighted score · Higher rarity = greater impact', 20, HEADER_H / 2 + 14);
-
-  // Column headers
-  ctx.font = 'bold 11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.textAlign = 'right';
-  ctx.fillText('SCORE', W - 16, HEADER_H - 12);
-  ctx.textAlign = 'left';
 
   for (let i = 0; i < entries.length; i++) {
     const e   = entries[i];
     const y   = HEADER_H + i * ROW_H;
     const mid = y + ROW_H / 2;
+    const tierHex = '#' + e.tier.color.toString(16).padStart(6, '0');
 
     // Alternating row bg
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
     ctx.fillRect(0, y, W, ROW_H);
 
-    // Tier-colored left bar
-    const tierHex = '#' + e.tier.color.toString(16).padStart(6, '0');
-    ctx.save();
-    ctx.shadowColor = tierHex; ctx.shadowBlur = 16;
-    ctx.fillStyle   = tierHex;
-    ctx.fillRect(0, y + 8, 4, ROW_H - 16);
-    ctx.restore();
-
     // Top 3 glow
     if (i < 3) {
       const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
       ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
-      const sideCol = ['#FFD700','#C0C0C0','#CD7F32'][i];
-      ctx.save(); ctx.shadowColor = sideCol; ctx.shadowBlur = 14;
-      ctx.fillStyle = sideCol; ctx.fillRect(0, y, 4, ROW_H); ctx.restore();
     }
 
-    // Rank number / medal
+    // Tier-colored left bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : tierHex;
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 44, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (i < 3) {
-      ctx.save(); ctx.font = '24px Arial';
-      ctx.fillStyle = ['#FFD700','#C0C0C0','#CD7F32'][i];
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
-      ctx.fillText(['🥇','🥈','🥉'][i], 32, mid); ctx.restore();
-    } else {
-      ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillText(`${i + 1}`, 32, mid);
-    }
+    ctx.fillText(`${i + 1}`, rankX, mid);
+    ctx.restore();
 
-    // Tier emoji
-    ctx.font = '20px Arial'; ctx.textAlign = 'left';
-    ctx.fillText(e.tier.emoji, 58, mid);
+    // Avatar circle
+    const avatarX = 92, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      // Fallback: colored circle with initial
+      ctx.fillStyle = tierHex;
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : tierHex;
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
 
     // Username
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
     ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
-    ctx.fillText(e.username, 88, mid - 8);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(e.username, 116, mid - 8);
 
     // Tier name
-    ctx.font = '12px Arial';
-    ctx.fillStyle = tierHex;
-    ctx.fillText(e.tier.name.toUpperCase(), 88, mid + 10);
+    ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
+    ctx.fillText(e.tier.name.toUpperCase(), 116, mid + 10);
 
-    // Score — right aligned, big
+    // Score
     ctx.textAlign = 'right';
     ctx.font = 'bold 18px Arial';
     ctx.fillStyle = i === 0 ? tierHex : 'rgba(255,255,255,0.75)';
     ctx.save();
     if (i === 0) { ctx.shadowColor = tierHex; ctx.shadowBlur = 12; }
-    ctx.fillText(e.score.toLocaleString(), W - 16, mid - 8); ctx.restore();
+    ctx.fillText(e.score.toLocaleString(), W - 16, mid - 8);
+    ctx.restore();
 
-    // Plant count sub-text
     ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.fillText(`${e.plantCount} plants`, W - 16, mid + 10);
-
     ctx.textAlign = 'left';
 
     // Divider
@@ -1655,9 +1673,18 @@ function buildTradeEmbed(trade) {
     .setColor(0x00CED1);
 }
 
+process.on('SIGTERM', () => {
+  client.destroy();
+  process.exit(0);
+});
+
 // ─── Ready ────────────────────────────────────────────────────────────────────
 client.once('ready', () => {
   console.log(`✅ ${client.user.tag} online`);
+
+  // Ensure data directory exists
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
   startDropLoop();
   startDecayLoop();
 
@@ -1675,6 +1702,9 @@ client.once('ready', () => {
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 client.on('messageCreate', async (message) => {
+  if (processedMessages.has(message.id)) return;
+processedMessages.add(message.id);
+setTimeout(() => processedMessages.delete(message.id), 30000);
   if (message.author.bot) return;
 
   const registeredChId = dropChannels[message.guild?.id];
@@ -1903,8 +1933,8 @@ client.on('messageCreate', async (message) => {
       saveDB(db);
     }
 
-    const spoilerLines = results.map(p =>
-      `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+    const spoilerLines = user.collection.slice(-results.length).map(p =>
+      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
       embeds: [new EmbedBuilder()
@@ -1930,8 +1960,10 @@ client.on('messageCreate', async (message) => {
       if (pending.sellAllCandidates) {
         const { sellAllCandidates, totalVal } = pending;
         // Remove from highest index down to avoid shift bugs
-        const sorted = [...sellAllCandidates].sort((a, b) => b.index - a.index);
-        for (const { index } of sorted) user.collection.splice(index, 1);
+        for (const { name, version } of sellAllCandidates) {
+          const idx = user.collection.findIndex(p => p.name === name && p.version === version);
+          if (idx !== -1) user.collection.splice(idx, 1);
+        }
         user.currency += totalVal;
         saveDB(db);
         const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
@@ -1939,7 +1971,9 @@ client.on('messageCreate', async (message) => {
       }
 
       // Single sell path
-      const { plant, index } = pending;
+      const { plant, plantName, plantVersion } = pending;
+      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+      if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
       user.collection.splice(index, 1);
       const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
       user.currency += price;
@@ -2490,8 +2524,9 @@ client.on('messageCreate', async (message) => {
       Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(async ([id, u]) => {
         const score = calcWeightedGardenScore(u.collection || []);
         let username = `User#${id.slice(-4)}`;
-        try { const discordUser = await client.users.fetch(id); username = discordUser.username; } catch {}
-        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score) };
+        let avatarURL = null;
+        try { const discordUser = await client.users.fetch(id); username = discordUser.username; avatarURL = discordUser.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL };
       })
     );
     const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
@@ -2767,7 +2802,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       // Store all indices for the confirm handler
-      pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, index: c.i })), totalVal };
+      pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, name: c.p.name, version: c.p.version })), totalVal };
       setTimeout(() => delete pendingSells[message.author.id], 30_000);
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle(`💰 Sell All ${plantName}? (${candidates.length} copies)`)
@@ -2801,11 +2836,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     
 
     // Single match — confirm
-    if (isLocked(message.author.id, candidates[0].p) && !candidates[0].p.version || isLocked(message.author.id, candidates[0].p) && candidates[0].p.version > 0) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
+    if (isLocked(message.author.id, candidates[0].p)) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
     const { p: plant, i: index } = candidates[0];
     const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
     const rCfg  = getRarityConfig(plant.rarity);
-    pendingSells[message.author.id] = { plant, index };
+    pendingSells[message.author.id] = { plant, plantName: plant.name, plantVersion: plant.version };
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
     const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
     const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
@@ -2955,6 +2990,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const version = getAvailableVersion(plant.name, db); recordVersionHighWater(plant.name, version);
     const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
     if (!TEST_IDS.has(message.author.id)) {
+      if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
       addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db);
@@ -2974,6 +3010,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
     const coins = Math.floor(Math.random()*1000)+500;
     if (!TEST_IDS.has(message.author.id)) {
+      if (user.lastWeekly && now - user.lastWeekly < WEEK) return message.reply(`⏳ Already claimed this week.`);
       for (const p of plants) {
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
@@ -3039,7 +3076,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); saveDB(db);
     }
-    const spoilerLines = results.map(p => `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`);
+    const spoilerLines = user.collection.slice(-results.length).map(p =>
+      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+    );
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
   }
 
@@ -3071,6 +3110,69 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
+  if (cmd === 'addplant') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!addplant @user <plant name> [-v version] [-m mutation] [-r rarity]`');
+
+    const rawAdd = args.slice(2).join(' ');
+    const vMatch = rawAdd.match(/-v\s*(\d+)/i);
+    const mMatch = rawAdd.match(/-m\s+([a-z]+)/i);
+    const rMatch = rawAdd.match(/-r\s+([a-z]+)/i);
+    const plantName = rawAdd.replace(/-v\s*\d+/i,'').replace(/-m\s+\S+/i,'').replace(/-r\s+\S+/i,'').trim();
+
+    if (!plantName) return message.reply('Usage: `!addplant @user <plant name> [-v version] [-m mutation] [-r rarity]`');
+
+    const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
+    if (!plant) return message.reply(`❌ Plant **${plantName}** not found. Check spelling.`);
+
+    const db = loadDB();
+    const user = getUser(db, target.id);
+
+    // Rarity — use plant's natural rarity unless overridden
+    const rarity = rMatch ? getRarityConfig(rMatch[1]) : getRarityConfig(plant.rarity);
+
+    // Mutation
+    let mutation = null;
+    if (mMatch) {
+      mutation = MUTATIONS.find(m => m.name.toLowerCase() === mMatch[1].toLowerCase());
+      if (!mutation) return message.reply(`❌ Mutation **${mMatch[1]}** not found. Options: ${MUTATIONS.map(m => m.name).join(', ')}`);
+    }
+
+    // Version
+    let version;
+    if (vMatch) {
+      version = parseInt(vMatch[1]);
+      recordVersionHighWater(plant.name, version);
+    } else {
+      version = getAvailableVersion(plant.name, db);
+      recordVersionHighWater(plant.name, version);
+    }
+
+    const sellValue = calcSellValue(plant, rarity, mutation, version);
+
+    user.collection.push({
+      name: plant.name,
+      image: plant.display,
+      rarity: rarity.name,
+      mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null,
+      version,
+      sellValue,
+      claimedAt: new Date().toISOString(),
+    });
+
+    saveDB(db);
+
+    const mutLine = mutation ? `  ${mutation.emoji} **${mutation.name}**` : '';
+    const v1Badge = version === 1 ? '  🔖 *First copy!*' : '';
+    return message.reply({ embeds: [new EmbedBuilder()
+      .setTitle('✅ Plant Added')
+      .setDescription(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
+      .setThumbnail(plant.display)
+      .setColor(mutation ? mutation.color : rarity.color)
+    ]});
+  }
+
   if (cmd === 'addxp') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
@@ -3214,10 +3316,32 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
     const db = loadDB(); const iUser = getUser(db, trade.initiatorId); const tUser = getUser(db, trade.targetId);
     const iSide = trade.sides[trade.initiatorId]; const tSide = trade.sides[trade.targetId];
-    for (const p of iSide.plants) { const idx = iUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
-    for (const p of tSide.plants) { const idx = tUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
-    if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
-    if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+    for (const p of iSide.plants) {
+      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
+      }
+      iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
+    }
+    for (const p of tSide.plants) {
+      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
+      }
+      tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
+    }
+    if (iSide.coins > 0) {
+      if (iUser.currency < iSide.coins) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
+      }
+      iUser.currency -= iSide.coins; tUser.currency += iSide.coins;
+    }
+    if (tSide.coins > 0) {
+      if (tUser.currency < tSide.coins) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
+      }
+      tUser.currency -= tSide.coins; iUser.currency += tSide.coins;
+    }
     touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
     saveDB(db);
     const iLines = iSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
@@ -3277,6 +3401,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('📊 Plant Market — Trending').setDescription(lines.join('\n') + '\n\n*Use `!m <plant>` to see version owners*').setColor(0x4CAF50)] });
     }
   }
+
+  if (cmd === 'restoredata') {
+  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  return message.reply('✅ Data directory ensured. Now redeploy and your bot will recreate fresh files.');
+}
 
   // ── !help / !h ────────────────────────────────────────────────────────────
   if (cmd === 'help' || cmd === 'h') {
@@ -3698,10 +3828,15 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(session({
-  secret: 'gardenhorizons_secret',
+  secret: process.env.SESSION_SECRET || 'gardenhorizons_secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { sameSite: 'lax', httpOnly: true },
+  cookie: { 
+    sameSite: 'lax', 
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  },
 }));
 app.use(passport.initialize());
 app.use(passport.session());

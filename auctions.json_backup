@@ -1,0 +1,35 @@
+[
+  {
+    "id": "a_1772657154075_xu1o",
+    "sellerId": "1319335714311241785",
+    "sellerName": "xyzangelo",
+    "plant": {
+      "name": "Carrot",
+      "image": "https://gardenhorizonswiki.com/images/plants/carrot.webp",
+      "rarity": "Common",
+      "mutation": null,
+      "version": 336,
+      "sellValue": 10,
+      "claimedAt": "2026-03-04T20:45:20.023Z"
+    },
+    "startPrice": 10,
+    "buyoutPrice": null,
+    "minIncrement": 100,
+    "bids": [
+      {
+        "userId": "239725298403246081",
+        "username": "7angelo",
+        "amount": 25,
+        "time": 1772661855065
+      },
+      {
+        "userId": "239725298403246081",
+        "username": "7angelo",
+        "amount": 1000,
+        "time": 1772662068444
+      }
+    ],
+    "endsAt": 1772743554075,
+    "createdAt": 1772657154084
+  }
+]
