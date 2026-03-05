@@ -1655,6 +1655,11 @@ function buildTradeEmbed(trade) {
     .setColor(0x00CED1);
 }
 
+process.on('SIGTERM', () => {
+  client.destroy();
+  process.exit(0);
+});
+
 // ─── Ready ────────────────────────────────────────────────────────────────────
 client.once('ready', () => {
   console.log(`✅ ${client.user.tag} online`);
