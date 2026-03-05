@@ -275,6 +275,7 @@ const VERSION_MULTIPLIERS = {
   5: 1.20, 
   6: 1.05 
 };
+
 function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 1.00; }
 
 // ─── Market / Demand system ───────────────────────────────────────────────────
