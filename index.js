@@ -429,9 +429,6 @@ function isLocked(userId, plant) {
     if (l.version && l.version !== plant.version) return false;
     if (l.mutation && (!plant.mutation || plant.mutation.name.toLowerCase() !== l.mutation.toLowerCase())) return false;
     if (l.rarity && plant.rarity.toLowerCase() !== l.rarity.toLowerCase()) return false;
-    // if lock has no version specified, it only matches if the plant version is > 10
-    // unless the lock was created with explicit version
-    if (!l.version && !l.rarity && !l.mutation && plant.version && plant.version <= 10) return false;
     return true;
   });
 }
@@ -2844,7 +2841,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     
 
     // Single match — confirm
-    if (isLocked(message.author.id, candidates[0].p) && !candidates[0].p.version || isLocked(message.author.id, candidates[0].p) && candidates[0].p.version > 0) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
+    if (isLocked(message.author.id, candidates[0].p)) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
     const { p: plant, i: index } = candidates[0];
     const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
     const rCfg  = getRarityConfig(plant.rarity);
@@ -3320,10 +3317,32 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
     const db = loadDB(); const iUser = getUser(db, trade.initiatorId); const tUser = getUser(db, trade.targetId);
     const iSide = trade.sides[trade.initiatorId]; const tSide = trade.sides[trade.targetId];
-    for (const p of iSide.plants) { const idx = iUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
-    for (const p of tSide.plants) { const idx = tUser.collection.findIndex(c => c.name===p.name); if (idx !== -1) { tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name); } }
-    if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
-    if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+    for (const p of iSide.plants) {
+      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
+      }
+      iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
+    }
+    for (const p of tSide.plants) {
+      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
+      }
+      tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
+    }
+    if (iSide.coins > 0) {
+      if (iUser.currency < iSide.coins) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
+      }
+      iUser.currency -= iSide.coins; tUser.currency += iSide.coins;
+    }
+    if (tSide.coins > 0) {
+      if (tUser.currency < tSide.coins) {
+        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
+      }
+      tUser.currency -= tSide.coins; iUser.currency += tSide.coins;
+    }
     touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
     saveDB(db);
     const iLines = iSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
