@@ -321,7 +321,7 @@ const SHOP_TITLES = {
 
 // ─── Charms ───────────────────────────────────────────────────────────────────
 const CHARMS = {
-  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×1.05**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
+  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×5**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
   silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15**',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
   gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.30**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
   void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
