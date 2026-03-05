@@ -996,37 +996,19 @@ function drawLBFooter(ctx, W, H, PADDING, label) {
 
 // ─── Inventory Rank Leaderboard Image ─────────────────────────────────────────
 async function generateInvLBImage(entries) {
-  const W = 600, ROW_H = 64, HEADER_H = 80, FOOTER_H = 36;
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
   const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
 
-  // Background
+ // Background
   ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-
-  // Header gradient
-  const hGrad = ctx.createLinearGradient(0, 0, W, HEADER_H);
-  hGrad.addColorStop(0, '#1a0533'); hGrad.addColorStop(0.5, '#0d1a40'); hGrad.addColorStop(1, '#08080f');
-  ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HEADER_H);
 
   // Accent line
   const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
   accentGrad.addColorStop(0, '#FF00FF'); accentGrad.addColorStop(0.33, '#FFD700');
   accentGrad.addColorStop(0.66, '#00BFFF'); accentGrad.addColorStop(1, '#FF00FF');
   ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
-
-  // Header text
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.fillText('Garden Rankings', 20, HEADER_H / 2 - 8);
-  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Weighted score · Higher rarity = greater impact', 20, HEADER_H / 2 + 14);
-
-  ctx.font = 'bold 11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.textAlign = 'right';
-  ctx.fillText('SCORE', W - 16, HEADER_H - 12);
-  ctx.textAlign = 'left';
 
   for (let i = 0; i < entries.length; i++) {
     const e   = entries[i];
@@ -1053,7 +1035,7 @@ async function generateInvLBImage(entries) {
     ctx.restore();
 
     // Rank number circle
-    const rankX = 28, rankR = 16;
+    const rankX = 44, rankR = 16;
     ctx.save();
     ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
     ctx.fillStyle = i < 3
@@ -1105,11 +1087,11 @@ async function generateInvLBImage(entries) {
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
     ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(e.username, 100, mid - 8);
+    ctx.fillText(e.username, 116, mid - 8);
 
     // Tier name
     ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
-    ctx.fillText(e.tier.name.toUpperCase(), 100, mid + 10);
+    ctx.fillText(e.tier.name.toUpperCase(), 116, mid + 10);
 
     // Score
     ctx.textAlign = 'right';
