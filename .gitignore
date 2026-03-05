@@ -1,4 +1,4 @@
 node_modules/
 .env
 data/
-!*.json_backup
+*.json_backup
