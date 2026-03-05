@@ -1174,7 +1174,7 @@ window._cachedLB = lb;
       renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.tierEmoji + ' ' + (e.score/1000).toFixed(0)+'k', e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
+      const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k'; renderLBEntry(e.username, e.tierEmoji + ' ' + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-garden-full').innerHTML = gardenHTML;
 
@@ -1241,15 +1241,13 @@ window._cachedLB = lb;
 
 const _avatarCache = {};
 async function fetchAvatar(id) {
-  if (_avatarCache[id] !== undefined) return _avatarCache[id];
+  if (_avatarCache[id]) return _avatarCache[id];
   try {
     const res  = await fetch(`/api/avatar/${id}`);
     const data = await res.json();
-    _avatarCache[id] = data.url || null;
-  } catch {
-    _avatarCache[id] = null;
-  }
-  return _avatarCache[id];
+    if (data.url) _avatarCache[id] = data.url;
+  } catch {}
+  return _avatarCache[id] || null;
 }
 
 async function loadAvatars(players) {
