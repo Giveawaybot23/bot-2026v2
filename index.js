@@ -1049,7 +1049,7 @@ async function generateInvLBImage(entries) {
     ctx.restore();
 
     // Avatar circle
-    const avatarX = 68, avatarR = 22;
+    const avatarX = 92, avatarR = 22;
     ctx.save();
     ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
     let avatarDrawn = false;
@@ -1942,8 +1942,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveDB(db);
     }
 
-    const spoilerLines = results.map(p =>
-      `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+    const spoilerLines = user.collection.slice(-results.length).map(p =>
+      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
       embeds: [new EmbedBuilder()
@@ -3079,7 +3079,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); saveDB(db);
     }
-    const spoilerLines = results.map(p => `||${p.rarityConfig.emoji} **${p.name}** — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`);
+    const spoilerLines = user.collection.slice(-results.length).map(p =>
+      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+    );
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
   }
 
