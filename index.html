@@ -1342,10 +1342,27 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     `).join('');
 
   loadAvatars(players);
-    loadLBAvatars(lb.garden, 'id');
-    loadLBAvatars(lb.level,  'id');
-    loadLBAvatars(lb.race,   'userId');
-    loadLBAvatars(lb.daily,  'userId');
+
+  const allIds = [...new Set([
+    ...lb.garden.map(e => e.id || e.userId),
+    ...lb.level.map(e => e.id || e.userId),
+    ...lb.race.map(e => e.userId),
+    ...lb.daily.map(e => e.userId),
+    ...players.map(p => p.id),
+  ].filter(Boolean))];
+
+  await Promise.all(allIds.map(id => {
+    if (_avatarCache[id]) return Promise.resolve();
+    return fetch(`/api/avatar/${id}`)
+      .then(r => r.json())
+      .then(data => { if (data.url) _avatarCache[id] = data.url; })
+      .catch(() => {});
+  }));
+
+  loadLBAvatars(lb.garden, 'id');
+  loadLBAvatars(lb.level,  'id');
+  loadLBAvatars(lb.race,   'userId');
+  loadLBAvatars(lb.daily,  'userId');
 
   } catch(err) {
     console.error('Failed to load live data:', err);
