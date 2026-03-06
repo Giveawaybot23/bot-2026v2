@@ -211,16 +211,16 @@ function calcWeightedGardenScore(collection) {
 
 // Garden Elo tiers — placeholders for custom icons
 const GARDEN_TIERS = [
-  { name: 'Iron',      emoji: '🪨', minScore: 10000,       color: 0x8B8B8B, ansi: 'gray'    },
-  { name: 'Bronze',    emoji: '<img class="tier-icon" src="/images/tiers/bronze.webp">', minScore: 25000,     color: 0xCD7F32, ansi: 'orange'  },
-  { name: 'Silver',    emoji: '<img class="tier-icon" src="/images/tiers/silver.webp">', minScore: 50000,    color: 0xC0C0C0, ansi: 'white'   },
-  { name: 'Gold',      emoji: '<img class="tier-icon" src="/images/tiers/gold.webp">', minScore: 80000,    color: 0xFFD700, ansi: 'yellow'  },
-  { name: 'Platinum',  emoji: '<img class="tier-icon" src="/images/tiers/platinum.webp">', minScore: 100000,   color: 0x00BFFF, ansi: 'cyan'    },
-  { name: 'Diamond',   emoji: '<img class="tier-icon" src="/images/tiers/diamond.webp">', minScore: 250000,   color: 0xB9F2FF, ansi: 'cyan'    },
-  { name: 'Master',    emoji: '<img class="tier-icon" src="/images/tiers/master.webp">', minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
-  { name: 'Grandmaster', emoji: '<img class="tier-icon" src="/images/tiers/grandmaster.webp">', minScore: 700000, color: 0xFF6600, ansi: 'yellow' },
-  { name: 'Celestial', emoji: '<img class="tier-icon" src="/images/tiers/celestial.webp">', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
-  { name: '???', emoji: '🔱', minScore: 2000000, color: 0x000000, ansi: 'black' },
+  { name: 'Iron',        emoji: '🪨',                                              minScore: 10000,   color: 0x8B8B8B, ansi: 'gray'    },
+  { name: 'Bronze',      emoji: '<:bronze:1479474400574177312>',                   minScore: 25000,   color: 0xCD7F32, ansi: 'orange'  },
+  { name: 'Silver',      emoji: '<:silver:1479474365316989151>',                   minScore: 50000,   color: 0xC0C0C0, ansi: 'white'   },
+  { name: 'Gold',        emoji: '<:gold:1479474310123884585>',                     minScore: 80000,   color: 0xFFD700, ansi: 'yellow'  },
+  { name: 'Platinum',    emoji: '<:platinum:1479474282437284013>',                 minScore: 100000,  color: 0x00BFFF, ansi: 'cyan'    },
+  { name: 'Diamond',     emoji: '<:diamond_rank:1479474261809959093>',             minScore: 250000,  color: 0xB9F2FF, ansi: 'cyan'    },
+  { name: 'Master',      emoji: '<:master:1479474424255086753>',                   minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
+  { name: 'Grandmaster', emoji: '<:grandmaster:1479474424255086753>',              minScore: 700000,  color: 0xFF6600, ansi: 'yellow'  },
+  { name: 'Celestial',   emoji: '<:celestial:1479474231808102470>',                minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
+  { name: '???',         emoji: '🔱',                                              minScore: 2000000, color: 0x000000, ansi: 'black'   },
 ];
 
 function getGardenTier(score) {
@@ -237,10 +237,10 @@ function getNextGardenTier(score) {
 // ─── Mutations ────────────────────────────────────────────────────────────────
 const MUTATIONS = [
   { name: 'Starstruck', emoji: '<:starstruck:1477666927135428650>', multiplier: 1.65, weight: 3,  color: 0xFFFF00 },
-  { name: 'Flooded',    emoji: '🌊', multiplier: 1.50, weight: 5,  color: 0x0099FF },
+  { name: 'Flooded',    emoji: '🌊',                               multiplier: 1.50, weight: 5,  color: 0x0099FF }, 
   { name: 'Shocked',    emoji: '<:shocked:1477666867890884628>',    multiplier: 1.45, weight: 6,  color: 0xFFDD00 },
   { name: 'Soaked',     emoji: '<:soaked:1477666816745537546>',     multiplier: 1.30, weight: 10, color: 0x66CCFF },
-  { name: 'Sandy',      emoji: '🏜️', multiplier: 1.25, weight: 12, color: 0xF4A460 },
+  { name: 'Sandy',      emoji: '🏜️',                               multiplier: 1.25, weight: 12, color: 0xF4A460 },
   { name: 'Snowy',      emoji: '<:snowy:1477666846382620683>',      multiplier: 1.20, weight: 15, color: 0xADD8E6 },
 ];
 const MUTATION_NONE_WEIGHT = 949;
@@ -2751,7 +2751,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const mktMult = getMarketMultiplier(plant.name);
     const mktStr = mktMult > 1.05 ? `📈 +${Math.round((mktMult-1)*100)}% demand` : mktMult < 0.95 ? `📉 ${Math.round((mktMult-1)*100)}% demand` : `📊 Normal demand`;
     let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** \`v${p.version}\``; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(plant.display).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })] });
+
+    // Find who owns this plant server-wide
+    const allOwners = [];
+    for (const [uid, userData] of Object.entries(db)) {
+      for (const p of (userData.collection || [])) {
+        if (p.name !== plant.name) continue;
+        if (vFilter !== null && p.version !== vFilter) continue;
+        const uname = userData.username || `User#${uid.slice(-4)}`;
+        const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
+        allOwners.push(`<@${uid}> \`v${p.version}\`${mutStr}`);
+      }
+    }
+    const ownedByLine = allOwners.length ? `*Owned by: ${allOwners.join('  ·  ')}*` : '*Not owned by anyone yet.*';
+
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n${ownedByLine}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(plant.display).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })] });
   }
 
   // ── !sell / !s — with optional -v <version> flag ──────────────────────────
