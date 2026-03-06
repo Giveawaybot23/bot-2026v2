@@ -1692,17 +1692,24 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  await Promise.all(entries.map(e => {
-    const id = e[idField] || e.userId || e.id;
-    return id ? fetchAvatar(id) : Promise.resolve();
-  }));
   entries.forEach(e => {
-    const id  = e[idField] || e.userId || e.id;
-    const url = _avatarCache[id];
-    const el  = document.getElementById(`lb-av-${e.username}`);
+    const id = e[idField] || e.userId || e.id;
+    if (!id) return;
+    const el = document.getElementById(`lb-av-${e.username}`);
     if (!el) return;
-    if (url) el.innerHTML = `<img src="${url}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
-    else el.textContent = e.username[0].toUpperCase();
+    if (_avatarCache[id]) {
+      el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
+      return;
+    }
+    fetch(`/api/avatar/${id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.url) return;
+        _avatarCache[id] = data.url;
+        const el2 = document.getElementById(`lb-av-${e.username}`);
+        if (el2) el2.innerHTML = `<img src="${data.url}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
+      })
+      .catch(() => {});
   });
 }
 
