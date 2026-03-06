@@ -889,7 +889,7 @@
   <div class="nav-links">
     <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
     <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
-    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Inventory</a>
+    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Collection</a>
     <div class="nav-dropdown-wrap" id="nav-shop-wrap">
       <a class="nav-dropdown-trigger" id="nav-shop">Shop ▾</a>
       <div class="nav-dropdown">
@@ -1198,13 +1198,13 @@
 </div>
 
 </div>
-<!-- ── INVENTORY PAGE ── -->
+<!-- ── COLLECTION PAGE ── -->
 <div class="page" id="page-inventory">
   <div class="shop-page">
     <div class="shop-header reveal">
-      <div class="section-eyebrow">Collection</div>
-      <h1 class="section-title" style="margin-bottom:8px">My Inventory</h1>
-      <p style="font-size:15px;color:var(--ink2)" id="inv-page-count">Your full plant collection.</p>
+      <div class="section-eyebrow">Bestiary</div>
+      <h1 class="section-title" style="margin-bottom:8px">Plant Collection</h1>
+      <p style="font-size:15px;color:var(--ink2)" id="inv-page-count">All plants in the game.</p>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;align-items:center">
       <input id="inv-page-search" placeholder="Search plants..." oninput="filterInventoryPage(this.value)" style="padding:10px 18px;border-radius:100px;border:1.5px solid var(--border);background:var(--card);font-size:13px;font-family:inherit;color:var(--ink);outline:none;width:220px;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border)'">
@@ -2660,20 +2660,15 @@ let _invPageFilter = 'all';
 let _invPageSearch = '';
 
 async function loadInventoryPage() {
-  if (!window._loggedInId) {
-    document.getElementById('inv-page-grid').innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center">Log in with Discord to see your inventory.</div>';
-    return;
-  }
   try {
-    const res  = await fetch(`/api/profile/${window._loggedInId}`);
-    const data = await res.json();
-    _invPageCollection = (data.collection || []).slice().sort((a, b) => {
-      const order = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-      return order.indexOf(a.rarity) - order.indexOf(b.rarity);
-    });
+    const res = await fetch('/api/plants');
+    const plants = await res.json();
+    const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
+    document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
     renderInventoryPage();
   } catch {
-    document.getElementById('inv-page-grid').innerHTML = '<div style="color:#e53935;font-size:14px;padding:32px;text-align:center">Failed to load inventory.</div>';
+    document.getElementById('inv-page-grid').innerHTML = '<div style="color:#e53935;font-size:14px;padding:32px;text-align:center">Failed to load plants.</div>';
   }
 }
 
@@ -2690,49 +2685,38 @@ function filterInventoryPage(val) {
 }
 
 function renderInventoryPage() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#1a1a2e' };
-  const rarityGradients = {
-    Common:   'linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)',
-    Uncommon: 'linear-gradient(135deg, #1a4a2a 0%, #0d2e1a 100%)',
-    Rare:     'linear-gradient(135deg, #0d2a4a 0%, #071a2e 100%)',
-    Epic:     'linear-gradient(135deg, #2a0a4a 0%, #1a052e 100%)',
-    Legendary:'linear-gradient(135deg, #4a3a00 0%, #2e2300 100%)',
-    Mythic:   'linear-gradient(135deg, #4a0a0a 0%, #2e0505 100%)',
-    Secret:   'linear-gradient(135deg, #0a0a1a 0%, #050510 100%)',
-  };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
   const grid = document.getElementById('inv-page-grid');
   if (!grid) return;
   let filtered = _invPageCollection;
   if (_invPageFilter !== 'all') filtered = filtered.filter(p => p.rarity === _invPageFilter);
   if (_invPageSearch) filtered = filtered.filter(p => p.name.toLowerCase().includes(_invPageSearch));
-  document.getElementById('inv-page-count').textContent = `${filtered.length} plant${filtered.length !== 1 ? 's' : ''} in your collection.`;
-  if (!filtered.length) {
-    grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>';
-    return;
-  }
+  if (!filtered.length) { grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>'; return; }
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
-    const mutStr = p.mutation ? `<span class="market-card-version">${p.mutation.emoji} ${p.mutation.name}</span>` : '';
-    const isV1 = p.version === 1;
     return `
-      <div class="market-card${isV1 ? ' auction-v1-card' : ''}" onclick="openPlantDetail(${idx})" style="cursor:pointer">
+      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer">
         <div class="market-card-rarity-bar" style="background:${color}"></div>
-        ${p.image ? `<img src="${p.image}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none'">` : ''}
-        <div class="market-card-name">${p.name}${isV1 ? ' 👑' : ''}</div>
-        <div class="market-card-meta">
-          <span class="market-card-version" style="color:${color}">${p.rarity}</span>
-          <span class="market-card-version">v${p.version || '?'}</span>
-          ${mutStr}
+        <img src="${p.image}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
+        <div class="market-card-name">${p.name}</div>
+        <div class="market-card-meta" style="margin-top:6px">
+          <span class="market-card-version" style="color:${color};font-weight:700">${p.rarity}</span>
         </div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:8px">${p.claimedAt ? 'Claimed ' + new Date(p.claimedAt).toLocaleDateString() : ''}</div>
+        <div style="margin-top:10px;font-size:12px;color:var(--ink3);background:var(--bg2);border:1px solid var(--border);border-radius:100px;padding:4px 12px;display:inline-block">
+          👤 ${p.owners} owner${p.owners !== 1 ? 's' : ''}
+        </div>
       </div>`;
   }).join('');
 }
 
 function openPlantDetail(idx) {
-  const p = _invPageCollection[idx];
+  const filtered = _invPageCollection.filter(p =>
+    (_invPageFilter === 'all' || p.rarity === _invPageFilter) &&
+    (!_invPageSearch || p.name.toLowerCase().includes(_invPageSearch))
+  );
+  const p = filtered[idx];
   if (!p) return;
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#888' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
   const rarityGradients = {
     Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
     Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
@@ -2740,62 +2724,31 @@ function openPlantDetail(idx) {
     Epic:     'linear-gradient(160deg, #2a0850 0%, #150328 100%)',
     Legendary:'linear-gradient(160deg, #503a00 0%, #281e00 100%)',
     Mythic:   'linear-gradient(160deg, #500808 0%, #280404 100%)',
-    Secret:   'linear-gradient(160deg, #080810 0%, #030308 100%)',
+    Secret:   'linear-gradient(160deg, #1a0a3a 0%, #0a0520 100%)',
   };
   const color = rarityColors[p.rarity] || '#999';
   const bg    = rarityGradients[p.rarity] || rarityGradients.Common;
-  const mutStr = p.mutation ? `${p.mutation.emoji} ${p.mutation.name}` : null;
-  const claimedStr = p.claimedAt ? new Date(p.claimedAt).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : 'Unknown';
-  const sellVal = p.sellValue ? p.sellValue.toLocaleString() : '—';
-
   const existing = document.getElementById('plant-detail-overlay');
   if (existing) existing.remove();
   const overlay = document.createElement('div');
   overlay.id = 'plant-detail-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,0.5)';
   overlay.innerHTML = `
-    <div style="border-radius:24px;padding:36px 32px;width:100%;max-width:360px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
-
-      <!-- Close -->
+    <div style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
       <button onclick="document.getElementById('plant-detail-overlay').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
-
-      <!-- Glow ring + image -->
-      <div style="width:140px;height:140px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
-        ${p.image
-          ? `<img src="${p.image}" style="width:110px;height:110px;object-fit:contain" onerror="this.style.display='none'">`
-          : `<span style="font-size:64px">🌿</span>`}
+      <div style="width:130px;height:130px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
+        <img src="${p.image}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">
       </div>
-
-      <!-- Name -->
-      <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff;letter-spacing:-0.02em;margin-bottom:6px">${p.name}${p.version===1?' 👑':''}</div>
-
-      <!-- Rarity badge -->
-      <div style="display:inline-flex;align-items:center;gap:6px;background:${color}33;border:1px solid ${color}66;border-radius:100px;padding:5px 16px;margin-bottom:24px">
+      <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff;margin-bottom:10px">${p.name}</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:${color}33;border:1px solid ${color}66;border-radius:100px;padding:5px 16px;margin-bottom:20px">
         <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color}"></div>
-        <span style="font-size:13px;font-weight:700;color:${color};letter-spacing:0.04em">${p.rarity}</span>
+        <span style="font-size:13px;font-weight:700;color:${color}">${p.rarity}</span>
       </div>
-
-      <!-- Stats grid -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Version</div>
-          <div style="font-size:20px;font-weight:800;color:#fff">v${p.version || '?'}</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Sell Value</div>
-          <div style="font-size:20px;font-weight:800;color:#fff">${sellVal}</div>
-        </div>
-        ${mutStr ? `
-        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08);grid-column:1/-1">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Mutation</div>
-          <div style="font-size:16px;font-weight:700;color:#fff">${mutStr}</div>
-        </div>` : ''}
-        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08);grid-column:1/-1">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Date Claimed</div>
-          <div style="font-size:14px;font-weight:600;color:#fff">${claimedStr}</div>
-        </div>
+      <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)">
+        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Owners</div>
+        <div style="font-size:28px;font-weight:800;color:#fff">${p.owners}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px">player${p.owners !== 1 ? 's' : ''} own this plant</div>
       </div>
-
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });

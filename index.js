@@ -4249,6 +4249,25 @@ function loadListings() {
 }
 function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, null, 2)); }
 
+app.get('/api/plants', (req, res) => {
+  try {
+    const db = loadDB();
+    const ownerCounts = {};
+    for (const user of Object.values(db)) {
+      const seen = new Set();
+      for (const p of (user.collection || [])) {
+        if (!seen.has(p.name)) { seen.add(p.name); ownerCounts[p.name] = (ownerCounts[p.name] || 0) + 1; }
+      }
+    }
+    res.json(PLANTS.map(p => ({
+      name: p.name,
+      rarity: p.rarity,
+      image: '/images/' + p.file.replace('./images/', ''),
+      owners: ownerCounts[p.name] || 0,
+    })));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/market', (req, res) => {
   try {
     const listings = loadListings();
