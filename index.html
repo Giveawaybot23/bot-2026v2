@@ -1178,15 +1178,15 @@ async function loadLiveData() {
 ]);
 window._cachedLB = lb;
 
-    // Garden
-    const gardenHTML = lb.garden.map((e,i) =>
-      renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
-    ).join('');
-    document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.tierEmoji + ' ' + (e.score/1000).toFixed(0)+'k', e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
-    ).join('');
-    document.getElementById('lb-garden-full').innerHTML = gardenHTML;
-
+   // Garden
+const gardenHTML = lb.garden.map((e,i) =>
+  renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
+).join('');
+document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
+  const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
+  return renderLBEntry(e.username, e.tierEmoji + ' ' + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId);
+}).join('');
+document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     // Level
     const levelHTML = lb.level.map((e,i) =>
       renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/lb.level[0].xp*100), i, e.id||e.userId)
@@ -1250,35 +1250,31 @@ window._cachedLB = lb;
 
 const _avatarCache = {};
 async function fetchAvatar(id) {
-  if (_avatarCache[id] !== undefined) return _avatarCache[id];
+  if (_avatarCache[id]) return _avatarCache[id];
   try {
     const res  = await fetch(`/api/avatar/${id}`);
     const data = await res.json();
-    _avatarCache[id] = data.url || null;
-  } catch {
-    _avatarCache[id] = null;
-  }
-  return _avatarCache[id];
+    if (data.url) _avatarCache[id] = data.url;
+  } catch {}
+  return _avatarCache[id] || null;
 }
 
 async function loadAvatars(players) {
   players.forEach(p => {
-    if (_avatarCache[p.id] !== undefined) {
-      if (_avatarCache[p.id]) {
-        const el = document.getElementById(`av-${p.id}`);
-        if (el) el.innerHTML = `<img src="${_avatarCache[p.id]}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
-      }
+    if (_avatarCache[p.id]) {
+      const el = document.getElementById(`av-${p.id}`);
+      if (el) el.innerHTML = `<img src="${_avatarCache[p.id]}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
       return;
     }
     fetch(`/api/avatar/${p.id}`)
       .then(r => r.json())
       .then(data => {
-        _avatarCache[p.id] = data.url || null;
         if (!data.url) return;
+        _avatarCache[p.id] = data.url;
         const el = document.getElementById(`av-${p.id}`);
         if (el) el.innerHTML = `<img src="${data.url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
       })
-      .catch(() => { _avatarCache[p.id] = null; });
+      .catch(() => {});
   });
 }
 
@@ -1705,17 +1701,26 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  await Promise.all(entries.map(e => {
-    const id = e[idField] || e.userId || e.id;
-    return id ? fetchAvatar(id) : Promise.resolve();
+  const ids = [...new Set(entries.map(e => e[idField] || e.userId || e.id).filter(Boolean))];
+  
+  await Promise.all(ids.map(id => {
+    if (_avatarCache[id]) return Promise.resolve();
+    return fetch(`/api/avatar/${id}`)
+      .then(r => r.json())
+      .then(data => { if (data.url) _avatarCache[id] = data.url; })
+      .catch(() => {});
   }));
+
   entries.forEach(e => {
-    const id  = e[idField] || e.userId || e.id;
-    const url = _avatarCache[id];
-    const el  = document.getElementById(`lb-av-${e.username}`);
+    const id = e[idField] || e.userId || e.id;
+    if (!id) return;
+    const el = document.getElementById(`lb-av-${e.username}`);
     if (!el) return;
-    if (url) el.innerHTML = `<img src="${url}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
-    else el.textContent = e.username[0].toUpperCase();
+    if (_avatarCache[id]) {
+      el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
+    } else {
+      el.textContent = e.username[0].toUpperCase();
+    }
   });
 }
 
@@ -1745,8 +1750,8 @@ async function initAuth() {
     const el   = document.getElementById('nav-auth');
     if (data.user) {
       const avatarUrl = data.user.avatar
-        ? `https://cdn.discordapp.com/avatars/${data.user.id}/${data.user.avatar}.png?size=64`
-        : null;
+    ? `https://cdn.discordapp.com/avatars/${data.user.id}/${data.user.avatar}.png?size=64`
+    : `https://cdn.discordapp.com/embed/avatars/${parseInt(data.user.id) % 5}.png`;
       el.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
         <div onclick="showPage('profiles');loadProfile('${data.user.id}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.2s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
           ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--green)">` : ''}
