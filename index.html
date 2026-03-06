@@ -1342,10 +1342,34 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     `).join('');
 
   loadAvatars(players);
-    loadLBAvatars(lb.garden, 'id');
-    loadLBAvatars(lb.level,  'id');
-    loadLBAvatars(lb.race,   'userId');
-    loadLBAvatars(lb.daily,  'userId');
+
+  const allIds = [...new Set([
+    ...lb.garden.map(e => e.id || e.userId),
+    ...lb.level.map(e => e.id || e.userId),
+    ...lb.race.map(e => e.userId),
+    ...lb.daily.map(e => e.userId),
+    ...players.map(p => p.id),
+  ].filter(Boolean))];
+
+  const uncached = allIds.filter(id => !_avatarCache[id]);
+  if (uncached.length) {
+    try {
+      const res  = await fetch('/api/avatars/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: uncached })
+      });
+      const data = await res.json();
+      Object.entries(data).forEach(([id, url]) => {
+        if (url) _avatarCache[id] = url;
+      });
+    } catch {}
+  }
+
+  loadLBAvatars(lb.garden, 'id');
+  loadLBAvatars(lb.level,  'id');
+  loadLBAvatars(lb.race,   'userId');
+  loadLBAvatars(lb.daily,  'userId');
 
   } catch(err) {
     console.error('Failed to load live data:', err);
@@ -1791,9 +1815,10 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
   const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const rankIcon  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
   const clickable = userId ? `onclick="loadProfile('${userId}')" style="cursor:pointer"` : '';
+  const avId = userId ? `lb-av-${userId}` : `lb-av-${left}`;
   return `<div class="lb-entry">
     <div class="lb-rank ${rankClass}">${rankIcon}</div>
-    <div class="lb-avatar" id="lb-av-${left}" ${clickable} style="overflow:hidden;padding:0;${userId?'cursor:pointer':''}"></div>
+    <div class="lb-avatar" id="${avId}" ${clickable} style="overflow:hidden;padding:0;${userId?'cursor:pointer':''}"></div>
     <div class="lb-user" ${clickable}>
       <div class="lb-username" style="${userId?'text-decoration:underline dotted;text-underline-offset:3px;':''}">${left}</div>
     </div>
@@ -1805,20 +1830,10 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  const ids = [...new Set(entries.map(e => e[idField] || e.userId || e.id).filter(Boolean))];
-  
-  await Promise.all(ids.map(id => {
-    if (_avatarCache[id]) return Promise.resolve();
-    return fetch(`/api/avatar/${id}`)
-      .then(r => r.json())
-      .then(data => { if (data.url) _avatarCache[id] = data.url; })
-      .catch(() => {});
-  }));
-
   entries.forEach(e => {
     const id = e[idField] || e.userId || e.id;
     if (!id) return;
-    const el = document.getElementById(`lb-av-${e.username}`);
+    const el = document.getElementById(`lb-av-${id}`);
     if (!el) return;
     if (_avatarCache[id]) {
       el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
