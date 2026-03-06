@@ -4253,12 +4253,14 @@ app.get('/api/plants', (req, res) => {
   try {
     const db = loadDB();
     const ownerCounts = {};
-    for (const user of Object.values(db)) {
+    for (const [id, user] of Object.entries(db)) {
+      if (TEST_IDS.has(id)) continue;
       const seen = new Set();
       for (const p of (user.collection || [])) {
         if (!seen.has(p.name)) { seen.add(p.name); ownerCounts[p.name] = (ownerCounts[p.name] || 0) + 1; }
       }
     }
+    
     res.json(PLANTS.map(p => ({
       name: p.name,
       rarity: p.rarity,
