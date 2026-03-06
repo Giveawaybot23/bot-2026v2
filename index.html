@@ -3355,18 +3355,23 @@ function renderActiveTrade(trade) {
   const theirVal = theirSide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (theirSide.coins||0);
   const total = myVal + theirVal;
   const pct = total > 0 ? Math.round((myVal/total)*100) : 50;
-  document.getElementById('trade-value-bar').style.width = pct + '%';
+  const valueBar = document.getElementById('trade-value-bar');
+  if (valueBar) valueBar.style.width = pct + '%';
   const diff = total > 0 ? Math.abs(myVal-theirVal)/Math.max(myVal,theirVal,1) : 0;
-  document.getElementById('trade-value-label').textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
+  const valueLabel = document.getElementById('trade-value-label');
+  if (valueLabel) valueLabel.textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
 
   if (!document.getElementById('trade-my-coins').dataset.edited) document.getElementById('trade-my-coins').value = mySide.coins||0;
   document.getElementById('trade-my-confirmed').innerHTML = mySide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ You confirmed</span>' : '<span style="color:var(--ink3)">Not confirmed yet</span>';
   const locked = mySide.confirmed;
-  document.getElementById('trade-confirm-btn').style.opacity = locked ? '0.4' : '1';
-  document.getElementById('trade-confirm-btn').disabled = locked;
-  document.getElementById('trade-my-coins').disabled = locked;
-  document.getElementById('trade-their-coins').textContent = (theirSide.coins||0).toLocaleString() + ' coins';
-  document.getElementById('trade-their-confirmed').innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
+  const confirmBtn = document.getElementById('trade-confirm-btn');
+  if (confirmBtn) { confirmBtn.style.opacity = locked ? '0.4' : '1'; confirmBtn.disabled = locked; }
+  const myCoins = document.getElementById('trade-my-coins');
+  if (myCoins) myCoins.disabled = locked;
+  const theirCoinsEl = document.getElementById('trade-their-coins');
+  if (theirCoinsEl) theirCoinsEl.textContent = (theirSide.coins||0).toLocaleString() + ' coins';
+  const theirConfirmedEl = document.getElementById('trade-their-confirmed');
+  if (theirConfirmedEl) theirConfirmedEl.innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
 }
 
 function startTradePoll() { stopTradePoll(); _tradePollInterval = setInterval(refreshTrade, 3000); }
