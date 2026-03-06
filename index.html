@@ -1332,7 +1332,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML;
         </div>
         <div class="profile-mini-tier">
           <span style="font-size:20px">${p.tierEmoji}</span>
-          <div class="profile-mini-tier-name">${p.tierName}</div>
+          <div class="profile-mini-tier-name"><img src="/images/tiers/${p.tierName.toLowerCase()}.webp" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">${p.tierName}</div>
         </div>
         <div class="profile-mini-stats">
           <div class="profile-mini-stat"><strong>${p.plants.toLocaleString()}</strong> plants</div>
@@ -1694,7 +1694,7 @@ async function loadProfile(id) {
           <!-- Rank + tier pills -->
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;animation:profileFadeUp 0.6s ease both">
             <div style="background:var(--card);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;font-weight:500;color:var(--ink2)">${data.rank?.emoji} ${data.rank?.name} · Lv. ${data.level}</div>
-            <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:6px 16px;font-size:13px;font-weight:700;color:${tc}">${data.gardenTier?.emoji} ${data.gardenTier?.name}</div>
+            <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:6px 16px;font-size:13px;font-weight:700;color:${tc}"><img src="/images/tiers/${data.gardenTier?.name.toLowerCase()}.webp" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">${data.gardenTier?.name}</div>
             <div style="background:var(--card);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;color:var(--ink2)">#${data.serverRank} of ${data.serverTotal}</div>
           </div>
         </div>
