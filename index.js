@@ -1098,11 +1098,11 @@ async function generateInvLBImage(entries) {
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
     ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(e.username, 116, mid - 8);
+    ctx.fillText(e.username, 130, mid - 8);
 
     // Tier name
     ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
-    ctx.fillText(e.tier.name.toUpperCase(), 116, mid + 10);
+    ctx.fillText(e.tier.name.toUpperCase(), 130, mid + 10);
 
     // Score
     ctx.textAlign = 'right';
