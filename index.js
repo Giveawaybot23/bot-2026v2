@@ -4402,7 +4402,7 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
   );
   if (alreadyIn) return res.status(400).json({ error: 'One of the users already has an active trade' });
   const db = loadDB();
-  const targetUser = db[targetId];
+  const targetUser = db.users[targetId];
   if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
   const tradeId = `wt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   webTrades[tradeId] = {
@@ -4455,10 +4455,12 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
   if (mySide.confirmed) return res.status(400).json({ error: 'Already confirmed — cancel to modify' });
   const { plants, coins } = req.body;
   const db = loadDB();
-  const user = db[req.user.id];
+  const user = db.users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
+  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
   if (plants !== undefined) {
     for (const p of plants) {
+      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, and Secret plants can be traded.' });
       const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
       if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
     }
@@ -4488,8 +4490,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   mySide.confirmed = true;
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
-    const iUser = db[trade.initiatorId];
-    const tUser = db[trade.targetId];
+    const iUser = db.users[trade.initiatorId];
+    const tUser = db.users[trade.targetId];
     const iSide = trade.sides[trade.initiatorId];
     const tSide = trade.sides[trade.targetId];
     for (const p of iSide.plants) {
