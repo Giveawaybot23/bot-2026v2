@@ -1929,14 +1929,15 @@ async function initAuth() {
 
 async function loadNavCoins(userId) {
   try {
-    const profileRes = await fetch(`/api/profile/${userId}`);
+    const [profileRes, lbRes] = await Promise.all([
+      fetch(`/api/profile/${userId}`),
+      fetch('/api/leaderboards')
+    ]);
     const data = await profileRes.json();
-
-    const lb = window._cachedLB || await fetch('/api/leaderboards').then(r => r.json());
+    const lb   = await lbRes.json();
     window._cachedLB = lb;
-
     const rankIndex = lb.garden.findIndex(e => (e.id || e.userId) === userId);
-    const rankNum   = rankIndex === -1 ? null : rankIndex + 1;
+    const rankNum   = rankIndex === -1 ? data.serverRank || null : rankIndex + 1;
 
     if (data.currency !== undefined) {
       const c = data.currency;
@@ -1949,12 +1950,8 @@ async function loadNavCoins(userId) {
 
       const el = document.getElementById('coin-display');
       el.innerHTML = `${rankLabel}<div class="coin-badge">
-        <div class="coin-badge-icon">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm.75 14.5h-1.5v-5.5h1.5v5.5zm0-7.5h-1.5V7.5h1.5V9z"/>
-          </svg>
-        </div>
-        <div class="coin-badge-body">
+        <div class="coin-badge-body" style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:16px">🪙</span>
           <span class="coin-badge-amount">${amount}</span>
         </div>
       </div>`;
