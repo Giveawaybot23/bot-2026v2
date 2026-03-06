@@ -4169,32 +4169,6 @@ wss.on('connection', (ws) => {
 });
 
 // ── CHAT API (for loading history on page open) ───────────────────────────
-app.post('/api/market/list', async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const { plantName, version, price } = req.body;
-  if (!plantName || !price) return res.status(400).json({ error: 'Plant name and price required' });
-
-  const db   = loadDB();
-  const user = getUser(db, req.user.id);
-
-  let candidates = user.collection.map((p, i) => ({ p, i })).filter(({ p }) => p.name.toLowerCase() === plantName.toLowerCase());
-  if (version) candidates = candidates.filter(({ p }) => p.version === parseInt(version));
-  if (!candidates.length) return res.status(400).json({ error: `You don't own ${plantName}${version ? ` v${version}` : ''}` });
-
-  const { p: plant, i: plantIndex } = candidates[0];
-  if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
-
-  const market = loadMarket ? loadMarket() : [];
-  const listingId = `m_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-
-  user.collection.splice(plantIndex, 1);
-  saveDB(db);
-
-  market.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
-  if (saveMarket) saveMarket(market);
-
-  res.json({ success: true, listingId });
-});
 
 app.post('/api/auction/create', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
@@ -4236,6 +4210,85 @@ app.post('/api/auction/create', async (req, res) => {
 
   res.json({ success: true, auctionId });
 });
+
+// ── MARKET LISTINGS ──────────────────────────────────────────────────────
+const LISTINGS_FILE = `${DATA_DIR}/market_listings.json`;
+function loadListings() {
+  try {
+    if (!fs.existsSync(LISTINGS_FILE)) fs.writeFileSync(LISTINGS_FILE, '[]');
+    return JSON.parse(fs.readFileSync(LISTINGS_FILE));
+  } catch { return []; }
+}
+function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, null, 2)); }
+
+app.get('/api/market', (req, res) => {
+  try {
+    const listings = loadListings();
+    const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111111' };
+    res.json(listings.map(l => ({
+      id: l.id,
+      name: l.plant.name,
+      rarity: l.plant.rarity,
+      version: l.plant.version,
+      mutation: l.plant.mutation || null,
+      emoji: l.plant.emoji || '🌿',
+      color: rarityColors[l.plant.rarity] || '#999',
+      price: l.price,
+      sellerName: l.sellerName,
+      sellerId: l.sellerId,
+    })));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/market/list', async (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  const { plantName, version, price } = req.body;
+  if (!plantName || !price) return res.status(400).json({ error: 'Plant name and price required' });
+
+  const db   = loadDB();
+  const user = getUser(db, req.user.id);
+
+  let candidates = (user.collection || []).map((p, i) => ({ p, i })).filter(({ p }) => p.name.toLowerCase() === plantName.toLowerCase());
+  if (version) candidates = candidates.filter(({ p }) => p.version === parseInt(version));
+  if (!candidates.length) return res.status(400).json({ error: `You don't own ${plantName}${version ? ` v${version}` : ''}` });
+
+  const { p: plant, i: plantIndex } = candidates[0];
+  if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
+
+  const listingId = `l_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  user.collection.splice(plantIndex, 1);
+  saveDB(db);
+
+  const listings = loadListings();
+  listings.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
+  saveListings(listings);
+
+  res.json({ success: true, listingId });
+});
+
+app.post('/api/market/buy/:id', async (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  const listings = loadListings();
+  const listing  = listings.find(l => l.id === req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
+
+  const db     = loadDB();
+  const buyer  = getUser(db, req.user.id);
+  const seller = getUser(db, listing.sellerId);
+
+  if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
+
+  buyer.currency  -= listing.price;
+  seller.currency += listing.price;
+  buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
+
+  saveDB(db);
+  saveListings(listings.filter(l => l.id !== req.params.id));
+
+  res.json({ success: true });
+});
+
 app.get('/api/chat/:auctionId', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
