@@ -44,7 +44,7 @@
   align-items: center;
   padding: 0 24px;
   height: 64px;
-  background: rgba(247,245,240,0.92);
+  background: rgba(247,245,240,0.85);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   overflow: visible;
@@ -1190,10 +1190,14 @@
       <p style="font-size:15px;color:var(--ink2)">Live plant auctions. Bid or buy now before time runs out.</p>
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
-      <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
-      <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
-    </div>
-    <div class="auction-grid" id="auction-grid"></div>
+  <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
+  <div class="auction-grid" id="auction-grid"></div>
+  </div>
+</div>
+</div>
+  <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
+  </div>
+  <div class="auction-grid" id="auction-grid"></div>
   </div>
 </div>
 
@@ -1231,7 +1235,34 @@
   </div>
 </div>
 
+
+
 <script>
+
+  function loadMorePlants(btn, rarity, grid) {
+  const offset = parseInt(btn.dataset.offset);
+  const plants = window._profileGrouped[rarity];
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#000000' };
+  const next = plants.slice(offset, offset + 50);
+  const html = next.map((p, pi) => `
+    <div class="pd-collection-item${p.version===1?' v1-item':''}" style="${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
+      <div style="width:8px;height:8px;border-radius:50%;background:${p.version===1?'#c9a84c':rarityColors[p.rarity]||'#999'};flex-shrink:0;${p.version===1?'box-shadow:0 0 6px rgba(201,168,76,0.8);':''}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:${p.version===1?'#c9a84c':'var(--ink)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${p.version===1?' 👑':''}</div>
+        <div style="font-size:11px;color:var(--ink3)">${p.version===1?'<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.7)">👑 v1</span>':'v'+(p.version||'?')}${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}</div>
+      </div>
+    </div>
+  `).join('');
+
+  grid.insertAdjacentHTML('beforeend', html);
+  const newOffset = offset + 50;
+  if (newOffset >= plants.length) {
+    btn.remove();
+  } else {
+    btn.dataset.offset = newOffset;
+    btn.textContent = `Show ${plants.length - newOffset} more ${rarity} plants ▾`;
+  }
+}
 
   // Nav dropdown toggle — hover only
 document.getElementById('nav-shop-wrap').addEventListener('mouseenter', function() {
@@ -1455,6 +1486,7 @@ async function loadProfile(id) {
       grouped[p.rarity].push(p);
     });
     const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    window._profileGrouped = grouped;
 
     document.getElementById('profile-detail-content').innerHTML = `
       <style>
@@ -1788,7 +1820,7 @@ async function loadProfile(id) {
 
         <div style="display:flex;flex-direction:column;gap:8px">
           ${rarityOrder.filter(r => grouped[r]?.length).map(r => `
-            <details class="pd-rarity-section" ${r === 'Secret' || r === 'Mythic' || r === 'Legendary' ? 'open' : ''}>
+            <details class="pd-rarity-section" ${r === 'Secret' || r === 'Mythic' ? 'open' : ''}>
               <summary>
                 <div style="display:flex;align-items:center;gap:10px">
                   <div style="width:10px;height:10px;border-radius:50%;background:${rarityColors[r]||'#999'};box-shadow:0 0 6px ${rarityColors[r]||'#999'}88"></div>
@@ -1798,16 +1830,20 @@ async function loadProfile(id) {
                 <span style="font-size:12px;color:var(--ink3)">▾</span>
               </summary>
               <div class="pd-rarity-body">
-                ${grouped[r].map((p,pi) => `
+                ${grouped[r].slice(0, 50).map((p,pi) => `
                   <div class="pd-collection-item${p.version===1?' v1-item':''}" style="animation-delay:${pi*0.03}s;${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
                     <div style="width:8px;height:8px;border-radius:50%;background:${p.version===1?'#c9a84c':rarityColors[p.rarity]||'#999'};flex-shrink:0;${p.version===1?'box-shadow:0 0 6px rgba(201,168,76,0.8);':''}"></div>
                     <div style="flex:1;min-width:0">
                       <div style="font-size:13px;font-weight:600;color:${p.version===1?'#c9a84c':'var(--ink)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${p.version===1?' 👑':''}</div>
-                      <div style="font-size:11px;color:var(--ink3)">${p.version===1?'<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.8)">👑 v1</span>':'v'+(p.version||'?')}${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}</div>
+                      <div style="font-size:11px;color:var(--ink3)">${p.version===1?'<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.7)">👑 v1</span>':'v'+(p.version||'?')}${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}</div>
                     </div>
                   </div>
                 `).join('')}
               </div>
+              ${grouped[r].length > 50 ? `
+                 <button onclick="loadMorePlants(this, '${r}', this.previousElementSibling)" data-rarity="${r}" data-offset="50" style="width:100%;padding:10px;background:var(--bg2);border:none;border-radius:0 0 10px 10px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='var(--bg2)'">
+                  Show ${grouped[r].length - 50} more ${r} plants ▾
+                </button>` : ''}
             </details>
           `).join('')}
         </div>
@@ -2123,7 +2159,7 @@ async function loadAuctionData() {
           <div class="auction-card-name">${a.plant.name}</div>
           <div class="market-card-meta">
             <span class="market-card-version">${a.plant.rarity}</span>
-            <span class="market-card-version">v${a.plant.version || '?'}</span>
+            ${a.plant.version === 1 ? v1Badge() : `<span class="market-card-version">v${a.plant.version || '?'}</span>`}
             ${a.plant.mutation ? `<span class="market-card-version" style="color:${mutationColor(a.plant.mutation.name)}">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
           </div>
           <div class="auction-card-bid">
@@ -2340,7 +2376,7 @@ async function showAuctionDetail(auctionId) {
             <!-- Rarity badge overlay -->
             <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
               <span style="background:${color}dd;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.rarity}</span>
-          ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}    
+              ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}
               ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:${mutationColor(a.plant.mutation.name)};font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
             </div>
           </div>
@@ -2481,8 +2517,9 @@ function mutationEmoji(name) {
 function mutationColor(name) {
   return { Starstruck:'#FFE033', Shocked:'#FFD700', Soaked:'#66CCFF', Snowy:'#ADE8F4', Flooded:'#0099FF', Sandy:'#F4A460' }[name] || '#fff';
 }
-function v1Badge() {
-  return `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.5);border-radius:100px;padding:3px 10px;color:#c9a84c;font-weight:700;font-size:11px;box-shadow:0 0 10px rgba(201,168,76,0.4),0 0 20px rgba(201,168,76,0.15);animation:v1CrownFloat 2.5s ease-in-out infinite">👑 v1</span>`;
+function v1Badge(small=false) {
+  const sz = small ? '11px' : '13px';
+  return `<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.5);border-radius:100px;padding:2px 9px;color:#c9a84c;font-weight:700;font-size:${sz};box-shadow:0 0 8px rgba(201,168,76,0.45),0 0 18px rgba(201,168,76,0.12)">👑 v1</span>`;
 }
 
 async function openSellFromInventory() {
@@ -2536,12 +2573,13 @@ function renderInventoryModal(collection) {
   }
   list.innerHTML = collection.map((p, i) => {
     const color = rarityColors[p.rarity] || '#999';
-    const mutStr = p.mutation ? ` · ${p.mutation.emoji} ${p.mutation.name}` : '';
+    const mutStr = p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : '';
+    const verStr = p.version === 1 ? v1Badge(true) : `v${p.version || '?'}`;
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);transition:all 0.15s" onmouseover="this.style.borderColor='${color}44';this.style.background='var(--bg2)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg)'">
         <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;box-shadow:0 0 6px ${color}88"></div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name} <span style="font-size:11px;color:var(--ink3);font-weight:400">v${p.version || '?'}${mutStr}</span></div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name} <span style="font-size:11px;color:var(--ink3);font-weight:400">${verStr}${mutStr}</span></div>
           <div style="font-size:11px;color:${color};font-weight:600">${p.rarity}</div>
         </div>
         <button onclick="openMarketListModal('${p.name}', ${p.version || 0})" style="padding:6px 14px;border-radius:100px;background:#5865F2;color:white;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">List</button>
