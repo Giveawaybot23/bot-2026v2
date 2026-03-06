@@ -2241,6 +2241,7 @@ async function loadAuctionData() {
             Current bid: <strong>${a.currentBid.toLocaleString()} coins</strong>
             ${a.topBidder ? ` · ${a.topBidder}` : ' · No bids yet'}
           </div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">Listed by ${a.sellerName}</div>
           ${a.buyoutPrice ? `<div style="font-size:12px;color:var(--green);margin-top:4px;font-weight:600">Buyout: ${a.buyoutPrice.toLocaleString()} coins</div>` : ''}
           <div class="auction-card-timer" id="timer-${a.id}"></div>
         </div>`;
