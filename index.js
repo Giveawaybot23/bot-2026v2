@@ -4073,6 +4073,29 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     touchActivity(db, req.user.id);
     saveDB(db);
 
+    // Broadcast live bid to WebSocket clients in this auction room
+    wss.clients.forEach(client => {
+      if (client.readyState === 1 && client._auctionId === req.params.id) {
+        client.send(JSON.stringify({
+          type: 'bid',
+          username: req.user.username,
+          amount: bidAmount,
+          avatarUrl: null
+        }));
+      }
+    });
+
+    // Broadcast live bid to WebSocket clients in this auction room
+    const payload = JSON.stringify({
+      type: 'bid',
+      username: req.user.username,
+      amount: bidAmount,
+      avatarUrl: null
+    });
+    (auctionRooms[req.params.id] || []).forEach(client => {
+      if (client.readyState === 1) client.send(payload);
+    });
+
     res.json({
       success: true,
       extended: extended,
@@ -4216,7 +4239,17 @@ app.delete('/api/auction/:id', async (req, res) => {
   user.collection.push({ ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
-  res.json({ success: true });
+  // broadcast live bid to websocket room
+wss.clients.forEach(client => {
+  if (client.readyState === 1 && client._auctionId === req.params.id) {
+    client.send(JSON.stringify({
+      type: 'bid',
+      username: bidderUsername,
+      amount: bidAmount
+    }));
+  }
+});
+res.json({ success: true });
 });
 
 app.post('/api/auction/create', async (req, res) => {
