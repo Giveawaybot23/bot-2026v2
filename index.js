@@ -4169,6 +4169,20 @@ wss.on('connection', (ws) => {
 });
 
 // ── CHAT API (for loading history on page open) ───────────────────────────
+app.delete('/api/auction/:id', async (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  const auctions = loadAuctions();
+  const auction  = auctions.find(a => a.id === req.params.id);
+  if (!auction) return res.status(404).json({ error: 'Auction not found' });
+  if (auction.sellerId !== req.user.id) return res.status(403).json({ error: 'Not your auction' });
+  if (auction.bids.length) return res.status(400).json({ error: 'Cannot remove — auction already has bids' });
+  const db   = loadDB();
+  const user = getUser(db, req.user.id);
+  user.collection.push({ ...auction.plant });
+  saveDB(db);
+  saveAuctions(auctions.filter(a => a.id !== req.params.id));
+  res.json({ success: true });
+});
 
 app.post('/api/auction/create', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
@@ -4264,6 +4278,20 @@ app.post('/api/market/list', async (req, res) => {
   saveListings(listings);
 
   res.json({ success: true, listingId });
+});
+
+app.delete('/api/market/:id', async (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  const listings = loadListings();
+  const listing  = listings.find(l => l.id === req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  if (listing.sellerId !== req.user.id) return res.status(403).json({ error: 'Not your listing' });
+  const db   = loadDB();
+  const user = getUser(db, req.user.id);
+  user.collection.push({ ...listing.plant });
+  saveDB(db);
+  saveListings(listings.filter(l => l.id !== req.params.id));
+  res.json({ success: true });
 });
 
 app.post('/api/market/buy/:id', async (req, res) => {

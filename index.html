@@ -1853,7 +1853,10 @@ async function loadMarketData() {
         <div class="market-card-seller">Listed by ${item.sellerName}</div>
         <div class="market-card-footer">
           <div class="market-card-price">${item.price.toLocaleString()}<span>coins</span></div>
-          <button class="market-card-buy" onclick="event.stopPropagation();confirmMarketBuy('${item.id}','${item.name}',${item.price})">Buy</button>
+          ${item.sellerId === window._loggedInId
+          ? `<button class="market-card-buy" style="background:#e53935" onclick="event.stopPropagation();confirmRemoveMarket('${item.id}','${item.name}')" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Remove</button>`
+          : `<button class="market-card-buy" onclick="event.stopPropagation();confirmMarketBuy('${item.id}','${item.name}',${item.price})">Buy</button>`
+          }
         </div>
       </div>`;
     }).join('');
@@ -2134,6 +2137,7 @@ async function showAuctionDetail(auctionId) {
           <div style="margin-bottom:20px">
             <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.02em;margin-bottom:4px">${a.plant.name}</div>
             <div style="font-size:13px;color:var(--ink3)">Listed by <strong style="color:var(--ink2)">${a.sellerName}</strong></div>
+            ${a.sellerId === window._loggedInId && !a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button>` : ''}
           </div>
 
           <!-- Bid box -->
@@ -2455,6 +2459,28 @@ async function submitCreateAuction() {
     errEl.style.display = 'block'; errEl.textContent = 'Something went wrong — try again.';
     btn.disabled = false; btn.textContent = 'List Auction';
   }
+}
+
+async function confirmRemoveMarket(listingId, plantName) {
+  if (!confirm(`Remove your listing for ${plantName}? The plant will be returned to your inventory.`)) return;
+  try {
+    const res = await fetch(`/api/market/${listingId}`, { method: 'DELETE', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to remove listing'); return; }
+    showToast('Listing removed — plant returned to inventory.');
+    await loadMarketData();
+  } catch { alert('Something went wrong.'); }
+}
+
+async function confirmRemoveAuction(auctionId) {
+  if (!confirm('Remove this auction? The plant will be returned to your inventory.')) return;
+  try {
+    const res = await fetch(`/api/auction/${auctionId}`, { method: 'DELETE', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to remove auction'); return; }
+    showToast('Auction removed — plant returned to inventory.');
+    showPage('auctions');
+  } catch { alert('Something went wrong.'); }
 }
 
 function showToast(msg) {
