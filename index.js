@@ -212,14 +212,14 @@ function calcWeightedGardenScore(collection) {
 // Garden Elo tiers — placeholders for custom icons
 const GARDEN_TIERS = [
   { name: 'Iron',      emoji: '🪨', minScore: 10000,       color: 0x8B8B8B, ansi: 'gray'    },
-  { name: 'Bronze',    emoji: '🥉', minScore: 25000,     color: 0xCD7F32, ansi: 'orange'  },
-  { name: 'Silver',    emoji: '🥈', minScore: 50000,    color: 0xC0C0C0, ansi: 'white'   },
-  { name: 'Gold',      emoji: '🥇', minScore: 80000,    color: 0xFFD700, ansi: 'yellow'  },
-  { name: 'Platinum',  emoji: '💠', minScore: 100000,   color: 0x00BFFF, ansi: 'cyan'    },
-  { name: 'Diamond',   emoji: '💎', minScore: 250000,   color: 0xB9F2FF, ansi: 'cyan'    },
-  { name: 'Master',    emoji: '🔮', minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
-  { name: 'Grandmaster', emoji: '👑', minScore: 700000, color: 0xFF6600, ansi: 'yellow' },
-  { name: 'Celestial', emoji: '🌌', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
+  { name: 'Bronze',    emoji: '<img class="tier-icon" src="/images/tiers/bronze.webp">', minScore: 25000,     color: 0xCD7F32, ansi: 'orange'  },
+  { name: 'Silver',    emoji: '<img class="tier-icon" src="/images/tiers/silver.webp">', minScore: 50000,    color: 0xC0C0C0, ansi: 'white'   },
+  { name: 'Gold',      emoji: '<img class="tier-icon" src="/images/tiers/gold.webp">', minScore: 80000,    color: 0xFFD700, ansi: 'yellow'  },
+  { name: 'Platinum',  emoji: '<img class="tier-icon" src="/images/tiers/platinum.webp">', minScore: 100000,   color: 0x00BFFF, ansi: 'cyan'    },
+  { name: 'Diamond',   emoji: '<img class="tier-icon" src="/images/tiers/diamond.webp">', minScore: 250000,   color: 0xB9F2FF, ansi: 'cyan'    },
+  { name: 'Master',    emoji: '<img class="tier-icon" src="/images/tiers/master.webp">', minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
+  { name: 'Grandmaster', emoji: '<img class="tier-icon" src="/images/tiers/grandmaster.webp">', minScore: 700000, color: 0xFF6600, ansi: 'yellow' },
+  { name: 'Celestial', emoji: '<img class="tier-icon" src="/images/tiers/celestial.webp">', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
   { name: '???', emoji: '🔱', minScore: 2000000, color: 0x000000, ansi: 'black' },
 ];
 
