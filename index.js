@@ -4169,10 +4169,10 @@ wss.on('connection', (ws) => {
 });
 
 // ── CHAT API (for loading history on page open) ───────────────────────────
-app.post('/api/auction/create', async (req, res) => {
+app.post('/api/market/list', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const { plantName, version, startPrice, buyoutPrice, hours } = req.body;
-  if (!plantName) return res.status(400).json({ error: 'Plant name required' });
+  const { plantName, version, price } = req.body;
+  if (!plantName || !price) return res.status(400).json({ error: 'Plant name and price required' });
 
   const db   = loadDB();
   const user = getUser(db, req.user.id);
@@ -4180,35 +4180,22 @@ app.post('/api/auction/create', async (req, res) => {
   let candidates = user.collection.map((p, i) => ({ p, i })).filter(({ p }) => p.name.toLowerCase() === plantName.toLowerCase());
   if (version) candidates = candidates.filter(({ p }) => p.version === parseInt(version));
   if (!candidates.length) return res.status(400).json({ error: `You don't own ${plantName}${version ? ` v${version}` : ''}` });
-  if (candidates.length > 1 && !version) {
-    const versions = candidates.map(({ p }) => `v${p.version}`).join(', ');
-    return res.status(400).json({ error: `You own multiple copies: ${versions}. Specify a version.` });
-  }
 
   const { p: plant, i: plantIndex } = candidates[0];
   if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
 
-  const h          = Math.min(72, Math.max(1, parseInt(hours) || 24));
-  const start      = parseInt(startPrice) || (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
-  const buyout     = buyoutPrice ? parseInt(buyoutPrice) : null;
-  const minIncr    = Math.max(100, Math.round(start * 0.05));
-
-  if (buyout && buyout <= start) return res.status(400).json({ error: 'Buyout must be higher than starting bid' });
-
-  const auctionId = `a_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-  const endsAt    = Date.now() + h * 3600000;
+  const market = loadMarket ? loadMarket() : [];
+  const listingId = `m_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 
   user.collection.splice(plantIndex, 1);
   saveDB(db);
 
-  const auctions = loadAuctions();
-  auctions.push({ id: auctionId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, startPrice: start, buyoutPrice: buyout, minIncrement: minIncr, bids: [], endsAt, createdAt: Date.now() });
-  saveAuctions(auctions);
+  market.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
+  if (saveMarket) saveMarket(market);
 
-  setTimeout(() => endAuction(auctionId, null), h * 3600000);
-
-  res.json({ success: true, auctionId });
+  res.json({ success: true, listingId });
 });
+
 app.post('/api/auction/create', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
   const { plantName, version, startPrice, buyoutPrice, hours } = req.body;
