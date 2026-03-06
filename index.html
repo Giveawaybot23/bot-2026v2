@@ -1182,6 +1182,7 @@
 </div>
 
 <!-- ── AUCTIONS PAGE ── -->
+<!-- ── AUCTIONS PAGE ── -->
 <div class="page" id="page-auctions">
   <div class="shop-page">
     <div class="shop-header reveal">
@@ -1190,14 +1191,10 @@
       <p style="font-size:15px;color:var(--ink2)">Live plant auctions. Bid or buy now before time runs out.</p>
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
-  <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
-  <div class="auction-grid" id="auction-grid"></div>
-  </div>
-</div>
-</div>
-  <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
-  </div>
-  <div class="auction-grid" id="auction-grid"></div>
+      <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
+      <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
+    </div>
+    <div class="auction-grid" id="auction-grid"></div>
   </div>
 </div>
 
@@ -1270,6 +1267,13 @@ document.getElementById('nav-shop-wrap').addEventListener('mouseenter', function
 });
 document.getElementById('nav-shop-wrap').addEventListener('mouseleave', function() {
   this.classList.remove('open');
+});
+document.getElementById('nav-shop').addEventListener('click', function(e) {
+  e.stopPropagation();
+  document.getElementById('nav-shop-wrap').classList.toggle('open');
+});
+document.addEventListener('click', function() {
+  document.getElementById('nav-shop-wrap').classList.remove('open');
 });
 
 // ── PAGE ROUTING ──
