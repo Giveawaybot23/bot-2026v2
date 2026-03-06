@@ -410,14 +410,19 @@
   }
   .profile-mini-name { font-size: 15px; font-weight: 600; color: var(--ink); }
   .profile-mini-rank { font-size: 12px; color: var(--ink3); }
-  .profile-mini-tier {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
-  }
-  .profile-mini-tier-name { font-size: 13px; font-weight: 500; color: var(--green); }
-  .profile-mini-stats { display: flex; gap: 16px; }
-  .profile-mini-stat { font-size: 12px; color: var(--ink3); }
-  .profile-mini-stat strong { color: var(--ink); font-weight: 600; }
-
+  .profile-mini-tier { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .profile-mini-tier-name {
+  font-size: 13px; font-weight: 600; color: var(--green);
+  background: rgba(45,106,79,0.12); border: 1px solid rgba(45,106,79,0.25);
+  border-radius: 100px; padding: 4px 12px;
+}
+  .profile-mini-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .profile-mini-stat {
+  font-size: 12px; color: var(--ink3);
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 100px; padding: 5px 12px;
+}
+.profile-mini-stat strong { color: var(--ink); font-weight: 600; }
   /* ── FOOTER ── */
   footer {
     border-top: 1px solid var(--border);
