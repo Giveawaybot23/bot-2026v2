@@ -4455,10 +4455,12 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
   if (mySide.confirmed) return res.status(400).json({ error: 'Already confirmed — cancel to modify' });
   const { plants, coins } = req.body;
   const db = loadDB();
-  const user = db[req.user.id];
+  const user = db.users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
+  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
   if (plants !== undefined) {
     for (const p of plants) {
+      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, and Secret plants can be traded.' });
       const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
       if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
     }
