@@ -2598,7 +2598,16 @@ function filterInventoryPage(val) {
 }
 
 function renderInventoryPage() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#1a1a2e' };
+  const rarityGradients = {
+    Common:   'linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)',
+    Uncommon: 'linear-gradient(135deg, #1a4a2a 0%, #0d2e1a 100%)',
+    Rare:     'linear-gradient(135deg, #0d2a4a 0%, #071a2e 100%)',
+    Epic:     'linear-gradient(135deg, #2a0a4a 0%, #1a052e 100%)',
+    Legendary:'linear-gradient(135deg, #4a3a00 0%, #2e2300 100%)',
+    Mythic:   'linear-gradient(135deg, #4a0a0a 0%, #2e0505 100%)',
+    Secret:   'linear-gradient(135deg, #0a0a1a 0%, #050510 100%)',
+  };
   const grid = document.getElementById('inv-page-grid');
   if (!grid) return;
   let filtered = _invPageCollection;
@@ -2609,12 +2618,12 @@ function renderInventoryPage() {
     grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>';
     return;
   }
-  grid.innerHTML = filtered.map(p => {
+  grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
     const mutStr = p.mutation ? `<span class="market-card-version">${p.mutation.emoji} ${p.mutation.name}</span>` : '';
     const isV1 = p.version === 1;
     return `
-      <div class="market-card${isV1 ? ' auction-v1-card' : ''}" style="cursor:default">
+      <div class="market-card${isV1 ? ' auction-v1-card' : ''}" onclick="openPlantDetail(${idx})" style="cursor:pointer">
         <div class="market-card-rarity-bar" style="background:${color}"></div>
         ${p.image ? `<img src="${p.image}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none'">` : ''}
         <div class="market-card-name">${p.name}${isV1 ? ' 👑' : ''}</div>
@@ -2626,6 +2635,78 @@ function renderInventoryPage() {
         <div style="font-size:12px;color:var(--ink3);margin-top:8px">${p.claimedAt ? 'Claimed ' + new Date(p.claimedAt).toLocaleDateString() : ''}</div>
       </div>`;
   }).join('');
+}
+
+function openPlantDetail(idx) {
+  const p = _invPageCollection[idx];
+  if (!p) return;
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#888' };
+  const rarityGradients = {
+    Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
+    Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
+    Rare:     'linear-gradient(160deg, #0a2a50 0%, #051525 100%)',
+    Epic:     'linear-gradient(160deg, #2a0850 0%, #150328 100%)',
+    Legendary:'linear-gradient(160deg, #503a00 0%, #281e00 100%)',
+    Mythic:   'linear-gradient(160deg, #500808 0%, #280404 100%)',
+    Secret:   'linear-gradient(160deg, #080810 0%, #030308 100%)',
+  };
+  const color = rarityColors[p.rarity] || '#999';
+  const bg    = rarityGradients[p.rarity] || rarityGradients.Common;
+  const mutStr = p.mutation ? `${p.mutation.emoji} ${p.mutation.name}` : null;
+  const claimedStr = p.claimedAt ? new Date(p.claimedAt).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : 'Unknown';
+  const sellVal = p.sellValue ? p.sellValue.toLocaleString() : '—';
+
+  const existing = document.getElementById('plant-detail-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'plant-detail-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,0.5)';
+  overlay.innerHTML = `
+    <div style="border-radius:24px;padding:36px 32px;width:100%;max-width:360px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
+
+      <!-- Close -->
+      <button onclick="document.getElementById('plant-detail-overlay').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
+
+      <!-- Glow ring + image -->
+      <div style="width:140px;height:140px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
+        ${p.image
+          ? `<img src="${p.image}" style="width:110px;height:110px;object-fit:contain" onerror="this.style.display='none'">`
+          : `<span style="font-size:64px">🌿</span>`}
+      </div>
+
+      <!-- Name -->
+      <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff;letter-spacing:-0.02em;margin-bottom:6px">${p.name}${p.version===1?' 👑':''}</div>
+
+      <!-- Rarity badge -->
+      <div style="display:inline-flex;align-items:center;gap:6px;background:${color}33;border:1px solid ${color}66;border-radius:100px;padding:5px 16px;margin-bottom:24px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color}"></div>
+        <span style="font-size:13px;font-weight:700;color:${color};letter-spacing:0.04em">${p.rarity}</span>
+      </div>
+
+      <!-- Stats grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08)">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Version</div>
+          <div style="font-size:20px;font-weight:800;color:#fff">v${p.version || '?'}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08)">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Sell Value</div>
+          <div style="font-size:20px;font-weight:800;color:#fff">${sellVal}</div>
+        </div>
+        ${mutStr ? `
+        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08);grid-column:1/-1">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Mutation</div>
+          <div style="font-size:16px;font-weight:700;color:#fff">${mutStr}</div>
+        </div>` : ''}
+        <div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.08);grid-column:1/-1">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Date Claimed</div>
+          <div style="font-size:14px;font-weight:600;color:#fff">${claimedStr}</div>
+        </div>
+      </div>
+
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 function showToast(msg) {
