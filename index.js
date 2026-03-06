@@ -4239,18 +4239,25 @@ app.get('/api/market', (req, res) => {
   try {
     const listings = loadListings();
     const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111111' };
-    res.json(listings.map(l => ({
-      id: l.id,
-      name: l.plant.name,
-      rarity: l.plant.rarity,
-      version: l.plant.version,
-      mutation: l.plant.mutation || null,
-      emoji: l.plant.emoji || '🌿',
-      color: rarityColors[l.plant.rarity] || '#999',
-      price: l.price,
-      sellerName: l.sellerName,
-      sellerId: l.sellerId,
-    })));
+    const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
+    res.json(listings
+      .filter(l => allowedRarities.includes(l.plant.rarity))
+      .map(l => {
+        const plantMatch = PLANTS.find(p => p.name === l.plant.name);
+        return {
+          id: l.id,
+          name: l.plant.name,
+          rarity: l.plant.rarity,
+          version: l.plant.version,
+          mutation: l.plant.mutation || null,
+          emoji: l.plant.emoji || '🌿',
+          localImage: plantMatch ? '/images/' + plantMatch.file.replace('./images/', '') : null,
+          color: rarityColors[l.plant.rarity] || '#999',
+          price: l.price,
+          sellerName: l.sellerName,
+          sellerId: l.sellerId,
+        };
+      }));
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4268,6 +4275,8 @@ app.post('/api/market/list', async (req, res) => {
 
   const { p: plant, i: plantIndex } = candidates[0];
   if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
+  const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
+if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error: `Only Epic, Legendary, Mythic, and Secret plants can be listed on the market.` });
 
   const listingId = `l_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   user.collection.splice(plantIndex, 1);

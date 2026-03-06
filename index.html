@@ -1835,7 +1835,7 @@ async function loadMarketData() {
     const items  = await res.json();
     const grid   = document.getElementById('market-grid');
     if (!items.length) {
-      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--ink3);text-align:center;padding:48px;font-size:14px">No plants listed right now. Use <code>!market sell</code> in Discord.</div>`;
+      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--ink3);text-align:center;padding:48px;font-size:14px">No plants listed right now.</div>`;
       return;
     }
     const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
@@ -1843,7 +1843,10 @@ async function loadMarketData() {
       const color = rarityColors[item.rarity] || '#999';
       return `<div class="market-card" data-rarity="${item.rarity}">
         <div class="market-card-rarity-bar" style="background:${color}"></div>
-        <span class="market-card-emoji">${item.emoji || '🌿'}</span>
+        ${item.localImage
+        ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
+        : `<span class="market-card-emoji">${item.emoji || '🌿'}</span>`
+        }
         <div class="market-card-name">${item.name}</div>
         <div class="market-card-meta">
           <span class="market-card-version" style="color:${color}">${item.rarity}</span>
