@@ -36,21 +36,6 @@
   padding: 0;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.07;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg transform='rotate(-25 50 50)'%3E%3Cpath d='M50 85 C50 85 20 65 20 38 C20 18 34 5 50 5 C66 5 80 18 80 38 C80 65 50 85 50 85Z' fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M50 85 Q48 60 50 5' fill='none' stroke='%23555' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M50 65 Q38 55 28 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 53 Q37 44 26 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 41 Q38 33 30 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 65 Q62 55 72 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 53 Q63 44 74 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 41 Q62 33 70 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 90px 90px;
-  background-position: 30px 30px;
-  background-repeat: repeat;
-}
-
-body > * { position: relative; z-index: 1; }
-
   /* ── NAV ── */
   nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
@@ -1206,7 +1191,9 @@ body > * { position: relative; z-index: 1; }
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
   <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
-  <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
+  <div class="auction-grid" id="auction-grid"></div>
+  </div>
+</div>
 </div>
   <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
   </div>
@@ -2029,6 +2016,54 @@ initAuth().then(() => {
   triggerReveal();
 });
 triggerReveal(); // still run reveal for hero immediately
+
+// ── LEAF BACKGROUND ──
+(function() {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g transform='rotate(-25 50 50)'><path d='M50 85 C50 85 20 65 20 38 C20 18 34 5 50 5 C66 5 80 18 80 38 C80 65 50 85 50 85Z' fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round'/><path d='M50 85 Q48 60 50 5' fill='none' stroke='%23555' stroke-width='1.2' stroke-linecap='round'/><path d='M50 65 Q38 55 28 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/><path d='M50 53 Q37 44 26 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/><path d='M50 41 Q38 33 30 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/><path d='M50 65 Q62 55 72 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/><path d='M50 53 Q63 44 74 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/><path d='M50 41 Q62 33 70 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/></g></svg>`;
+  const encodedSvg = svg.replace(/%23/g, '#');
+  const blob = new Blob([encodedSvg], {type: 'image/svg+xml'});
+  const url  = URL.createObjectURL(blob);
+
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.09';
+  canvas.id = 'leaf-canvas';
+  document.body.insertBefore(canvas, document.body.firstChild);
+
+  const img = new Image();
+  img.onload = () => {
+    const cols = Math.ceil(window.innerWidth / 90) + 1;
+    const rows = Math.ceil(window.innerHeight / 90) + 1;
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const isDark = document.body.classList.contains('dark');
+    if (isDark) { ctx.filter = 'invert(1)'; }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x    = c * 90 + (r % 2 === 0 ? 0 : 45);
+        const y    = r * 90;
+        const rot  = (((c * 7 + r * 13) % 5) - 2) * 18; // deterministic "random" rotation
+        const size = 44 + ((c * 3 + r * 5) % 3) * 8;
+        ctx.save();
+        ctx.translate(x + 45, y + 45);
+        ctx.rotate(rot * Math.PI / 180);
+        ctx.drawImage(img, -size/2, -size/2, size, size);
+        ctx.restore();
+      }
+    }
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+
+  // Re-render on dark mode toggle
+  const origToggle = window.toggleDark;
+  window.toggleDark = function() {
+    origToggle();
+    const c = document.getElementById('leaf-canvas');
+    if (c) c.remove();
+    setTimeout(() => window._redrawLeaves?.(), 50);
+  };
+})();
 
 // ── SHOP DATA ──
 async function loadShopData() {
