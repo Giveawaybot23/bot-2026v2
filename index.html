@@ -654,7 +654,7 @@
   font-size: 16px; font-weight: 800; color: var(--ink);
   letter-spacing: -0.02em;
 }
-.market-card-price span { font-size: 11px; font-weight: 500; color: var(--ink3); margin-left: 2px; }
+.market-card-price span { font-size: 14px; font-weight: 500; color: var(--ink3); margin-left: 2px; }
 .market-card-buy {
   padding: 7px 16px; border-radius: 100px;
   background: var(--ink); color: var(--bg);
@@ -2354,6 +2354,7 @@ async function submitMarketList(plantName, version) {
   const errEl = document.getElementById('ml-error');
   const btn   = document.getElementById('ml-submit');
   if (!price || price < 1) { errEl.style.display='block'; errEl.textContent='Enter a valid price.'; return; }
+  if (price > 10000000) { errEl.style.display='block'; errEl.textContent='Maximum price is 10,000,000 coins.'; return; }
   btn.disabled = true; btn.textContent = 'Listing...';
   try {
     const res  = await fetch('/api/market/list', {
@@ -2456,6 +2457,18 @@ async function submitCreateAuction() {
   }
 }
 
+function showToast(msg) {
+  const existing = document.getElementById('toast-msg');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'toast-msg';
+  toast.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#2d6a4f;color:white;padding:14px 28px;border-radius:100px;font-size:14px;font-weight:600;font-family:inherit;box-shadow:0 8px 32px rgba(45,106,79,0.4);z-index:99999;transition:all 0.3s;opacity:0';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => { toast.style.opacity = '1'; });
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
 function confirmMarketBuy(listingId, plantName, price) {
   if (!window._loggedInId) { alert('Log in with Discord to buy plants.'); return; }
   const existing = document.getElementById('market-buy-overlay');
@@ -2493,6 +2506,7 @@ async function submitMarketBuy(listingId) {
     }
     document.getElementById('market-buy-overlay').remove();
     await loadMarketData();
+    showToast('Successfully purchased market listing!');
   } catch {
     errEl.style.display = 'block'; errEl.textContent = 'Something went wrong.';
     btn.disabled = false; btn.textContent = 'Confirm';
