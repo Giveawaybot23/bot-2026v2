@@ -4114,10 +4114,23 @@ app.get('/api/auctions', (req, res) => {
 
 app.get('/api/avatar/:id', async (req, res) => {
   try {
-    const user = await client.users.fetch(req.params.id, { force: true });
+    res.set('Cache-Control', 'public, max-age=3600');
+    const user = await client.users.fetch(req.params.id);
     const url  = user.displayAvatarURL({ extension: 'png', size: 128 });
     res.json({ url });
   } catch(err) { res.json({ url: null }); }
+});
+
+app.post('/api/avatars/bulk', async (req, res) => {
+  const ids = req.body.ids || [];
+  const results = {};
+  await Promise.all(ids.map(async id => {
+    try {
+      const user = await client.users.fetch(id);
+      results[id] = user.displayAvatarURL({ extension: 'png', size: 128 });
+    } catch { results[id] = null; }
+  }));
+  res.json(results);
 });
 const PORT = process.env.PORT || 3000;
 const { WebSocketServer } = require('ws');

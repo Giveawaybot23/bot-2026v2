@@ -1351,13 +1351,20 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     ...players.map(p => p.id),
   ].filter(Boolean))];
 
-  await Promise.all(allIds.map(id => {
-    if (_avatarCache[id]) return Promise.resolve();
-    return fetch(`/api/avatar/${id}`)
-      .then(r => r.json())
-      .then(data => { if (data.url) _avatarCache[id] = data.url; })
-      .catch(() => {});
-  }));
+  const uncached = allIds.filter(id => !_avatarCache[id]);
+  if (uncached.length) {
+    try {
+      const res  = await fetch('/api/avatars/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: uncached })
+      });
+      const data = await res.json();
+      Object.entries(data).forEach(([id, url]) => {
+        if (url) _avatarCache[id] = url;
+      });
+    } catch {}
+  }
 
   loadLBAvatars(lb.garden, 'id');
   loadLBAvatars(lb.level,  'id');
