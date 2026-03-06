@@ -1252,22 +1252,20 @@ async function fetchAvatar(id) {
 
 async function loadAvatars(players) {
   players.forEach(p => {
-    if (_avatarCache[p.id] !== undefined) {
-      if (_avatarCache[p.id]) {
-        const el = document.getElementById(`av-${p.id}`);
-        if (el) el.innerHTML = `<img src="${_avatarCache[p.id]}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
-      }
+    if (_avatarCache[p.id]) {
+      const el = document.getElementById(`av-${p.id}`);
+      if (el) el.innerHTML = `<img src="${_avatarCache[p.id]}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
       return;
     }
     fetch(`/api/avatar/${p.id}`)
       .then(r => r.json())
       .then(data => {
-        _avatarCache[p.id] = data.url || null;
         if (!data.url) return;
+        _avatarCache[p.id] = data.url;
         const el = document.getElementById(`av-${p.id}`);
         if (el) el.innerHTML = `<img src="${data.url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
       })
-      .catch(() => { _avatarCache[p.id] = null; });
+      .catch(() => {});
   });
 }
 
