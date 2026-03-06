@@ -1853,7 +1853,7 @@ async function loadMarketData() {
         <div class="market-card-seller">Listed by ${item.sellerName}</div>
         <div class="market-card-footer">
           <div class="market-card-price">${item.price.toLocaleString()}<span>coins</span></div>
-          <button class="market-card-buy" onclick="event.stopPropagation()">Buy in Discord</button>
+          <button class="market-card-buy" onclick="event.stopPropagation();confirmMarketBuy('${item.id}','${item.name}',${item.price})">Buy</button>
         </div>
       </div>`;
     }).join('');
@@ -2453,6 +2453,49 @@ async function submitCreateAuction() {
   } catch {
     errEl.style.display = 'block'; errEl.textContent = 'Something went wrong — try again.';
     btn.disabled = false; btn.textContent = 'List Auction';
+  }
+}
+
+function confirmMarketBuy(listingId, plantName, price) {
+  if (!window._loggedInId) { alert('Log in with Discord to buy plants.'); return; }
+  const existing = document.getElementById('market-buy-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'market-buy-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(14,13,11,0.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:20px;padding:32px;width:100%;max-width:380px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(14,13,11,0.3);text-align:center">
+      <div style="font-size:40px;margin-bottom:16px">🛒</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Confirm Purchase</div>
+      <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">Are you sure you want to buy</div>
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px">${plantName}</div>
+      <div style="font-size:14px;color:var(--green);font-weight:700;margin-bottom:24px">for ${price.toLocaleString()} coins?</div>
+      <div id="mbuy-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:14px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="document.getElementById('market-buy-overlay').remove()" style="flex:1;padding:13px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Cancel</button>
+        <button onclick="submitMarketBuy('${listingId}')" id="mbuy-confirm" style="flex:1;padding:13px;border-radius:100px;border:none;background:#2d6a4f;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#52b788'" onmouseout="this.style.background='#2d6a4f'">Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function submitMarketBuy(listingId) {
+  const btn   = document.getElementById('mbuy-confirm');
+  const errEl = document.getElementById('mbuy-error');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const res  = await fetch(`/api/market/buy/${listingId}`, { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.style.display = 'block'; errEl.textContent = data.error || 'Purchase failed';
+      btn.disabled = false; btn.textContent = 'Confirm'; return;
+    }
+    document.getElementById('market-buy-overlay').remove();
+    await loadMarketData();
+  } catch {
+    errEl.style.display = 'block'; errEl.textContent = 'Something went wrong.';
+    btn.disabled = false; btn.textContent = 'Confirm';
   }
 }
 
