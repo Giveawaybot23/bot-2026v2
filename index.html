@@ -478,18 +478,55 @@
   .reveal { opacity: 0; transform: translateY(20px); transition: all 0.6s ease; }
   .reveal.visible { opacity: 1; transform: translateY(0); }
 
-  @media (max-width: 900px) {
-    nav { padding: 0 20px; }
-    .hero { grid-template-columns: 1fr; padding: 48px 20px; }
-    .hero-visual { display: none; }
-    .stats-row { grid-template-columns: 1fr; }
-    .feature-grid { grid-template-columns: 1fr; }
-    .lb-grid { grid-template-columns: 1fr; }
-    .profiles-grid { grid-template-columns: 1fr; }
-    .section { padding: 64px 20px; }
-    .lb-page, .profiles-page { padding: 20px; }
-    .profile-stats { grid-template-columns: 1fr 1fr; }
+ @media (max-width: 900px) {
+  nav {
+    padding: 0 16px;
+    grid-template-columns: 1fr auto;
   }
+  .nav-links { display: none; }
+  .nav-mobile-open .nav-links {
+    display: flex; flex-direction: column;
+    position: fixed; top: 64px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 12px 16px; gap: 4px; z-index: 99;
+  }
+  .nav-links > a { width: 100%; padding: 12px 16px; }
+  .nav-dropdown-wrap { width: 100%; }
+  .nav-dropdown-trigger { width: 100%; padding: 12px 16px; }
+  .nav-dropdown {
+    position: static; transform: none;
+    box-shadow: none; border: none;
+    padding: 0 0 0 16px; opacity: 1; visibility: visible;
+    min-width: unset; background: transparent;
+  }
+  .nav-mobile-open .nav-dropdown-wrap .nav-dropdown { display: flex; flex-direction: column; }
+  .hamburger { display: flex !important; }
+
+  .hero { grid-template-columns: 1fr; padding: 40px 16px; }
+  .hero-visual { display: none; }
+  .stats-row { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .lb-grid { grid-template-columns: 1fr; }
+  .profiles-grid { grid-template-columns: 1fr 1fr; }
+  .section { padding: 48px 16px; }
+  .lb-page, .profiles-page { padding: 16px; }
+  .shop-page { padding: 16px; }
+  .profile-stats { grid-template-columns: 1fr 1fr; }
+  .auction-detail { padding: 16px 16px 60px; }
+  .auction-detail-grid { grid-template-columns: 1fr !important; }
+  .auction-plant-card { position: static !important; }
+  .lb-tabs { flex-wrap: wrap; }
+  .shop-filters, [style*="display:flex;gap:12px;flex-wrap:wrap"] { gap: 8px; }
+}
+
+@media (max-width: 480px) {
+  .profiles-grid { grid-template-columns: 1fr; }
+  .hero-title { font-size: 38px; }
+  .stat-num { font-size: 36px; }
+  .stat-item { padding: 28px 20px; }
+  .lb-page, .profiles-page, .shop-page { padding: 12px; }
+  .auction-detail { padding: 12px 12px 60px; }
+}
 
   /* ── DARK MODE ── */
   body.dark {
@@ -858,6 +895,7 @@
     </div>
   </div>
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
+  <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="nav-auth"></div>
     <button class="dark-toggle" onclick="toggleDark()" id="dark-btn">🌙</button>
@@ -2979,6 +3017,22 @@ function submitPost(profileId) {
   saveFeed(profileId, posts);
   renderFeed(profileId, posts);
   document.getElementById('post-modal-overlay')?.remove();
+}
+
+function toggleMobileNav() {
+  const nav = document.querySelector('nav');
+  const btn = document.getElementById('hamburger-btn');
+  const open = nav.classList.toggle('nav-mobile-open');
+  btn.textContent = open ? '✕' : '☰';
+}
+
+// Close mobile nav when a page is selected
+const _origShowPage = showPage;
+function showPage(name) {
+  _origShowPage(name);
+  document.querySelector('nav')?.classList.remove('nav-mobile-open');
+  const btn = document.getElementById('hamburger-btn');
+  if (btn) btn.textContent = '☰';
 }
 
 function toggleDark() {
