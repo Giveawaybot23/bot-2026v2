@@ -44,7 +44,7 @@ body::before {
   pointer-events: none;
   opacity: 0.07;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg transform='rotate(-25 50 50)'%3E%3Cpath d='M50 85 C50 85 20 65 20 38 C20 18 34 5 50 5 C66 5 80 18 80 38 C80 65 50 85 50 85Z' fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M50 85 Q48 60 50 5' fill='none' stroke='%23555' stroke-width='1.2' stroke-linecap='round'/%3E%3Cpath d='M50 65 Q38 55 28 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 53 Q37 44 26 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 41 Q38 33 30 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 65 Q62 55 72 50' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 53 Q63 44 74 40' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3Cpath d='M50 41 Q62 33 70 28' fill='none' stroke='%23555' stroke-width='0.9' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 220px 220px;
+  background-size: 90px 90px;
   background-position: 30px 30px;
   background-repeat: repeat;
 }
@@ -1188,9 +1188,10 @@ body > * { position: relative; z-index: 1; }
     <button class="shop-filter-btn" id="sort-btn-version-desc" onclick="setMarketSort('version-desc',this)">Version ↓</button>
   </div>
 </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
-    <button onclick="openSellFromInventory()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🛒 Sell a Plant</button>
-    </div>
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
+  <button id="market-mine-btn" onclick="toggleMyMarket(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Listings</button>
+  <button onclick="openSellFromInventory()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🛒 Sell a Plant</button>
+</div>
     <div class="shop-grid" id="market-grid"></div>
   </div>
 </div>
@@ -1203,7 +1204,10 @@ body > * { position: relative; z-index: 1; }
       <h1 class="section-title" style="margin-bottom:8px">Auctions</h1>
       <p style="font-size:15px;color:var(--ink2)">Live plant auctions. Bid or buy now before time runs out.</p>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
+  <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
+  <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
+</div>
   <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
   </div>
   <div class="auction-grid" id="auction-grid"></div>
@@ -1865,6 +1869,24 @@ async function loadLBAvatars(entries, idField) {
 }
 
 let _marketRarity = 'all';
+let _marketMineOnly = false;
+let _auctionMineOnly = false;
+
+function toggleMyMarket(btn) {
+  _marketMineOnly = !_marketMineOnly;
+  btn.style.background = _marketMineOnly ? 'var(--ink)' : 'var(--card)';
+  btn.style.color = _marketMineOnly ? 'var(--bg)' : 'var(--ink2)';
+  btn.style.borderColor = _marketMineOnly ? 'var(--ink)' : 'var(--border)';
+  renderMarket();
+}
+
+function toggleMyAuctions(btn) {
+  _auctionMineOnly = !_auctionMineOnly;
+  btn.style.background = _auctionMineOnly ? 'var(--ink)' : 'var(--card)';
+  btn.style.color = _auctionMineOnly ? 'var(--bg)' : 'var(--ink2)';
+  btn.style.borderColor = _auctionMineOnly ? 'var(--ink)' : 'var(--border)';
+  loadAuctionData();
+}
 let _marketSort   = 'none';
 let _marketItems  = [];
 
@@ -1891,6 +1913,7 @@ function renderMarket() {
   const grid = document.getElementById('market-grid');
   let items = [..._marketItems];
   if (_marketRarity !== 'all') items = items.filter(item => item.rarity === _marketRarity);
+  if (_marketMineOnly && window._loggedInId) items = items.filter(item => item.sellerId === window._loggedInId);
   if (_marketSort === 'price-asc')     items.sort((a,b) => a.price - b.price);
   if (_marketSort === 'price-desc')    items.sort((a,b) => b.price - a.price);
   if (_marketSort === 'rarity-asc')    items.sort((a,b) => _rarityRank[b.rarity] - _rarityRank[a.rarity]);
@@ -2052,7 +2075,8 @@ async function loadAuctionData() {
       Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#111'
     };
 
-    grid.innerHTML = auctions.map(a => {
+    const displayAuctions = _auctionMineOnly && window._loggedInId ? auctions.filter(a => a.sellerId === window._loggedInId) : auctions;
+    grid.innerHTML = displayAuctions.map(a => {
       const color = '#' + a.plant.color.toString(16).padStart(6,'0');
       const badge = rarityBadgeColor[a.plant.rarity] || '#999';
       const isV1 = a.plant.version === 1;
