@@ -1104,13 +1104,27 @@
       <h1 class="section-title" style="margin-bottom:8px">Market</h1>
       <p style="font-size:15px;color:var(--ink2)">Plants listed for sale by other collectors.</p>
     </div>
-    <div class="shop-filters">
-      <button class="shop-filter-btn active" onclick="filterMarket('all',this)">All</button>
-      <button class="shop-filter-btn" onclick="filterMarket('Secret',this)">Secret</button>
-      <button class="shop-filter-btn" onclick="filterMarket('Mythic',this)">Mythic</button>
-      <button class="shop-filter-btn" onclick="filterMarket('Legendary',this)">Legendary</button>
-      <button class="shop-filter-btn" onclick="filterMarket('Epic',this)">Epic</button>
-    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:32px">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em">Rarity</span>
+    <button class="shop-filter-btn active" onclick="setMarketRarity('all',this)">All</button>
+    <button class="shop-filter-btn" onclick="setMarketRarity('Secret',this)">Secret</button>
+    <button class="shop-filter-btn" onclick="setMarketRarity('Mythic',this)">Mythic</button>
+    <button class="shop-filter-btn" onclick="setMarketRarity('Legendary',this)">Legendary</button>
+    <button class="shop-filter-btn" onclick="setMarketRarity('Epic',this)">Epic</button>
+  </div>
+  <div style="width:1px;height:28px;background:var(--border)"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em">Sort</span>
+    <button class="shop-filter-btn active" id="sort-btn-none" onclick="setMarketSort('none',this)">Default</button>
+    <button class="shop-filter-btn" id="sort-btn-price-asc" onclick="setMarketSort('price-asc',this)">Price ↑</button>
+    <button class="shop-filter-btn" id="sort-btn-price-desc" onclick="setMarketSort('price-desc',this)">Price ↓</button>
+    <button class="shop-filter-btn" id="sort-btn-rarity-asc" onclick="setMarketSort('rarity-asc',this)">Rarity ↑</button>
+    <button class="shop-filter-btn" id="sort-btn-rarity-desc" onclick="setMarketSort('rarity-desc',this)">Rarity ↓</button>
+    <button class="shop-filter-btn" id="sort-btn-version-asc" onclick="setMarketSort('version-asc',this)">Version ↑</button>
+    <button class="shop-filter-btn" id="sort-btn-version-desc" onclick="setMarketSort('version-desc',this)">Version ↓</button>
+  </div>
+</div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
     <button onclick="openSellFromInventory()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🛒 Sell a Plant</button>
     </div>
@@ -1770,14 +1784,67 @@ async function loadLBAvatars(entries, idField) {
   });
 }
 
-function filterMarket(rarity, btn) {
-  document.querySelectorAll('.shop-filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.market-card').forEach(card => {
-    card.style.display = (rarity === 'all' || card.dataset.rarity === rarity) ? '' : 'none';
+let _marketRarity = 'all';
+let _marketSort   = 'none';
+let _marketItems  = [];
+
+const _rarityRank = { Secret:0, Mythic:1, Legendary:2, Epic:3, Rare:4, Uncommon:5, Common:6 };
+
+function setMarketRarity(rarity, btn) {
+  _marketRarity = rarity;
+  document.querySelectorAll('.shop-filters .shop-filter-btn, [onclick^="setMarketRarity"]').forEach(b => {
+    if (b.getAttribute('onclick')?.includes('setMarketRarity')) b.classList.remove('active');
   });
+  btn.classList.add('active');
+  renderMarket();
 }
 
+function setMarketSort(sort, btn) {
+  _marketSort = sort;
+  document.querySelectorAll('[id^="sort-btn-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMarket();
+}
+
+function renderMarket() {
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
+  const grid = document.getElementById('market-grid');
+  let items = [..._marketItems];
+  if (_marketRarity !== 'all') items = items.filter(item => item.rarity === _marketRarity);
+  if (_marketSort === 'price-asc')     items.sort((a,b) => a.price - b.price);
+  if (_marketSort === 'price-desc')    items.sort((a,b) => b.price - a.price);
+  if (_marketSort === 'rarity-asc')    items.sort((a,b) => _rarityRank[b.rarity] - _rarityRank[a.rarity]);
+  if (_marketSort === 'rarity-desc')   items.sort((a,b) => _rarityRank[a.rarity] - _rarityRank[b.rarity]);
+  if (_marketSort === 'version-asc')   items.sort((a,b) => (a.version||0) - (b.version||0));
+  if (_marketSort === 'version-desc')  items.sort((a,b) => (b.version||0) - (a.version||0));
+
+  if (!items.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--ink3);text-align:center;padding:48px;font-size:14px">No plants listed right now.</div>`;
+    return;
+  }
+  grid.innerHTML = items.map(item => {
+    const color = rarityColors[item.rarity] || '#999';
+    return `<div class="market-card" data-rarity="${item.rarity}">
+      <div class="market-card-rarity-bar" style="background:${color}"></div>
+      ${item.localImage
+        ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
+        : `<span class="market-card-emoji">${item.emoji || '🌿'}</span>`}
+      <div class="market-card-name">${item.name}</div>
+      <div class="market-card-meta">
+        <span class="market-card-version" style="color:${color}">${item.rarity}</span>
+        <span class="market-card-version">v${item.version || '?'}</span>
+        ${item.mutation ? `<span class="market-card-version">${item.mutation.emoji} ${item.mutation.name}</span>` : ''}
+      </div>
+      <div class="market-card-seller">Listed by ${item.sellerName}</div>
+      <div class="market-card-footer">
+        <div class="market-card-price">${item.price.toLocaleString()}<span>coins</span></div>
+        ${item.sellerId === window._loggedInId
+          ? `<button class="market-card-buy" style="background:#e53935" onclick="event.stopPropagation();confirmRemoveMarket('${item.id}','${item.name}')" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Remove</button>`
+          : `<button class="market-card-buy" onclick="event.stopPropagation();confirmMarketBuy('${item.id}','${item.name}',${item.price})">Buy</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
 function msToStr(ms) { return ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(2)}s`; }
 
 function filterProfiles(val) {
@@ -1871,37 +1938,8 @@ async function loadShopData() {
 async function loadMarketData() {
   try {
     const res    = await fetch('/api/market');
-    const items  = await res.json();
-    const grid   = document.getElementById('market-grid');
-    if (!items.length) {
-      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--ink3);text-align:center;padding:48px;font-size:14px">No plants listed right now.</div>`;
-      return;
-    }
-    const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
-    grid.innerHTML = items.map(item => {
-      const color = rarityColors[item.rarity] || '#999';
-      return `<div class="market-card" data-rarity="${item.rarity}">
-        <div class="market-card-rarity-bar" style="background:${color}"></div>
-        ${item.localImage
-        ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
-        : `<span class="market-card-emoji">${item.emoji || '🌿'}</span>`
-        }
-        <div class="market-card-name">${item.name}</div>
-        <div class="market-card-meta">
-          <span class="market-card-version" style="color:${color}">${item.rarity}</span>
-          <span class="market-card-version">v${item.version || '?'}</span>
-          ${item.mutation ? `<span class="market-card-version">${item.mutation.emoji} ${item.mutation.name}</span>` : ''}
-        </div>
-        <div class="market-card-seller">Listed by ${item.sellerName}</div>
-        <div class="market-card-footer">
-          <div class="market-card-price">${item.price.toLocaleString()}<span>coins</span></div>
-          ${item.sellerId === window._loggedInId
-          ? `<button class="market-card-buy" style="background:#e53935" onclick="event.stopPropagation();confirmRemoveMarket('${item.id}','${item.name}')" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Remove</button>`
-          : `<button class="market-card-buy" onclick="event.stopPropagation();confirmMarketBuy('${item.id}','${item.name}',${item.price})">Buy</button>`
-          }
-        </div>
-      </div>`;
-    }).join('');
+    _marketItems = await res.json();
+    renderMarket();
   } catch(err) { console.error('Market load failed:', err); }
 }
 
