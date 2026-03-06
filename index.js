@@ -3960,7 +3960,7 @@ app.get('/api/profile/:id', (req, res) => {
     const score = calcWeightedGardenScore(user.collection||[]);
     const tier  = getGardenTier(score);
     const title = getActiveTitle(user);
-    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, xp: u.xp||0 })).sort((a,b) => b.xp-a.xp);
+    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, score: calcWeightedGardenScore(u.collection||[]) })).sort((a,b) => b.score-a.score);
     const serverRank = allUsers.findIndex(e => e.id === req.params.id) + 1;
     res.json({
       id: req.params.id,
