@@ -2760,7 +2760,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         if (vFilter !== null && p.version !== vFilter) continue;
         const uname = userData.username || `User#${uid.slice(-4)}`;
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        allOwners.push(`<@${uid}> \`v${p.version}\`${mutStr}`);
+        allOwners.push(`<@${uid}>${mutStr}`);
       }
     }
     const ownedByLine = allOwners.length ? `*Owned by: ${allOwners.join('  ·  ')}*` : '*Not owned by anyone yet.*';
