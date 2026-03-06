@@ -235,12 +235,12 @@ function getNextGardenTier(score) {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 const MUTATIONS = [
-  { name: 'Starstruck', emoji: '<:starstruck:1477666927135428650>', multiplier: 3, weight: 3,  color: 0xFFFF00 },
-  { name: 'Flooded',    emoji: '🌊',                               multiplier: 1.50, weight: 5,  color: 0x0099FF }, 
-  { name: 'Shocked',    emoji: '<:shocked:1477666867890884628>',    multiplier: 2.5, weight: 6,  color: 0xFFDD00 },
-  { name: 'Soaked',     emoji: '<:soaked:1477666816745537546>',     multiplier: 2, weight: 10, color: 0x66CCFF },
+  { name: 'Starstruck', emoji: '<:starstruck:1477666927135428650>', multiplier: 3,    weight: 3,  color: 0xFFFF00 },
+  { name: 'Shocked',    emoji: '<:shocked:1477666867890884628>',    multiplier: 2.5,  weight: 6,  color: 0xFFDD00 },
+  { name: 'Soaked',     emoji: '<:soaked:1477666816745537546>',     multiplier: 2.2,  weight: 10, color: 0x66CCFF },
+  { name: 'Snowy',      emoji: '<:snowy:1477666846382620683>',      multiplier: 1.90, weight: 15, color: 0xADD8E6 },
+  { name: 'Flooded',    emoji: '🌊',                               multiplier: 1.50, weight: 5,  color: 0x0099FF },
   { name: 'Sandy',      emoji: '🏜️',                               multiplier: 1.25, weight: 12, color: 0xF4A460 },
-  { name: 'Snowy',      emoji: '<:snowy:1477666846382620683>',      multiplier: 1.8, weight: 15, color: 0xADD8E6 },
 ];
 const MUTATION_NONE_WEIGHT = 949;
 function rollMutation() {
@@ -3474,21 +3474,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             ].join('\n'),
           },
           {
-            name: '✨ Mutations',
-            value: [
-              'Mutations are rare bonuses that increase a plant\'s sell value. They can appear on any rarity.',
-              '',
-              '<:starstruck:1477666927135428650> **Starstruck** — ×1.65 sell value',
-              '🌊 **Flooded** — ×1.50 sell value',
-              '<:shocked:1477666867890884628> **Shocked** — ×1.45 sell value',
-              '<:soaked:1477666816745537546> **Soaked** — ×1.30 sell value',
-              '🏜️ **Sandy** — ×1.25 sell value',
-              '<:snowy:1477666846382620683> **Snowy** — ×1.20 sell value',
-              '',
-              '*Mutations only affect sell value — they do not contribute to garden rank.*',
-              '*Overall mutation chance is ~5%. Starstruck is the rarest.*',
-            ].join('\n'),
-          },
+  name: '✨ Mutations',
+  value: [
+    'Mutations are rare bonuses that increase a plant\'s sell value. They can appear on any rarity.',
+    '',
+    '<:starstruck:1477666927135428650> **Starstruck** — ×3.0 sell value',
+    '<:shocked:1477666867890884628> **Shocked** — ×2.5 sell value',
+    '<:soaked:1477666816745537546> **Soaked** — ×2.2 sell value',
+    '<:snowy:1477666846382620683> **Snowy** — ×1.90 sell value',
+    '🌊 **Flooded** — ×1.50 sell value',
+    '🏜️ **Sandy** — ×1.25 sell value',
+    '',
+    '*Mutations only affect sell value — they do not contribute to garden rank.*',
+    '*Overall mutation chance is ~5%. Starstruck is the rarest.*',
+  ].join('\n'),
+},
           {
             name: '🔮 How Charms Work',
             value: [
