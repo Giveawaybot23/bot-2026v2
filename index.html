@@ -1285,11 +1285,11 @@ window._cachedLB = lb;
 
    // Garden
 const gardenHTML = lb.garden.map((e,i) =>
-  renderLBEntry(e.username, e.tierEmoji + ' ' + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
+  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
 ).join('');
 document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
   const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
-  return renderLBEntry(e.username, e.tierEmoji + ' ' + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId);
+  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId);
 }).join('');
 document.getElementById('lb-garden-full').innerHTML = gardenHTML;
     // Level
@@ -1331,7 +1331,6 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML;
           </div>
         </div>
         <div class="profile-mini-tier">
-          <span style="font-size:20px">${p.tierEmoji}</span>
           <div class="profile-mini-tier-name"><img src="/images/tiers/${p.tierName.toLowerCase()}.webp" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">${p.tierName}</div>
         </div>
         <div class="profile-mini-stats">
