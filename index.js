@@ -4402,7 +4402,7 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
   );
   if (alreadyIn) return res.status(400).json({ error: 'One of the users already has an active trade' });
   const db = loadDB();
-  const targetUser = db.users[targetId];
+  const targetUser = db[targetId];
   if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
   const tradeId = `wt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   webTrades[tradeId] = {
@@ -4490,8 +4490,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   mySide.confirmed = true;
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
-    const iUser = db.users[trade.initiatorId];
-    const tUser = db.users[trade.targetId];
+    const iUser = db[trade.initiatorId];
+    const tUser = db[trade.targetId];
     const iSide = trade.sides[trade.initiatorId];
     const tSide = trade.sides[trade.targetId];
     for (const p of iSide.plants) {
