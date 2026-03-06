@@ -4260,13 +4260,16 @@ app.get('/api/plants', (req, res) => {
         if (!seen.has(p.name)) { seen.add(p.name); ownerCounts[p.name] = (ownerCounts[p.name] || 0) + 1; }
       }
     }
-    
-    res.json(PLANTS.map(p => ({
-      name: p.name,
-      rarity: p.rarity,
-      image: '/images/' + p.file.replace('./images/', ''),
-      owners: ownerCounts[p.name] || 0,
-    })));
+
+    res.json(PLANTS.map(p => {
+  const rCfg = getRarityConfig(p.rarity);
+  return {
+    name: p.name,
+    rarity: p.rarity,
+    image: '/images/' + p.file.replace('./images/', ''),
+    sellPrice: rCfg.sellPrice || 0,
+  };
+}));
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
