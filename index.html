@@ -2018,6 +2018,41 @@ async function submitWebBid(auctionId, currentBid) {
 
 // Simple in-memory chat per auction (resets on page refresh — cosmetic only)
 const _auctionChats = {};
+let _ws = null;
+
+function connectAuctionWS(auctionId) {
+  if (_ws) { _ws.close(); _ws = null; }
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  _ws = new WebSocket(`${proto}://${location.host}`);
+
+  _ws.onopen = () => {
+    _ws.send(JSON.stringify({
+      type: 'join',
+      auctionId,
+      username: window._loggedInUsername || 'Guest',
+      avatarUrl: window._loggedInAvatarUrl || null
+    }));
+  };
+
+  _ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      const container = document.getElementById(`chat-msgs-${auctionId}`);
+      if (!container) return;
+      if (msg.type === 'history') {
+        container.innerHTML = msg.messages.length
+          ? msg.messages.map(m => renderChatMsg({ name: m.username, text: m.text, avatarUrl: m.avatarUrl })).join('')
+          : '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>';
+        container.scrollTop = container.scrollHeight;
+      } else if (msg.type === 'chat') {
+        const placeholder = container.querySelector('div[style*="No messages"]');
+        if (placeholder) placeholder.remove();
+        container.innerHTML += renderChatMsg({ name: msg.username, text: msg.text, avatarUrl: msg.avatarUrl });
+        container.scrollTop = container.scrollHeight;
+      }
+    } catch {}
+  };
+}
 
 async function showAuctionDetail(auctionId) {
   showPage('auction-detail');
@@ -2034,6 +2069,7 @@ async function showAuctionDetail(auctionId) {
 
     // Seed chat if empty
     if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
+    connectAuctionWS(auctionId);
 
     // load avatars for bids
     const bidAvatarMap = {};
@@ -2217,17 +2253,8 @@ function sendChatMsg(auctionId) {
   const input = document.getElementById(`chat-input-${auctionId}`);
   const text  = input?.value?.trim();
   if (!text) return;
-  if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
-  const avatarUrl = window._loggedInAvatarUrl || null;
-  const msg = { name: window._loggedInUsername, text, time: Date.now(), avatarUrl };
-  _auctionChats[auctionId].push(msg);
-  const container = document.getElementById(`chat-msgs-${auctionId}`);
-  if (container) {
-    // Remove "no messages" placeholder if present
-    const placeholder = container.querySelector('div[style*="No messages"]');
-    if (placeholder) placeholder.remove();
-    container.innerHTML += renderChatMsg(msg);
-    container.scrollTop = container.scrollHeight;
+  if (_ws && _ws.readyState === 1) {
+    _ws.send(JSON.stringify({ type: 'chat', text }));
   }
   input.value = '';
 }

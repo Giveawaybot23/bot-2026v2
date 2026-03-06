@@ -4106,6 +4106,74 @@ app.get('/api/avatar/:id', async (req, res) => {
   } catch(err) { res.json({ url: null }); }
 });
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
+const { WebSocketServer } = require('ws');
+const httpServer = require('http').createServer(app);
+const wss = new WebSocketServer({ server: httpServer });
+
+// ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
+const CHAT_FILE = `${DATA_DIR}/auction_chats.json`;
+function loadChats() {
+  try { return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8')); } catch { return {}; }
+}
+function saveChats(chats) {
+  fs.writeFileSync(CHAT_FILE, JSON.stringify(chats, null, 2));
+}
+
+// ── WEBSOCKET ─────────────────────────────────────────────────────────────
+const auctionRooms = {};
+
+wss.on('connection', (ws) => {
+  let currentRoom = null;
+  let userInfo = null;
+
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.type === 'join') {
+        currentRoom = msg.auctionId;
+        userInfo = { username: msg.username, avatarUrl: msg.avatarUrl };
+        if (!auctionRooms[currentRoom]) auctionRooms[currentRoom] = [];
+        auctionRooms[currentRoom].push(ws);
+        // Send existing messages to this client
+        const chats = loadChats();
+        const history = (chats[currentRoom] || []).slice(-50);
+        ws.send(JSON.stringify({ type: 'history', messages: history }));
+      } else if (msg.type === 'chat' && currentRoom && userInfo) {
+        const chatMsg = {
+          username: userInfo.username,
+          avatarUrl: userInfo.avatarUrl,
+          text: msg.text.slice(0, 300),
+          time: Date.now()
+        };
+        // Save to file
+        const chats = loadChats();
+        if (!chats[currentRoom]) chats[currentRoom] = [];
+        chats[currentRoom].push(chatMsg);
+        // Keep max 200 messages per auction
+        if (chats[currentRoom].length > 200) chats[currentRoom] = chats[currentRoom].slice(-200);
+        saveChats(chats);
+        // Broadcast to all in room
+        const payload = JSON.stringify({ type: 'chat', ...chatMsg });
+        (auctionRooms[currentRoom] || []).forEach(client => {
+          if (client.readyState === 1) client.send(payload);
+        });
+      }
+    } catch {}
+  });
+
+  ws.on('close', () => {
+    if (currentRoom && auctionRooms[currentRoom]) {
+      auctionRooms[currentRoom] = auctionRooms[currentRoom].filter(c => c !== ws);
+    }
+  });
+});
+
+// ── CHAT API (for loading history on page open) ───────────────────────────
+app.get('/api/chat/:auctionId', (req, res) => {
+  const chats = loadChats();
+  res.json(chats[req.params.auctionId] || []);
+});
+
+httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 
 client.login(TOKEN);
