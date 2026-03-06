@@ -1110,7 +1110,10 @@
       <h1 class="section-title" style="margin-bottom:8px">Auctions</h1>
       <p style="font-size:15px;color:var(--ink2)">Live plant auctions. Bid or buy now before time runs out.</p>
     </div>
-    <div class="auction-grid" id="auction-grid"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+  <button onclick="openCreateAuctionModal()" style="background:#5865F2;color:white;border:none;border-radius:100px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">🔨 Create Auction</button>
+  </div>
+  <div class="auction-grid" id="auction-grid"></div>
   </div>
 </div>
 
@@ -2248,6 +2251,90 @@ function renderChatMsg(m) {
       <div class="chat-msg-text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
     </div>
   </div>`;
+}
+
+function openCreateAuctionModal() {
+  if (!window._loggedInId) { alert('Log in with Discord to create an auction.'); return; }
+  const existing = document.getElementById('create-auction-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'create-auction-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(14,13,11,0.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:20px;padding:32px;width:100%;max-width:480px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(14,13,11,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink)">🔨 Create Auction</div>
+        <button onclick="document.getElementById('create-auction-overlay').remove()" style="background:none;border:none;font-size:20px;color:var(--ink3);cursor:pointer;padding:4px;border-radius:6px" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink3)'">✕</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Plant Name *</div>
+          <input id="ca-plant" placeholder="e.g. Cherry" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Version (optional)</div>
+          <input id="ca-version" type="number" placeholder="e.g. 3" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Starting Bid</div>
+            <input id="ca-start" type="number" placeholder="Default: sell value" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Buyout Price</div>
+            <input id="ca-buyout" type="number" placeholder="Optional" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Duration (hours, max 72)</div>
+          <input id="ca-hours" type="number" placeholder="Default: 24" min="1" max="72" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+      </div>
+
+      <div id="ca-error" style="display:none;color:#e53935;font-size:13px;margin-top:12px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+        <button onclick="document.getElementById('create-auction-overlay').remove()" style="padding:11px 22px;border-radius:100px;border:1.5px solid var(--border);background:transparent;font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit">Cancel</button>
+        <button onclick="submitCreateAuction()" id="ca-submit" style="padding:11px 28px;border-radius:100px;border:none;background:#5865F2;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">List Auction</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  setTimeout(() => document.getElementById('ca-plant')?.focus(), 50);
+}
+
+async function submitCreateAuction() {
+  const plantName  = document.getElementById('ca-plant')?.value?.trim();
+  const version    = document.getElementById('ca-version')?.value?.trim();
+  const startPrice = document.getElementById('ca-start')?.value?.trim();
+  const buyout     = document.getElementById('ca-buyout')?.value?.trim();
+  const hours      = document.getElementById('ca-hours')?.value?.trim();
+  const errEl      = document.getElementById('ca-error');
+  const btn        = document.getElementById('ca-submit');
+
+  if (!plantName) { errEl.style.display='block'; errEl.textContent='Plant name is required.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Listing...';
+
+  try {
+    const res  = await fetch('/api/auction/create', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plantName, version: version || null, startPrice: startPrice || null, buyoutPrice: buyout || null, hours: hours || 24 })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.style.display = 'block'; errEl.textContent = data.error || 'Failed to create auction';
+      btn.disabled = false; btn.textContent = 'List Auction'; return;
+    }
+    document.getElementById('create-auction-overlay').remove();
+    await loadAuctionData();
+    showAuctionDetail(data.auctionId);
+  } catch {
+    errEl.style.display = 'block'; errEl.textContent = 'Something went wrong — try again.';
+    btn.disabled = false; btn.textContent = 'List Auction';
+  }
 }
 
 function sendChatMsg(auctionId) {
