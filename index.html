@@ -1803,7 +1803,7 @@ async function loadProfile(id) {
                     <div style="width:8px;height:8px;border-radius:50%;background:${p.version===1?'#c9a84c':rarityColors[p.rarity]||'#999'};flex-shrink:0;${p.version===1?'box-shadow:0 0 6px rgba(201,168,76,0.8);':''}"></div>
                     <div style="flex:1;min-width:0">
                       <div style="font-size:13px;font-weight:600;color:${p.version===1?'#c9a84c':'var(--ink)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${p.version===1?' 👑':''}</div>
-                      <div style="font-size:11px;color:var(--ink3)">v${p.version||'?'}${p.mutation ? ' · '+p.mutation : ''}</div>
+                      <div style="font-size:11px;color:var(--ink3)">${p.version===1?'<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.8)">👑 v1</span>':'v'+(p.version||'?')}${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}</div>
                     </div>
                   </div>
                 `).join('')}
@@ -1918,8 +1918,8 @@ function renderMarket() {
       <div class="market-card-name">${item.name}</div>
       <div class="market-card-meta">
         <span class="market-card-version" style="color:${color}">${item.rarity}</span>
-        <span class="market-card-version">v${item.version || '?'}</span>
-        ${item.mutation ? `<span class="market-card-version">${item.mutation.emoji} ${item.mutation.name}</span>` : ''}
+        ${item.version === 1 ? v1Badge() : `<span class="market-card-version">v${item.version || '?'}</span>`}
+        ${item.mutation ? `<span class="market-card-version" style="color:${mutationColor(item.mutation.name)}">${mutationEmoji(item.mutation.name)} ${item.mutation.name}</span>` : ''}
       </div>
       <div class="market-card-seller">Listed by ${item.sellerName}</div>
       <div class="market-card-footer">
@@ -2124,7 +2124,7 @@ async function loadAuctionData() {
           <div class="market-card-meta">
             <span class="market-card-version">${a.plant.rarity}</span>
             <span class="market-card-version">v${a.plant.version || '?'}</span>
-            ${a.plant.mutation ? `<span class="market-card-version">${a.plant.mutation.emoji} ${a.plant.mutation.name}</span>` : ''}
+            ${a.plant.mutation ? `<span class="market-card-version" style="color:${mutationColor(a.plant.mutation.name)}">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
           </div>
           <div class="auction-card-bid">
             Current bid: <strong>${a.currentBid.toLocaleString()} coins</strong>
@@ -2340,8 +2340,8 @@ async function showAuctionDetail(auctionId) {
             <!-- Rarity badge overlay -->
             <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
               <span style="background:${color}dd;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.rarity}</span>
-              <span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>
-              ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.mutation.emoji} ${a.plant.mutation.name}</span>` : ''}
+          ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}    
+              ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:${mutationColor(a.plant.mutation.name)};font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
             </div>
           </div>
 
@@ -2474,6 +2474,16 @@ function renderChatMsg(m) {
 
 const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#111' };
 const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+
+function mutationEmoji(name) {
+  return { Starstruck:'⭐', Shocked:'⚡', Soaked:'💧', Snowy:'❄️', Flooded:'🌊', Sandy:'🏜️' }[name] || '✨';
+}
+function mutationColor(name) {
+  return { Starstruck:'#FFE033', Shocked:'#FFD700', Soaked:'#66CCFF', Snowy:'#ADE8F4', Flooded:'#0099FF', Sandy:'#F4A460' }[name] || '#fff';
+}
+function v1Badge() {
+  return `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.5);border-radius:100px;padding:3px 10px;color:#c9a84c;font-weight:700;font-size:11px;box-shadow:0 0 10px rgba(201,168,76,0.4),0 0 20px rgba(201,168,76,0.15);animation:v1CrownFloat 2.5s ease-in-out infinite">👑 v1</span>`;
+}
 
 async function openSellFromInventory() {
   if (!window._loggedInId) { alert('Log in with Discord to sell plants.'); return; }
