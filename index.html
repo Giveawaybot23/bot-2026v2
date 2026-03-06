@@ -1829,16 +1829,6 @@ function renderLBEntry(left, right, rightSub, pct, i, userId) {
 }
 
 async function loadLBAvatars(entries, idField) {
-  const ids = [...new Set(entries.map(e => e[idField] || e.userId || e.id).filter(Boolean))];
-  
-  await Promise.all(ids.map(id => {
-    if (_avatarCache[id]) return Promise.resolve();
-    return fetch(`/api/avatar/${id}`)
-      .then(r => r.json())
-      .then(data => { if (data.url) _avatarCache[id] = data.url; })
-      .catch(() => {});
-  }));
-
   entries.forEach(e => {
     const id = e[idField] || e.userId || e.id;
     if (!id) return;
