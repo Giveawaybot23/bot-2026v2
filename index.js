@@ -41,6 +41,7 @@ const LOCKS_FILE      = `${DATA_DIR}/locks.json`;
 const MARKET_FILE     = `${DATA_DIR}/market.json`;
 const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
 const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
+const TRADES_FILE     = `${DATA_DIR}/trades.json`;
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
@@ -65,9 +66,16 @@ function loadAuctions() {
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
 function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
+
+function loadTrades() {
+  if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
+  return JSON.parse(fs.readFileSync(TRADES_FILE));
+}
+function saveTrades(t) { fs.writeFileSync(TRADES_FILE, JSON.stringify(t, null, 2)); }
+let webTrades = loadTrades();
 function getAuction(id) { return loadAuctions().find(a => a.id === id) || null; }
 
-let raceTimer = 5; // seconds
+let raceTimer = 30; // seconds
 
 // ─── Race reaction emojis ─────────────────────────────────────────────────────
 const RACE_REACT_CORRECT = '✅';
@@ -4380,6 +4388,139 @@ app.post('/api/market/buy/:id', async (req, res) => {
 app.get('/api/chat/:auctionId', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
+});
+
+// ─── Web Trade API ────────────────────────────────────────────────────────────
+app.post('/api/trade/create', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { targetId } = req.body;
+  if (!targetId) return res.status(400).json({ error: 'Missing targetId' });
+  if (targetId === req.user.id) return res.status(400).json({ error: "Can't trade with yourself" });
+  const alreadyIn = Object.values(webTrades).find(t =>
+    t.status === 'active' && (t.initiatorId === req.user.id || t.targetId === req.user.id ||
+    t.initiatorId === targetId || t.targetId === targetId)
+  );
+  if (alreadyIn) return res.status(400).json({ error: 'One of the users already has an active trade' });
+  const db = loadDB();
+  const targetUser = db.users[targetId];
+  if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
+  const tradeId = `wt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  webTrades[tradeId] = {
+    id: tradeId,
+    initiatorId: req.user.id,
+    initiatorName: req.user.username,
+    targetId,
+    targetName: targetUser.username || targetId,
+    sides: {
+      [req.user.id]: { plants: [], coins: 0, confirmed: false },
+      [targetId]:    { plants: [], coins: 0, confirmed: false }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  };
+  saveTrades(webTrades);
+  setTimeout(() => {
+    if (webTrades[tradeId] && webTrades[tradeId].status === 'active') {
+      webTrades[tradeId].status = 'expired';
+      saveTrades(webTrades);
+    }
+  }, 10 * 60_000);
+  res.json({ tradeId });
+});
+
+app.get('/api/trade/active/me', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = Object.values(webTrades).find(t =>
+    t.status === 'active' && (t.initiatorId === req.user.id || t.targetId === req.user.id)
+  );
+  res.json(trade || null);
+});
+
+app.get('/api/trade/:id', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = webTrades[req.params.id];
+  if (!trade) return res.status(404).json({ error: 'Trade not found' });
+  if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
+    return res.status(403).json({ error: 'Not your trade' });
+  res.json(trade);
+});
+
+app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = webTrades[req.params.id];
+  if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
+  if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
+    return res.status(403).json({ error: 'Not your trade' });
+  const mySide = trade.sides[req.user.id];
+  if (mySide.confirmed) return res.status(400).json({ error: 'Already confirmed — cancel to modify' });
+  const { plants, coins } = req.body;
+  const db = loadDB();
+  const user = db.users[req.user.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (plants !== undefined) {
+    for (const p of plants) {
+      const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
+      if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
+    }
+    mySide.plants = plants;
+  }
+  if (coins !== undefined) {
+    if (coins < 0 || coins > (user.currency || 0))
+      return res.status(400).json({ error: 'Invalid coin amount' });
+    mySide.coins = coins;
+  }
+  mySide.confirmed = false;
+  const otherId = trade.initiatorId === req.user.id ? trade.targetId : trade.initiatorId;
+  trade.sides[otherId].confirmed = false;
+  saveTrades(webTrades);
+  res.json(trade);
+});
+
+app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = webTrades[req.params.id];
+  if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
+  if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
+    return res.status(403).json({ error: 'Not your trade' });
+  const mySide = trade.sides[req.user.id];
+  if (!mySide.plants.length && mySide.coins === 0)
+    return res.status(400).json({ error: 'Add something to your offer first' });
+  mySide.confirmed = true;
+  if (Object.values(trade.sides).every(s => s.confirmed)) {
+    const db = loadDB();
+    const iUser = db.users[trade.initiatorId];
+    const tUser = db.users[trade.targetId];
+    const iSide = trade.sides[trade.initiatorId];
+    const tSide = trade.sides[trade.targetId];
+    for (const p of iSide.plants) {
+      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) { trade.status = 'failed'; trade.failReason = `${trade.initiatorName} no longer has ${p.name} v${p.version}`; saveTrades(webTrades); return res.status(400).json({ error: trade.failReason }); }
+      iUser.collection.splice(idx, 1); tUser.collection.push({ ...p, claimedAt: new Date().toISOString() }); recordTrade(p.name);
+    }
+    for (const p of tSide.plants) {
+      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+      if (idx === -1) { trade.status = 'failed'; trade.failReason = `${trade.targetName} no longer has ${p.name} v${p.version}`; saveTrades(webTrades); return res.status(400).json({ error: trade.failReason }); }
+      tUser.collection.splice(idx, 1); iUser.collection.push({ ...p, claimedAt: new Date().toISOString() }); recordTrade(p.name);
+    }
+    if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
+    if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+    touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
+    saveDB(db);
+    trade.status = 'complete';
+  }
+  saveTrades(webTrades);
+  res.json(trade);
+});
+
+app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = webTrades[req.params.id];
+  if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
+  if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
+    return res.status(403).json({ error: 'Not your trade' });
+  trade.status = 'cancelled';
+  saveTrades(webTrades);
+  res.json({ ok: true });
 });
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
