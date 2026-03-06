@@ -67,7 +67,7 @@ function loadAuctions() {
 function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
 function getAuction(id) { return loadAuctions().find(a => a.id === id) || null; }
 
-let raceTimer = 30; // seconds
+let raceTimer = 5; // seconds
 
 // ─── Race reaction emojis ─────────────────────────────────────────────────────
 const RACE_REACT_CORRECT = '✅';
