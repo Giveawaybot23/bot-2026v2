@@ -2464,26 +2464,76 @@ async function submitCreateAuction() {
   }
 }
 
-async function confirmRemoveMarket(listingId, plantName) {
-  if (!confirm(`Remove your listing for ${plantName}? The plant will be returned to your inventory.`)) return;
-  try {
-    const res = await fetch(`/api/market/${listingId}`, { method: 'DELETE', credentials: 'include' });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Failed to remove listing'); return; }
-    showToast('Listing removed — plant returned to inventory.');
-    await loadMarketData();
-  } catch { alert('Something went wrong.'); }
+function confirmRemoveMarket(listingId, plantName) {
+  const existing = document.getElementById('remove-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'remove-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(14,13,11,0.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:20px;padding:32px;width:100%;max-width:380px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(14,13,11,0.3);text-align:center">
+      <div style="font-size:40px;margin-bottom:16px">🗑️</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Remove Listing</div>
+      <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">Are you sure you want to remove</div>
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px">${plantName}</div>
+      <div style="font-size:14px;color:var(--ink3);margin-bottom:24px">The plant will be returned to your inventory.</div>
+      <div id="remove-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:14px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="document.getElementById('remove-overlay').remove()" style="flex:1;padding:13px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Cancel</button>
+        <button onclick="submitRemoveMarket('${listingId}')" id="remove-confirm" style="flex:1;padding:13px;border-radius:100px;border:none;background:#2d6a4f;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#52b788'" onmouseout="this.style.background='#2d6a4f'">Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-async function confirmRemoveAuction(auctionId) {
-  if (!confirm('Remove this auction? The plant will be returned to your inventory.')) return;
+async function submitRemoveMarket(listingId) {
+  const btn   = document.getElementById('remove-confirm');
+  const errEl = document.getElementById('remove-error');
+  btn.disabled = true; btn.textContent = '...';
   try {
-    const res = await fetch(`/api/auction/${auctionId}`, { method: 'DELETE', credentials: 'include' });
+    const res  = await fetch(`/api/market/${listingId}`, { method: 'DELETE', credentials: 'include' });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Failed to remove auction'); return; }
+    if (!res.ok) { errEl.style.display='block'; errEl.textContent=data.error||'Failed to remove listing'; btn.disabled=false; btn.textContent='Confirm'; return; }
+    document.getElementById('remove-overlay').remove();
+    showToast('Listing removed — plant returned to inventory.');
+    await loadMarketData();
+  } catch { errEl.style.display='block'; errEl.textContent='Something went wrong.'; btn.disabled=false; btn.textContent='Confirm'; }
+}
+
+function confirmRemoveAuction(auctionId) {
+  const existing = document.getElementById('remove-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'remove-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(14,13,11,0.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:20px;padding:32px;width:100%;max-width:380px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(14,13,11,0.3);text-align:center">
+      <div style="font-size:40px;margin-bottom:16px">🗑️</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Remove Auction</div>
+      <div style="font-size:14px;color:var(--ink2);margin-bottom:24px">The plant will be returned to your inventory.</div>
+      <div id="remove-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:14px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="document.getElementById('remove-overlay').remove()" style="flex:1;padding:13px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Cancel</button>
+        <button onclick="submitRemoveAuction('${auctionId}')" id="remove-confirm" style="flex:1;padding:13px;border-radius:100px;border:none;background:#2d6a4f;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#52b788'" onmouseout="this.style.background='#2d6a4f'">Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function submitRemoveAuction(auctionId) {
+  const btn   = document.getElementById('remove-confirm');
+  const errEl = document.getElementById('remove-error');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const res  = await fetch(`/api/auction/${auctionId}`, { method: 'DELETE', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) { errEl.style.display='block'; errEl.textContent=data.error||'Failed to remove auction'; btn.disabled=false; btn.textContent='Confirm'; return; }
+    document.getElementById('remove-overlay').remove();
     showToast('Auction removed — plant returned to inventory.');
     showPage('auctions');
-  } catch { alert('Something went wrong.'); }
+  } catch { errEl.style.display='block'; errEl.textContent='Something went wrong.'; btn.disabled=false; btn.textContent='Confirm'; }
 }
 
 function showToast(msg) {
