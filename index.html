@@ -37,17 +37,18 @@
 
   /* ── NAV ── */
   nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding: 0 24px;
-    height: 64px;
-    background: rgba(247,245,240,0.85);
-    backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--border);
-    overflow: visible;
-  }
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 64px;
+  background: rgba(247,245,240,0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
+  gap: 8px;
+}
   .nav-logo {
     font-family: 'DM Serif Display', serif;
     font-size: 18px;
@@ -490,6 +491,10 @@
     background: var(--bg); border-bottom: 1px solid var(--border);
     padding: 12px 16px; gap: 4px; z-index: 99;
   }
+  #coin-display { display: none !important; }
+  #nav-username { max-width: 60px; }
+  .nav-logo { font-size: 15px; }
+
   .nav-links > a { width: 100%; padding: 12px 16px; }
   .nav-dropdown-wrap { width: 100%; }
   .nav-dropdown-trigger { width: 100%; padding: 12px 16px; }
@@ -894,7 +899,7 @@
       </div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;overflow:hidden"></div>
   <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="nav-auth"></div>
@@ -1906,12 +1911,12 @@ async function initAuth() {
       const avatarUrl = data.user.avatar
     ? `https://cdn.discordapp.com/avatars/${data.user.id}/${data.user.avatar}.png?size=64`
     : `https://cdn.discordapp.com/embed/avatars/${parseInt(data.user.id) % 5}.png`;
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-        <div onclick="showPage('profiles');loadProfile('${data.user.id}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.2s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
-          ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--green)">` : ''}
-          <span style="font-size:13px;font-weight:600;color:var(--ink)">${data.user.username}</span>
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px;min-width:0">
+        <div onclick="showPage('profiles');loadProfile('${data.user.id}')" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.2s;min-width:0" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
+        ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--green);flex-shrink:0">` : ''}
+          <span style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px" id="nav-username">${data.user.username}</span>
         </div>
-        <a href="/auth/logout" style="font-size:13px;font-weight:500;color:var(--ink3);text-decoration:none;padding:6px 12px;border-radius:8px;border:1px solid var(--border)">Logout</a>
+        <a href="/auth/logout" style="font-size:13px;font-weight:500;color:var(--ink3);text-decoration:none;padding:6px 10px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Logout</a>
       </div>`;
       window._loggedInId = data.user.id;
       document.getElementById('nav-inventory').style.display = '';
