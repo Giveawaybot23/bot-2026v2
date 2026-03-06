@@ -835,6 +835,7 @@
   <div class="nav-links">
     <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
     <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
+    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Inventory</a>
     <div class="nav-dropdown-wrap" id="nav-shop-wrap">
       <a class="nav-dropdown-trigger" id="nav-shop">Shop ▾</a>
       <div class="nav-dropdown">
@@ -1096,7 +1097,6 @@
       <button class="shop-filter-btn" onclick="filterMarket('Mythic',this)">Mythic</button>
       <button class="shop-filter-btn" onclick="filterMarket('Legendary',this)">Legendary</button>
       <button class="shop-filter-btn" onclick="filterMarket('Epic',this)">Epic</button>
-      <button class="shop-filter-btn" onclick="filterMarket('Rare',this)">Rare</button>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
     <button onclick="openSellFromInventory()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🛒 Sell a Plant</button>
@@ -1129,6 +1129,30 @@
 </div>
 
 </div>
+<!-- ── INVENTORY PAGE ── -->
+<div class="page" id="page-inventory">
+  <div class="shop-page">
+    <div class="shop-header reveal">
+      <div class="section-eyebrow">Collection</div>
+      <h1 class="section-title" style="margin-bottom:8px">My Inventory</h1>
+      <p style="font-size:15px;color:var(--ink2)" id="inv-page-count">Your full plant collection.</p>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;align-items:center">
+      <input id="inv-page-search" placeholder="Search plants..." oninput="filterInventoryPage(this.value)" style="padding:10px 18px;border-radius:100px;border:1.5px solid var(--border);background:var(--card);font-size:13px;font-family:inherit;color:var(--ink);outline:none;width:220px;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border)'">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="inv-rarity-filters">
+        <button onclick="setInvFilter('all',this)" class="shop-filter-btn active">All</button>
+        <button onclick="setInvFilter('Secret',this)" class="shop-filter-btn">Secret</button>
+        <button onclick="setInvFilter('Mythic',this)" class="shop-filter-btn">Mythic</button>
+        <button onclick="setInvFilter('Legendary',this)" class="shop-filter-btn">Legendary</button>
+        <button onclick="setInvFilter('Epic',this)" class="shop-filter-btn">Epic</button>
+        <button onclick="setInvFilter('Rare',this)" class="shop-filter-btn">Rare</button>
+        <button onclick="setInvFilter('Uncommon',this)" class="shop-filter-btn">Uncommon</button>
+        <button onclick="setInvFilter('Common',this)" class="shop-filter-btn">Common</button>
+      </div>
+    </div>
+    <div class="shop-grid" id="inv-page-grid"></div>
+  </div>
+</div>
 
 <script>
 
@@ -1148,6 +1172,7 @@ function showPage(name) {
   const navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   if (name === 'market' || name === 'auctions') loadShopData();
+  if (name === 'inventory') loadInventoryPage();
   if (name === 'market' || name === 'auctions' || name === 'auction-detail') {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
@@ -1768,6 +1793,7 @@ async function initAuth() {
         <a href="/auth/logout" style="font-size:13px;font-weight:500;color:var(--ink3);text-decoration:none;padding:6px 12px;border-radius:8px;border:1px solid var(--border)">Logout</a>
       </div>`;
       window._loggedInId = data.user.id;
+      document.getElementById('nav-inventory').style.display = '';
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
       loadNavCoins(data.user.id);
@@ -2534,6 +2560,72 @@ async function submitRemoveAuction(auctionId) {
     showToast('Auction removed — plant returned to inventory.');
     showPage('auctions');
   } catch { errEl.style.display='block'; errEl.textContent='Something went wrong.'; btn.disabled=false; btn.textContent='Confirm'; }
+}
+
+// ── INVENTORY PAGE ──
+let _invPageCollection = [];
+let _invPageFilter = 'all';
+let _invPageSearch = '';
+
+async function loadInventoryPage() {
+  if (!window._loggedInId) {
+    document.getElementById('inv-page-grid').innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center">Log in with Discord to see your inventory.</div>';
+    return;
+  }
+  try {
+    const res  = await fetch(`/api/profile/${window._loggedInId}`);
+    const data = await res.json();
+    _invPageCollection = (data.collection || []).slice().sort((a, b) => {
+      const order = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+      return order.indexOf(a.rarity) - order.indexOf(b.rarity);
+    });
+    renderInventoryPage();
+  } catch {
+    document.getElementById('inv-page-grid').innerHTML = '<div style="color:#e53935;font-size:14px;padding:32px;text-align:center">Failed to load inventory.</div>';
+  }
+}
+
+function setInvFilter(rarity, btn) {
+  _invPageFilter = rarity;
+  document.querySelectorAll('#inv-rarity-filters .shop-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderInventoryPage();
+}
+
+function filterInventoryPage(val) {
+  _invPageSearch = val.toLowerCase();
+  renderInventoryPage();
+}
+
+function renderInventoryPage() {
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
+  const grid = document.getElementById('inv-page-grid');
+  if (!grid) return;
+  let filtered = _invPageCollection;
+  if (_invPageFilter !== 'all') filtered = filtered.filter(p => p.rarity === _invPageFilter);
+  if (_invPageSearch) filtered = filtered.filter(p => p.name.toLowerCase().includes(_invPageSearch));
+  document.getElementById('inv-page-count').textContent = `${filtered.length} plant${filtered.length !== 1 ? 's' : ''} in your collection.`;
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(p => {
+    const color = rarityColors[p.rarity] || '#999';
+    const mutStr = p.mutation ? `<span class="market-card-version">${p.mutation.emoji} ${p.mutation.name}</span>` : '';
+    const isV1 = p.version === 1;
+    return `
+      <div class="market-card${isV1 ? ' auction-v1-card' : ''}" style="cursor:default">
+        <div class="market-card-rarity-bar" style="background:${color}"></div>
+        ${p.image ? `<img src="${p.image}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none'">` : ''}
+        <div class="market-card-name">${p.name}${isV1 ? ' 👑' : ''}</div>
+        <div class="market-card-meta">
+          <span class="market-card-version" style="color:${color}">${p.rarity}</span>
+          <span class="market-card-version">v${p.version || '?'}</span>
+          ${mutStr}
+        </div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:8px">${p.claimedAt ? 'Claimed ' + new Date(p.claimedAt).toLocaleDateString() : ''}</div>
+      </div>`;
+  }).join('');
 }
 
 function showToast(msg) {
