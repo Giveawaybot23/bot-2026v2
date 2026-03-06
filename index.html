@@ -1211,9 +1211,9 @@
 <!-- ── TRADE PAGE ── -->
 <div class="page" id="page-trade">
   <div class="shop-page">
-    <div class="shop-header reveal">
+    <div class="shop-header reveal" style="margin-bottom:16px">
       <div class="section-eyebrow">Players</div>
-      <h1 class="section-title" style="margin-bottom:8px">Trade</h1>
+      <h1 class="section-title" style="margin-bottom:4px;font-size:28px">Trade</h1>
       <p style="font-size:15px;color:var(--ink2)">Propose a trade with any player. Both sides must confirm before it executes.</p>
     </div>
     <div id="trade-login-msg" style="display:none;text-align:center;padding:60px 20px">
@@ -1222,7 +1222,7 @@
       <div style="font-size:14px;color:var(--ink2)">Connect your Discord account to start trading with other players.</div>
     </div>
     <div id="trade-active-panel" style="display:none">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px">
         <!-- Header -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
           <div style="font-size:18px;font-weight:700;color:var(--ink)" id="trade-title">🔄 Trade Session</div>
@@ -1242,12 +1242,12 @@
         </div>
 
         <!-- Two grids side by side -->
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:start">
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start"></div>
 
           <!-- YOUR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:80px;max-height:160px;overflow-y:auto"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
@@ -1264,7 +1264,7 @@
           <!-- THEIR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:80px;max-height:160px;overflow-y:auto"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
