@@ -1276,7 +1276,7 @@
           <!-- YOUR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;position:relative"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
@@ -3423,13 +3423,28 @@ async function declineTradeRequest() {
 
 function showTradeResultToast(result) {
   const isComplete = result === 'complete';
+  // Backdrop
+  const backdrop = document.createElement('div');
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:10999;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.25s';
+  // Card
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:10000;background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:18px 22px;box-shadow:0 8px 40px rgba(14,13,11,0.18);max-width:320px;font-size:15px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:12px;transition:opacity 0.4s';
+  el.style.cssText = 'background:var(--card);border:1.5px solid var(--border);border-radius:20px;padding:36px 48px;box-shadow:0 24px 80px rgba(14,13,11,0.28);font-size:20px;font-weight:700;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:14px;transform:scale(0.88);transition:transform 0.25s;text-align:center';
   el.innerHTML = isComplete
-    ? '<span style="font-size:22px">✅</span> Trade complete!'
-    : '<span style="font-size:22px">❌</span> Trade declined.';
-  document.body.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 3000);
+    ? '<span style="font-size:48px">✅</span>Trade complete!'
+    : '<span style="font-size:48px">❌</span>Trade declined.';
+  backdrop.appendChild(el);
+  document.body.appendChild(backdrop);
+  // Animate in
+  requestAnimationFrame(() => {
+    backdrop.style.opacity = '1';
+    el.style.transform = 'scale(1)';
+  });
+  // Animate out
+  setTimeout(() => {
+    backdrop.style.opacity = '0';
+    el.style.transform = 'scale(0.88)';
+    setTimeout(() => backdrop.remove(), 300);
+  }, 2800);
 }
 
 async function loadTradePage() {
@@ -3553,6 +3568,19 @@ el.innerHTML = html;
 
   renderGrid(mySide.plants, true);
   renderGrid(theirSide.plants, false);
+
+  // Green confirmed overlay — only on the current user's grid
+  const myGridEl = document.getElementById('trade-my-grid');
+  const existingOverlay = document.getElementById('trade-my-grid-overlay');
+  if (existingOverlay) existingOverlay.remove();
+  if (mySide.confirmed) {
+    const overlay = document.createElement('div');
+    overlay.id = 'trade-my-grid-overlay';
+    overlay.style.cssText = 'position:absolute;inset:-4px;border-radius:12px;background:rgba(34,197,94,0.5);pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:2;backdrop-filter:blur(1px)';
+    overlay.innerHTML = '<span style="font-size:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.2))">✓</span>';
+    myGridEl.style.position = 'relative';
+    myGridEl.appendChild(overlay);
+  }
 
   const myVal = mySide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (mySide.coins||0);
   const theirVal = theirSide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (theirSide.coins||0);
