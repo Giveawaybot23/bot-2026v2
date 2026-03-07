@@ -2001,6 +2001,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
         user.collection.push(entry);
         addedCratePlants.push(entry);
+        db[message.author.id] = user;
       }
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
@@ -3247,7 +3248,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
-      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); }
+      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); db[message.author.id] = user; }
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
     }
