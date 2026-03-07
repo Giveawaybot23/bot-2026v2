@@ -2379,6 +2379,25 @@ function connectAuctionWS(auctionId) {
           ? msg.messages.map(m => renderChatMsg({ name: m.username, text: m.text, avatarUrl: m.avatarUrl })).join('')
           : '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>';
         container.scrollTop = container.scrollHeight;
+        } else if (msg.type === 'bid_update') {
+        // Update current bid display
+        const bidBox = document.querySelector(`[id^="bid-history-"]`);
+        const bidHistoryEl = document.getElementById(`bid-history-${msg.auctionId}`);
+        if (bidHistoryEl) {
+          bidHistoryEl.innerHTML = msg.bids.map((b, i) => `
+            <div class="bid-entry${i === 0 ? ' top-bid' : ''}">
+              <div class="bid-entry-avatar" style="overflow:hidden;padding:0">
+                <span style="font-size:12px;font-weight:700;color:var(--green)">${b.username[0].toUpperCase()}</span>
+              </div>
+              <div class="bid-entry-user">
+                <div class="bid-entry-name">${b.username}${i === 0 ? ' 👑' : ''}</div>
+                <div class="bid-entry-time">${new Date(b.time).toLocaleTimeString()}</div>
+              </div>
+              <div class="bid-entry-amount">${b.amount.toLocaleString()} coins</div>
+            </div>`).join('');
+        }
+        // Update timer if extended
+        if (msg.endsAt) { const a = _auctionCache?.find?.(x => x.id === msg.auctionId); if (a) a.endsAt = msg.endsAt; }
       } else if (msg.type === 'chat') {
         const placeholder = container.querySelector('div[style*="No messages"]');
         if (placeholder) placeholder.remove();

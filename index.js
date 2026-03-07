@@ -4073,12 +4073,21 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     touchActivity(db, req.user.id);
     saveDB(db);
 
-    res.json({
-      success: true,
-      extended: extended,
+    const bidPayload = JSON.stringify({
+      type: 'bid_update',
+      auctionId: auction.id,
+      currentBid: bidAmount,
+      topBidder: req.user.username,
       endsAt: auction.endsAt,
-      newMin: Math.ceil(bidAmount * 1.05),
+      bidCount: auction.bids.length,
+      bids: auction.bids.slice(-10).reverse().map(b => ({
+        userId: b.userId, username: b.username, amount: b.amount, time: b.time
+      }))
     });
+    (auctionRooms[auction.id] || []).forEach(client => {
+      if (client.readyState === 1) client.send(bidPayload);
+    });
+    
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
