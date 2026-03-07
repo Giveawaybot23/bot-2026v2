@@ -42,6 +42,8 @@ const MARKET_FILE     = `${DATA_DIR}/market.json`;
 const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
 const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
+const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
+
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
@@ -66,6 +68,45 @@ function loadAuctions() {
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
 function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
+
+function loadAutosellRules() {
+  if (!fs.existsSync(AUTOSELL_FILE)) fs.writeFileSync(AUTOSELL_FILE, '{}');
+  return JSON.parse(fs.readFileSync(AUTOSELL_FILE));
+}
+function saveAutosellRules(r) { fs.writeFileSync(AUTOSELL_FILE, JSON.stringify(r, null, 2)); }
+function getUserAutosellRules(userId) {
+  return loadAutosellRules()[userId] || [];
+}
+function applyAutosellRules(user, userId) {
+  const rules = getUserAutosellRules(userId);
+  if (!rules.length) return 0;
+  let totalEarned = 0;
+  const toRemove = [];
+  for (let i = user.collection.length - 1; i >= 0; i--) {
+    const p = user.collection[i];
+    if (isLocked(userId, p)) continue;
+    for (const rule of rules) {
+      if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
+      if (rule.mutation === 'none' && p.mutation) continue;
+      if (rule.mutation && rule.mutation !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== rule.mutation.toLowerCase())) continue;
+      if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
+      if (rule.version_op && rule.version_n !== undefined) {
+        const v = p.version || 0;
+        const n = rule.version_n;
+        const op = rule.version_op;
+        const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
+        if (!passes) continue;
+      }
+      // matched a rule
+      toRemove.push(i);
+      totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      break;
+    }
+  }
+  for (const idx of toRemove) user.collection.splice(idx, 1);
+  user.currency += totalEarned;
+  return totalEarned;
+}
 
 function loadTrades() {
   if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
@@ -351,11 +392,11 @@ const CHARMS = {
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
 const CRATES = {
-  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,  minLevel: 5,  plants: 10, weights: { Common: 780000, Uncommon: 175000, Rare: 29700, Epic: 14000, Legendary: 250, Mythic: 50, Secret: 0 } },
-  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10, weights: { Common: 670000, Uncommon: 182000, Rare: 57000, Epic: 62000, Legendary: 2800, Mythic: 200, Secret: 0 } },
-  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500, minLevel: 15, plants: 10, weights: { Common: 570000, Uncommon: 175000, Rare: 80000, Epic: 155000, Legendary: 9500, Mythic: 1000, Secret: 100 } },
-  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 400000, Uncommon: 155000, Rare: 95000, Epic: 245000, Legendary: 30000, Mythic: 5500, Secret: 700 } },
-  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common: 190000, Uncommon: 95000, Rare: 95000, Epic: 370000, Legendary: 75000, Mythic: 22000, Secret: 1100 } },
+  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 1000,  minLevel: 5,  plants: 10, weights: { Common: 800000, Uncommon: 170000, Rare: 19900, Epic: 9000, Legendary: 10000, Mythic: 1000, Secret: 0 } },
+  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 5000,  minLevel: 10, plants: 10, weights: { Common: 700000, Uncommon: 186000, Rare: 30000, Epic: 20000, Legendary: 12500, Mythic: 1124, Secret: 0 } },
+  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 10000, minLevel: 15, plants: 10, weights: { Common: 600000, Uncommon: 200000, Rare: 50000, Epic: 25000, Legendary: 25000, Mythic: 3333, Secret: 143 } },
+  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 30000, minLevel: 30, plants: 10, weights: { Common: 500000, Uncommon: 200000, Rare: 100000, Epic: 50000, Legendary: 40000, Mythic: 1538, Secret: 154 } },
+  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 75000, minLevel: 50, plants: 10, weights: { Common: 400000, Uncommon: 200000, Rare: 150000, Epic: 100000, Legendary: 50000, Mythic: 2000, Secret: 200 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
@@ -1866,9 +1907,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (!user.claimCooldowns) user.claimCooldowns = {};
       if (!isTester) {
         lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
-        newAch = checkAchievements(user);
-        user.claimCooldowns[drop.rarity.name] = Date.now();
-        saveDB(db);
+      newAch = checkAchievements(user);
+      user.claimCooldowns[drop.rarity.name] = Date.now();
+      applyAutosellRules(user, message.author.id);
+      saveDB(db);
         recordClaim(message.author.id, message.author.username);
       }
       const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
@@ -1951,9 +1993,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
+      applyAutosellRules(user, message.author.id);
       saveDB(db);
     }
-
     const spoilerLines = user.collection.slice(-results.length).map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
@@ -3013,6 +3055,92 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     ]});
   }
 
+  // ── !autosell — persistent auto-sell rules ───────────────────────────────
+  if (cmd === 'autosell' || cmd === 'asr') {
+    const sub = args[1]?.toLowerCase();
+
+    if (!sub || sub === 'list') {
+      const rules = getUserAutosellRules(message.author.id);
+      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell add` to create one.');
+      const lines = rules.map((r, i) => {
+        const parts = [];
+        if (r.rarity)     parts.push(`rarity: **${r.rarity}**`);
+        if (r.mutation)   parts.push(`mutation: **${r.mutation}**`);
+        if (r.plant)      parts.push(`plant: **${r.plant}**`);
+        if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
+        return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
+      });
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('⚡ Your Autosell Rules')
+        .setDescription(lines.join('\n'))
+        .setFooter({ text: '!autosell remove <number> to delete a rule · locked plants are always safe' })
+        .setColor(0x00C853)
+      ]});
+    }
+
+    if (sub === 'add') {
+      const raw = args.slice(2).join(' ');
+      const rMatch = raw.match(/-r\s+([a-z]+)/i);
+      const mMatch = raw.match(/-m\s+([a-z]+(?:\s+[a-z]+)?)/i);
+      const vMatch = raw.match(/-v\s*([<>=!]+)\s*(\d+)/i);
+      const pMatch = raw.match(/-p\s+"([^"]+)"|(?:-p\s+)([\w\s]+?)(?=\s+-|$)/i);
+
+      const rule = {};
+      if (rMatch) rule.rarity     = rMatch[1].toLowerCase();
+      if (mMatch) rule.mutation   = mMatch[1].toLowerCase();
+      if (vMatch) { rule.version_op = vMatch[1]; rule.version_n = parseInt(vMatch[2]); }
+      if (pMatch) rule.plant      = (pMatch[1] || pMatch[2]).trim().toLowerCase();
+
+      if (!Object.keys(rule).length) return message.reply([
+        'Usage: `!autosell add [filters]`',
+        '`-r <rarity>` — e.g. `-r common`',
+        '`-m <mutation>` or `-m none`',
+        '`-v <op><n>` — e.g. `-v >10`',
+        '`-p "<plant name>"` — e.g. `-p carrot`',
+        '',
+        '**Examples:**',
+        '`!autosell add -r common` — auto-sell all commons as they arrive',
+        '`!autosell add -r uncommon -m none` — sell unmutated uncommons',
+        '`!autosell add -p carrot -v >5` — sell Carrot v6+',
+      ].join('\n'));
+
+      // Validate rarity
+      if (rule.rarity && !RARITIES.find(r => r.name.toLowerCase() === rule.rarity)) {
+        return message.reply(`❌ Unknown rarity **${rule.rarity}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+      }
+
+      const all = loadAutosellRules();
+      if (!all[message.author.id]) all[message.author.id] = [];
+      if (all[message.author.id].length >= 20) return message.reply('❌ You can have at most 20 autosell rules.');
+      all[message.author.id].push(rule);
+      saveAutosellRules(all);
+
+      const desc = Object.entries(rule).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`✅ Autosell rule added: ${desc}\nPlants matching this will be sold instantly as you get them.`);
+    }
+
+    if (sub === 'remove') {
+      const idx = parseInt(args[2]) - 1;
+      const all = loadAutosellRules();
+      const rules = all[message.author.id] || [];
+      if (isNaN(idx) || idx < 0 || idx >= rules.length) return message.reply(`❌ Invalid rule number. Use \`!autosell list\` to see your rules.`);
+      const removed = rules.splice(idx, 1)[0];
+      all[message.author.id] = rules;
+      saveAutosellRules(all);
+      const desc = Object.entries(removed).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`🗑️ Removed rule: ${desc}`);
+    }
+
+    if (sub === 'clear') {
+      const all = loadAutosellRules();
+      delete all[message.author.id];
+      saveAutosellRules(all);
+      return message.reply('✅ All your autosell rules have been cleared.');
+    }
+
+    return message.reply('Subcommands: `add` · `list` · `remove <number>` · `clear`');
+  }
+
   // ── !daily ────────────────────────────────────────────────────────────────
   if (cmd === 'daily') {
     const db = loadDB(); const user = getUser(db, message.author.id);
@@ -3028,7 +3156,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
@@ -3050,7 +3178,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -3109,7 +3237,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.crateCooldowns[crateKey] = Date.now();
       for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); user.collection.push({ name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }); }
       user.cratesOpened = (user.cratesOpened||0) + 1;
-      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const spoilerLines = user.collection.slice(-results.length).map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
@@ -3682,11 +3810,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           {
             name: '📦 Crates — open 10 plants at once',
             value: [
-              '`bronze` — 750 coins',
-              '`silver` — 2,500 coins',
-              '`gold` — 5,500 coins',
-              '`diamond` — 14,000 coins',
-              '`ruby` — 32,000 coins',
+              '`bronze` — 1,000 coins',
+              '`silver` — 5,000 coins',
+              '`gold` — 10,000 coins',
+              '`diamond` — 30,000 coins',
+              '`ruby` — 75,000 coins',
               '*Higher tier crates have significantly better rarity odds.*',
             ].join('\n'),
           },
@@ -4162,6 +4290,14 @@ const { WebSocketServer } = require('ws');
 const httpServer = require('http').createServer(app);
 const wss = new WebSocketServer({ server: httpServer });
 
+// Global user socket map — userId -> ws
+const userSockets = {};
+
+function pushToUser(userId, payload) {
+  const ws = userSockets[userId];
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
+}
+
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
 const CHAT_FILE = `${DATA_DIR}/auction_chats.json`;
 function loadChats() {
@@ -4181,9 +4317,15 @@ wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === 'join') {
+      if (msg.type === 'auth') {
+        // Global auth — register this socket to the user
+        if (msg.userId) {
+          userInfo = { userId: msg.userId, username: msg.username, avatarUrl: msg.avatarUrl };
+          userSockets[msg.userId] = ws;
+        }
+      } else if (msg.type === 'join') {
         currentRoom = msg.auctionId;
-        userInfo = { username: msg.username, avatarUrl: msg.avatarUrl };
+        userInfo = { ...userInfo, username: msg.username, avatarUrl: msg.avatarUrl };
         if (!auctionRooms[currentRoom]) auctionRooms[currentRoom] = [];
         auctionRooms[currentRoom].push(ws);
         // Send existing messages to this client
@@ -4217,6 +4359,9 @@ wss.on('connection', (ws) => {
     if (currentRoom && auctionRooms[currentRoom]) {
       auctionRooms[currentRoom] = auctionRooms[currentRoom].filter(c => c !== ws);
     }
+    if (userInfo?.userId && userSockets[userInfo.userId] === ws) {
+      delete userSockets[userInfo.userId];
+    }
   });
 });
 
@@ -4233,17 +4378,7 @@ app.delete('/api/auction/:id', async (req, res) => {
   user.collection.push({ ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
-  // broadcast live bid to websocket room
-wss.clients.forEach(client => {
-  if (client.readyState === 1 && client._auctionId === req.params.id) {
-    client.send(JSON.stringify({
-      type: 'bid',
-      username: bidderUsername,
-      amount: bidAmount
-    }));
-  }
-});
-res.json({ success: true });
+  res.json({ success: true });
 });
 
 app.post('/api/auction/create', async (req, res) => {
@@ -4452,6 +4587,12 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
       saveTrades(webTrades);
     }
   }, 10 * 60_000);
+  // Notify target player instantly
+  pushToUser(targetId, {
+    type: 'notification',
+    notifType: 'trade_received',
+    message: `${req.user.username} wants to trade with you! Go to the Trade page.`
+  });
   res.json({ tradeId });
 });
 
