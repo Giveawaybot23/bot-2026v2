@@ -1980,15 +1980,14 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
+      const addedCratePlants = [];
       for (const p of results) {
         const ver = getAvailableVersion(p.name, db);
         recordVersionHighWater(p.name, ver);
         const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
-        user.collection.push({
-          name: p.name, image: p.display, rarity: p.rarity,
-          mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
-          version: ver, sellValue: sv, claimedAt: new Date().toISOString()
-        });
+        const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
+        user.collection.push(entry);
+        addedCratePlants.push(entry);
       }
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
@@ -1996,7 +1995,11 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       applyAutosellRules(user, message.author.id);
       saveDB(db);
     }
-    const spoilerLines = user.collection.slice(-results.length).map(p =>
+    const newPlants = [];
+for (const p of results) {
+  const ver = user.collection.find(c => c.name === p.name && !newPlants.some(n => n.name === p.name && n.version === c.version));
+  // build from results directly instead
+}
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
@@ -3235,11 +3238,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
-      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); user.collection.push({ name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }); }
+      const addedPlants = [];
+      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); }
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
-    const spoilerLines = user.collection.slice(-results.length).map(p =>
+    const spoilerLines = addedPlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
