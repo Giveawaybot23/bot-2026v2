@@ -4134,7 +4134,7 @@ app.get('/api/players', (req, res) => {
         const rank  = getRank(level);
         return { id, username: u.username || `User#${id.slice(-4)}`, avatarUrl: u.avatarUrl || null, level, score, plants: (u.collection||[]).length, tierName: tier.name, tierEmoji: tier.emoji, rankEmoji: rank.emoji, rankName: rank.name };
       })
-      .filter(e => e.plants > 0)
+      .filter(e => e.plants >= 0)
       .sort((a,b) => b.score - a.score);
     res.json(players);
   } catch(err) { res.status(500).json({ error: err.message }); }
