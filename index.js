@@ -3243,7 +3243,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const spoilerLines = addedPlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? '🧪 Test mode — no data saved' : `${CURRENCY_EMOJI} Balance: ${user.currency.toLocaleString()} ${CURRENCY_NAME}${autoEarned > 0 ? `  ·  ⚡ Autosold for ${autoEarned.toLocaleString()} coins` : ''}` })] });
+    const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
+    const cratePnl = crateValue - crate.price;
+    const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
   }
 
   // ── !equip / !unequip ─────────────────────────────────────────────────────
