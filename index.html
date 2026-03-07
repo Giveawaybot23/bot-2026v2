@@ -3386,30 +3386,24 @@ function renderActiveTrade(trade) {
   function renderGrid(plants, isMyGrid) {
     const SLOTS = 9;
     const el = document.getElementById(isMyGrid ? 'trade-my-grid' : 'trade-their-grid');
-    if (plants.length === 0 && !isAddSlot) {
-      el.innerHTML = isMyGrid
-        ? `<div onclick="openAddPlantModal()" style="grid-column:1/-1;padding:20px;border:2px dashed var(--border);border-radius:10px;text-align:center;color:var(--ink3);font-size:13px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+ Add plants to your offer</div>`
-        : `<div style="grid-column:1/-1;padding:20px;border:1px dashed var(--border);border-radius:10px;text-align:center;color:var(--ink3);font-size:13px">No plants added yet</div>`;
-      return;
-    }
     let html = '';
-    for (let i = 0; i < SLOTS; i++) {
-      const p = plants[i];
-      const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
-      if (p) {
-        html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;position:relative">
-          <img src="${p.image||''}" onerror="this.style.display='none'" style="width:48px;height:48px;object-fit:contain">
-          <div style="font-size:9px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2">${p.name}</div>
-          <div style="font-size:9px;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</div>
-          ${isMyGrid && !mySide.confirmed ? `<button onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:3px;right:3px;background:rgba(255,68,68,0.15);border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;color:#ff4444;line-height:16px;padding:0">✕</button>` : ''}
-        </div>`;
-      } else if (isAddSlot) {
-        html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;font-size:24px;color:var(--ink3)" onmouseover="this.style.borderColor='rgba(88,101,242,0.6)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
-      } else if (plants.length > 0) {
-        html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;opacity:0.3"></div>`;
-      }
-    }
-    el.innerHTML = html;
+for (let i = 0; i < SLOTS; i++) {
+  const p = plants[i];
+  const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
+  if (p) {
+    html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;position:relative">
+      <img src="${p.image||''}" onerror="this.style.display='none'" style="width:48px;height:48px;object-fit:contain">
+      <div style="font-size:9px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2">${p.name}</div>
+      <div style="font-size:9px;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</div>
+      ${isMyGrid && !mySide.confirmed ? `<div onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:3px;right:3px;font-size:10px;color:var(--ink3);cursor:pointer;background:var(--bg2);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1" title="Remove">✕</div>` : ''}
+    </div>`;
+  } else if (isAddSlot) {
+    html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ink3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
+  } else {
+    html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;opacity:0.3"></div>`;
+  }
+}
+el.innerHTML = html;
   }
 
   renderGrid(mySide.plants, true);
