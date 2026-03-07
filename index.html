@@ -844,6 +844,14 @@
   padding: 12px 20px; border-bottom: 1px solid var(--border);
 }
 .bid-entry:last-child { border-bottom: none; }
+.bid-history-scroll {
+  max-height: 340px; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.bid-history-scroll::-webkit-scrollbar { width: 4px; }
+.bid-history-scroll::-webkit-scrollbar-track { background: transparent; }
+.bid-history-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
 .bid-entry-avatar {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--green-pale); display: flex; align-items: center;
@@ -2524,9 +2532,19 @@ async function showAuctionDetail(auctionId) {
     if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
 
     content.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start">
+      <div style="display:grid;grid-template-columns:300px 1fr 300px;gap:24px;align-items:start">
 
-        <!-- LEFT: big image + info -->
+        <!-- LEFT: bid history -->
+        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
+          <div class="auction-panel">
+            <div class="auction-panel-header">
+              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtmlFull}</div>
+          </div>
+        </div>
+
+        <!-- MIDDLE: big image + info -->
         <div>
           <!-- Hero image -->
           <div style="width:100%;aspect-ratio:1/1;max-height:480px;border-radius:20px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);position:relative;margin-bottom:20px">
@@ -2592,16 +2610,8 @@ async function showAuctionDetail(auctionId) {
           </div>
         </div>
 
-        <!-- RIGHT: bid history + chat -->
-        <div style="display:flex;flex-direction:column;gap:20px">
-
-          <!-- Bid history -->
-          <div class="auction-panel">
-            <div class="auction-panel-header">
-              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
-            </div>
-            <div id="bid-history-${auctionId}">${bidsHtmlFull}</div>
-          </div>
+        <!-- RIGHT: chat only -->
+        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
 
           <!-- Live chat -->
           <div class="auction-panel">
