@@ -1978,6 +1978,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
     const results = openCrate(crateKey, db, message.author.id);
     const addedPlants = [];
+    let autoEarned = 0;
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
@@ -3238,12 +3239,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.crateCooldowns[crateKey] = Date.now();
       for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); }
       user.cratesOpened = (user.cratesOpened||0) + 1;
-      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const spoilerLines = addedPlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? '🧪 Test mode — no data saved' : `${CURRENCY_EMOJI} Balance: ${user.currency.toLocaleString()} ${CURRENCY_NAME}${autoEarned > 0 ? `  ·  ⚡ Autosold for ${autoEarned.toLocaleString()} coins` : ''}` })] });
   }
 
   // ── !equip / !unequip ─────────────────────────────────────────────────────
