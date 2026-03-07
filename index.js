@@ -1995,11 +1995,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       applyAutosellRules(user, message.author.id);
       saveDB(db);
     }
-    const newPlants = [];
-for (const p of results) {
-  const ver = user.collection.find(c => c.name === p.name && !newPlants.some(n => n.name === p.name && n.version === c.version));
-  // build from results directly instead
-}
+    const spoilerLines = addedCratePlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
