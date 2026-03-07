@@ -908,27 +908,6 @@
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
-    <div id="notif-bell-wrap" style="position:relative;display:none">
-      <button onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0" onmouseover="this.style.background='var(--ink)';this.style.color='var(--bg)'" onmouseout="this.style.background='var(--card)';this.style.color='var(--ink)'">
-        🔔
-        <span id="notif-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:#e53935;color:white;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:100px;padding:0 4px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg)"></span>
-      </button>
-      <!-- Panel -->
-      <div id="notif-panel" style="display:none;position:absolute;top:calc(100% + 10px);right:0;width:360px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 48px rgba(14,13,11,0.18);z-index:9999;overflow:hidden">
-        <div style="padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:15px;font-weight:700;color:var(--ink)">Notifications</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button onclick="markAllRead()" style="font-size:12px;color:var(--ink3);background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:6px;transition:all 0.15s" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink3)'">Mark all read</button>
-            <button onclick="showNotifSettings()" style="font-size:12px;color:var(--ink3);background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:6px;transition:all 0.15s" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink3)'">⚙ Settings</button>
-          </div>
-        </div>
-        <div id="notif-list" style="max-height:360px;overflow-y:auto;scrollbar-width:none"></div>
-        <div id="notif-settings-panel" style="display:none;padding:16px 18px;border-top:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px">Notification Preferences</div>
-          <div style="display:flex;flex-direction:column;gap:12px" id="notif-prefs-list"></div>
-        </div>
-      </div>
-    </div>
     <div id="nav-auth"></div>
     <button class="dark-toggle" onclick="toggleDark()" id="dark-btn">🌙</button>
   </div>
@@ -1231,7 +1210,7 @@
 </div>
 <!-- ── TRADE PAGE ── -->
 <div class="page" id="page-trade">
-  <div class="shop-page">
+  <div style="padding:24px 48px;min-height:calc(100vh - 64px);display:flex;flex-direction:column;gap:16px">
     <div class="shop-header reveal" style="margin-bottom:16px">
       <div class="section-eyebrow">Players</div>
       <h1 class="section-title" style="margin-bottom:4px;font-size:28px">Trade</h1>
@@ -1266,9 +1245,9 @@
         <div style="display:grid;grid-template-columns:1fr 48px 1fr;gap:10px;align-items:start">
 
           <!-- YOUR side -->
-          <div>
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:220px"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:80px;max-height:160px;overflow-y:auto"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
@@ -1283,9 +1262,9 @@
           </div>
 
           <!-- THEIR side -->
-          <div>
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:220px"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:80px;max-height:160px;overflow-y:auto"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
@@ -2137,8 +2116,6 @@ async function initAuth() {
         <a href="/auth/logout" style="font-size:13px;font-weight:500;color:var(--ink3);text-decoration:none;padding:6px 10px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Logout</a>
       </div>`;
       window._loggedInId = data.user.id;
-      document.getElementById('notif-bell-wrap').style.display = 'block';
-      refreshNotifBadge();
       document.getElementById('nav-inventory').style.display = '';
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
@@ -2421,6 +2398,7 @@ function connectAuctionWS(auctionId) {
         }
         // Update timer if extended
         if (msg.endsAt) { const a = _auctionCache?.find?.(x => x.id === msg.auctionId); if (a) a.endsAt = msg.endsAt; }
+        
       } else if (msg.type === 'chat') {
         const placeholder = container.querySelector('div[style*="No messages"]');
         if (placeholder) placeholder.remove();
@@ -3061,7 +3039,6 @@ async function submitMarketBuy(listingId) {
     document.getElementById('market-buy-overlay').remove();
     await loadMarketData();
     showToast('Successfully purchased market listing!');
-    pushNotification('plant_bought', `You bought a plant from the market.`);
   } catch {
     errEl.style.display = 'block'; errEl.textContent = 'Something went wrong.';
     btn.disabled = false; btn.textContent = 'Confirm';
@@ -3101,7 +3078,6 @@ async function submitBuyNow(auctionId, buyoutPrice) {
       return;
     }
     showFeedback(auctionId, '✅ Purchased! Plant added to your collection.', 'success');
-    pushNotification('auction_won', `You won an auction buyout!`);
     if (btn) btn.textContent = '✅ Purchased';
     setTimeout(() => showPage('auctions'), 2000);
   } catch(err) {
@@ -3370,23 +3346,18 @@ function renderActiveTrade(trade) {
   const theirVal = theirSide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (theirSide.coins||0);
   const total = myVal + theirVal;
   const pct = total > 0 ? Math.round((myVal/total)*100) : 50;
-  const valueBar = document.getElementById('trade-value-bar');
-  if (valueBar) valueBar.style.width = pct + '%';
+  document.getElementById('trade-value-bar').style.width = pct + '%';
   const diff = total > 0 ? Math.abs(myVal-theirVal)/Math.max(myVal,theirVal,1) : 0;
-  const valueLabel = document.getElementById('trade-value-label');
-  if (valueLabel) valueLabel.textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
+  document.getElementById('trade-value-label').textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
 
   if (!document.getElementById('trade-my-coins').dataset.edited) document.getElementById('trade-my-coins').value = mySide.coins||0;
   document.getElementById('trade-my-confirmed').innerHTML = mySide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ You confirmed</span>' : '<span style="color:var(--ink3)">Not confirmed yet</span>';
   const locked = mySide.confirmed;
-  const confirmBtn = document.getElementById('trade-confirm-btn');
-  if (confirmBtn) { confirmBtn.style.opacity = locked ? '0.4' : '1'; confirmBtn.disabled = locked; }
-  const myCoins = document.getElementById('trade-my-coins');
-  if (myCoins) myCoins.disabled = locked;
-  const theirCoinsEl = document.getElementById('trade-their-coins');
-  if (theirCoinsEl) theirCoinsEl.textContent = (theirSide.coins||0).toLocaleString() + ' coins';
-  const theirConfirmedEl = document.getElementById('trade-their-confirmed');
-  if (theirConfirmedEl) theirConfirmedEl.innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
+  document.getElementById('trade-confirm-btn').style.opacity = locked ? '0.4' : '1';
+  document.getElementById('trade-confirm-btn').disabled = locked;
+  document.getElementById('trade-my-coins').disabled = locked;
+  document.getElementById('trade-their-coins').textContent = (theirSide.coins||0).toLocaleString() + ' coins';
+  document.getElementById('trade-their-confirmed').innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
 }
 
 function startTradePoll() { stopTradePoll(); _tradePollInterval = setInterval(refreshTrade, 3000); }
@@ -3484,156 +3455,6 @@ async function addPlantToTrade(idx) {
 }
 
 document.getElementById('trade-plant-modal').addEventListener('click', function(e) { if (e.target===this) closeAddPlantModal(); });
-
-// ── NOTIFICATION SYSTEM ──
-const NOTIF_TYPES = [
-  { key: 'plant_sold',     label: 'Your plant was bought',         emoji: '💰' },
-  { key: 'plant_bought',   label: 'You bought a plant',            emoji: '🛒' },
-  { key: 'outbid',         label: 'You were outbid',               emoji: '📉' },
-  { key: 'auction_won',    label: 'You won an auction',            emoji: '🏆' },
-  { key: 'auction_listed', label: 'Your auction went live',        emoji: '🔨' },
-  { key: 'trade_received', label: 'You received a trade offer',    emoji: '🔄' },
-  { key: 'trade_complete', label: 'A trade completed',             emoji: '✅' },
-];
-
-function getNotifs() {
-  try { return JSON.parse(localStorage.getItem('gh_notifs') || '[]'); } catch { return []; }
-}
-function saveNotifs(notifs) {
-  localStorage.setItem('gh_notifs', JSON.stringify(notifs.slice(0, 100)));
-}
-function getNotifPrefs() {
-  try { return JSON.parse(localStorage.getItem('gh_notif_prefs') || '{}'); } catch { return {}; }
-}
-function saveNotifPrefs(prefs) {
-  localStorage.setItem('gh_notif_prefs', JSON.stringify(prefs));
-}
-
-function pushNotification(type, message) {
-  const prefs = getNotifPrefs();
-  const pref  = prefs[type] || 'site';
-  if (pref === 'off') return;
-  const notifs = getNotifs();
-  notifs.unshift({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), type, message, timestamp: Date.now(), read: false });
-  saveNotifs(notifs);
-  refreshNotifBadge();
-  renderNotifList();
-}
-
-function refreshNotifBadge() {
-  const unread = getNotifs().filter(n => !n.read).length;
-  const badge  = document.getElementById('notif-badge');
-  if (!badge) return;
-  if (unread > 0) {
-    badge.style.display = 'flex';
-    badge.textContent   = unread > 99 ? '99+' : unread;
-  } else {
-    badge.style.display = 'none';
-  }
-}
-
-function toggleNotifPanel() {
-  const panel = document.getElementById('notif-panel');
-  const open  = panel.style.display === 'none';
-  panel.style.display = open ? 'block' : 'none';
-  if (open) { renderNotifList(); renderNotifSettings(); }
-}
-
-function markAllRead() {
-  const notifs = getNotifs().map(n => ({ ...n, read: true }));
-  saveNotifs(notifs);
-  refreshNotifBadge();
-  renderNotifList();
-}
-
-function deleteNotif(id) {
-  saveNotifs(getNotifs().filter(n => n.id !== id));
-  refreshNotifBadge();
-  renderNotifList();
-}
-
-function renderNotifList() {
-  const el     = document.getElementById('notif-list');
-  const notifs = getNotifs();
-  // mark visible ones as read
-  const updated = notifs.map(n => ({ ...n, read: true }));
-  saveNotifs(updated);
-  refreshNotifBadge();
-
-  if (!notifs.length) {
-    el.innerHTML = `<div style="padding:32px 20px;text-align:center;color:var(--ink3);font-size:14px">No notifications yet</div>`;
-    return;
-  }
-
-  const typeMap = Object.fromEntries(NOTIF_TYPES.map(t => [t.key, t]));
-  el.innerHTML = notifs.map(n => {
-    const t       = typeMap[n.type] || { emoji: '🔔' };
-    const timeAgo = formatTimeAgo(n.timestamp);
-    const unread  = !n.read;
-    return `
-    <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);background:${unread ? 'rgba(45,106,79,0.04)' : 'transparent'};transition:background 0.2s" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='${unread ? 'rgba(45,106,79,0.04)' : 'transparent'}'">
-      <div style="width:34px;height:34px;border-radius:50%;background:var(--green-pale);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${t.emoji}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:${unread ? '600' : '400'};color:var(--ink);line-height:1.4">${n.message}</div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:3px">${timeAgo}</div>
-      </div>
-      <button onclick="deleteNotif('${n.id}')" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='#e53935'" onmouseout="this.style.color='var(--ink3)'">✕</button>
-    </div>`;
-  }).join('');
-}
-
-function renderNotifSettings() {
-  const el    = document.getElementById('notif-prefs-list');
-  const prefs = getNotifPrefs();
-  el.innerHTML = NOTIF_TYPES.map(t => {
-    const val = prefs[t.key] || 'site';
-    return `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div style="font-size:13px;color:var(--ink);display:flex;align-items:center;gap:7px"><span>${t.emoji}</span>${t.label}</div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
-        ${['off','bot','site','both'].map(opt => `
-          <button onclick="setNotifPref('${t.key}','${opt}',this)" style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;border:1.5px solid ${val===opt ? 'var(--ink)' : 'var(--border)'};background:${val===opt ? 'var(--ink)' : 'transparent'};color:${val===opt ? 'var(--bg)' : 'var(--ink3)'};cursor:pointer;font-family:inherit;transition:all 0.15s" data-type="${t.key}" data-opt="${opt}">
-            ${opt === 'off' ? 'Off' : opt === 'bot' ? '🤖 Bot' : opt === 'site' ? '🔔 Site' : '🔔+🤖 Both'}
-          </button>`).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function setNotifPref(type, val, btn) {
-  const prefs = getNotifPrefs();
-  prefs[type] = val;
-  saveNotifPrefs(prefs);
-  // re-render all buttons for this type
-  document.querySelectorAll(`[data-type="${type}"]`).forEach(b => {
-    const active = b.dataset.opt === val;
-    b.style.border      = `1.5px solid ${active ? 'var(--ink)' : 'var(--border)'}`;
-    b.style.background  = active ? 'var(--ink)' : 'transparent';
-    b.style.color       = active ? 'var(--bg)' : 'var(--ink3)';
-  });
-}
-
-function showNotifSettings() {
-  const panel = document.getElementById('notif-settings-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  if (panel.style.display === 'block') renderNotifSettings();
-}
-
-function formatTimeAgo(ts) {
-  const diff = Date.now() - ts;
-  if (diff < 60000)    return 'just now';
-  if (diff < 3600000)  return Math.floor(diff/60000) + 'm ago';
-  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
-  return Math.floor(diff/86400000) + 'd ago';
-}
-
-// Close notif panel on outside click
-document.addEventListener('click', e => {
-  const wrap = document.getElementById('notif-bell-wrap');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('notif-panel').style.display = 'none';
-  }
-});
 
 </script>
 </body>
