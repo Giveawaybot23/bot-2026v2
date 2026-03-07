@@ -114,6 +114,11 @@ function loadTrades() {
 }
 function saveTrades(t) { fs.writeFileSync(TRADES_FILE, JSON.stringify(t, null, 2)); }
 let webTrades = loadTrades();
+// Clean up stale active trades on startup
+for (const [id, trade] of Object.entries(webTrades)) {
+  if (trade.status === 'active') trade.status = 'expired';
+}
+saveTrades(webTrades);
 function getAuction(id) { return loadAuctions().find(a => a.id === id) || null; }
 
 let raceTimer = 30; // seconds
@@ -806,13 +811,19 @@ function getAvailableVersion(plantName, db) {
       if (p.name === plantName && p.version) owned.add(p.version);
     }
   }
+  // Also check any pending crates that haven't been saved yet
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
-  if (free.length > 0) return free[Math.floor(Math.random() * free.length)];
+  if (free.length > 0) {
+    const ver = free[Math.floor(Math.random() * free.length)];
+    owned.add(ver); // reserve it immediately
+    return ver;
+  }
   const newVer = high + 1;
   meta.plantVersions[plantName] = newVer;
   meta.totalDrops = (meta.totalDrops || 0) + 1;
   saveMeta(meta);
+  owned.add(newVer);
   return newVer;
 }
 
