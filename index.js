@@ -346,7 +346,7 @@ const CHARMS = {
   bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×5**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
   silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15**',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
   gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.30**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
-  void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
+  void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×2**, Secret **×2.75**', multipliers: { Legendary: 2, Mythic: 1.75, Secret: 2.75 } },
 };
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
@@ -3694,9 +3694,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             name: '🔮 Charms — boost daily/weekly/crate odds',
             value: [
               '🥉 `bronze_charm` — Rare+ ×1.05 · 50,000 coins',
-              '🥈 `silver_charm` — Rare+ ×1.15 · 250,000 coins',
-              '🥇 `gold_charm` — Epic+ ×1.30 · 1,000,000 coins',
-              '🌀 `void_charm` — Legendary+ ×1.75 · 5,000,000 coins',
+              '🥈 `silver_charm` — Rare+ ×1.15 · 40,000 coins',
+              '🥇 `gold_charm` — Epic+ ×1.30 · 150,000 coins',
+              '🌀 `void_charm` — Legendary+ ×2 · 2,000,000 coins',
               '⚠️ Charms do **not** affect channel drops.',
               'Use `!equip <key>` · `!unequip <key>`',
             ].join('\n'),
