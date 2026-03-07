@@ -42,6 +42,8 @@ const MARKET_FILE     = `${DATA_DIR}/market.json`;
 const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
 const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
+const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
+
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
@@ -67,12 +69,56 @@ function loadAuctions() {
 }
 function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
 
+function loadAutosellRules() {
+  if (!fs.existsSync(AUTOSELL_FILE)) fs.writeFileSync(AUTOSELL_FILE, '{}');
+  return JSON.parse(fs.readFileSync(AUTOSELL_FILE));
+}
+function saveAutosellRules(r) { fs.writeFileSync(AUTOSELL_FILE, JSON.stringify(r, null, 2)); }
+function getUserAutosellRules(userId) {
+  return loadAutosellRules()[userId] || [];
+}
+function applyAutosellRules(user, userId) {
+  const rules = getUserAutosellRules(userId);
+  if (!rules.length) return 0;
+  let totalEarned = 0;
+  const toRemove = [];
+  for (let i = user.collection.length - 1; i >= 0; i--) {
+    const p = user.collection[i];
+    if (isLocked(userId, p)) continue;
+    for (const rule of rules) {
+      if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
+      if (rule.mutation === 'none' && p.mutation) continue;
+      if (rule.mutation && rule.mutation !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== rule.mutation.toLowerCase())) continue;
+      if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
+      if (rule.version_op && rule.version_n !== undefined) {
+        const v = p.version || 0;
+        const n = rule.version_n;
+        const op = rule.version_op;
+        const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
+        if (!passes) continue;
+      }
+      // matched a rule
+      toRemove.push(i);
+      totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      break;
+    }
+  }
+  for (const idx of toRemove) user.collection.splice(idx, 1);
+  user.currency += totalEarned;
+  return totalEarned;
+}
+
 function loadTrades() {
   if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
   return JSON.parse(fs.readFileSync(TRADES_FILE));
 }
 function saveTrades(t) { fs.writeFileSync(TRADES_FILE, JSON.stringify(t, null, 2)); }
 let webTrades = loadTrades();
+// Clean up stale active trades on startup
+for (const [id, trade] of Object.entries(webTrades)) {
+  if (trade.status === 'active') trade.status = 'expired';
+}
+saveTrades(webTrades);
 function getAuction(id) { return loadAuctions().find(a => a.id === id) || null; }
 
 let raceTimer = 30; // seconds
@@ -765,13 +811,19 @@ function getAvailableVersion(plantName, db) {
       if (p.name === plantName && p.version) owned.add(p.version);
     }
   }
+  // Also check any pending crates that haven't been saved yet
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
-  if (free.length > 0) return free[Math.floor(Math.random() * free.length)];
+  if (free.length > 0) {
+    const ver = free[Math.floor(Math.random() * free.length)];
+    owned.add(ver); // reserve it immediately
+    return ver;
+  }
   const newVer = high + 1;
   meta.plantVersions[plantName] = newVer;
   meta.totalDrops = (meta.totalDrops || 0) + 1;
   saveMeta(meta);
+  owned.add(newVer);
   return newVer;
 }
 
@@ -1866,9 +1918,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (!user.claimCooldowns) user.claimCooldowns = {};
       if (!isTester) {
         lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
-        newAch = checkAchievements(user);
-        user.claimCooldowns[drop.rarity.name] = Date.now();
-        saveDB(db);
+      newAch = checkAchievements(user);
+      user.claimCooldowns[drop.rarity.name] = Date.now();
+      applyAutosellRules(user, message.author.id);
+      saveDB(db);
         recordClaim(message.author.id, message.author.username);
       }
       const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
@@ -1935,34 +1988,35 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!user.crateCooldowns) user.crateCooldowns = {};
 
     const results = openCrate(crateKey, db, message.author.id);
+    const addedPlants = [];
+    let autoEarned = 0;
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
+      const addedCratePlants = [];
       for (const p of results) {
         const ver = getAvailableVersion(p.name, db);
         recordVersionHighWater(p.name, ver);
         const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
-        user.collection.push({
-          name: p.name, image: p.display, rarity: p.rarity,
-          mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
-          version: ver, sellValue: sv, claimedAt: new Date().toISOString()
-        });
+        const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
+        user.collection.push(entry);
+        addedCratePlants.push(entry);
+        db[message.author.id] = user;
       }
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
+      applyAutosellRules(user, message.author.id);
       saveDB(db);
     }
-
-    const spoilerLines = user.collection.slice(-results.length).map(p =>
+    const spoilerLines = addedCratePlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
       embeds: [new EmbedBuilder()
         .setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`)
-        .setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`)
+        .setDescription(`${TEST_IDS.has(message.author.id) ? '' : `${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**${autoEarned > 0 ? `  ·  ⚡ Autosold **${autoEarned.toLocaleString()} coins**` : ''}\n\n`}*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`)
         .setColor(crate.color)
-        .setFooter({ text: TEST_IDS.has(message.author.id) ? '🧪 Test mode' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })
       ]
     });
   } 
@@ -3013,6 +3067,92 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     ]});
   }
 
+  // ── !autosell — persistent auto-sell rules ───────────────────────────────
+  if (cmd === 'autosell' || cmd === 'asr') {
+    const sub = args[1]?.toLowerCase();
+
+    if (!sub || sub === 'list') {
+      const rules = getUserAutosellRules(message.author.id);
+      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell add` to create one.');
+      const lines = rules.map((r, i) => {
+        const parts = [];
+        if (r.rarity)     parts.push(`rarity: **${r.rarity}**`);
+        if (r.mutation)   parts.push(`mutation: **${r.mutation}**`);
+        if (r.plant)      parts.push(`plant: **${r.plant}**`);
+        if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
+        return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
+      });
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('⚡ Your Autosell Rules')
+        .setDescription(lines.join('\n'))
+        .setFooter({ text: '!autosell remove <number> to delete a rule · locked plants are always safe' })
+        .setColor(0x00C853)
+      ]});
+    }
+
+    if (sub === 'add') {
+      const raw = args.slice(2).join(' ');
+      const rMatch = raw.match(/-r\s+([a-z]+)/i);
+      const mMatch = raw.match(/-m\s+([a-z]+(?:\s+[a-z]+)?)/i);
+      const vMatch = raw.match(/-v\s*([<>=!]+)\s*(\d+)/i);
+      const pMatch = raw.match(/-p\s+"([^"]+)"|(?:-p\s+)([\w\s]+?)(?=\s+-|$)/i);
+
+      const rule = {};
+      if (rMatch) rule.rarity     = rMatch[1].toLowerCase();
+      if (mMatch) rule.mutation   = mMatch[1].toLowerCase();
+      if (vMatch) { rule.version_op = vMatch[1]; rule.version_n = parseInt(vMatch[2]); }
+      if (pMatch) rule.plant      = (pMatch[1] || pMatch[2]).trim().toLowerCase();
+
+      if (!Object.keys(rule).length) return message.reply([
+        'Usage: `!autosell add [filters]`',
+        '`-r <rarity>` — e.g. `-r common`',
+        '`-m <mutation>` or `-m none`',
+        '`-v <op><n>` — e.g. `-v >10`',
+        '`-p "<plant name>"` — e.g. `-p carrot`',
+        '',
+        '**Examples:**',
+        '`!autosell add -r common` — auto-sell all commons as they arrive',
+        '`!autosell add -r uncommon -m none` — sell unmutated uncommons',
+        '`!autosell add -p carrot -v >5` — sell Carrot v6+',
+      ].join('\n'));
+
+      // Validate rarity
+      if (rule.rarity && !RARITIES.find(r => r.name.toLowerCase() === rule.rarity)) {
+        return message.reply(`❌ Unknown rarity **${rule.rarity}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+      }
+
+      const all = loadAutosellRules();
+      if (!all[message.author.id]) all[message.author.id] = [];
+      if (all[message.author.id].length >= 20) return message.reply('❌ You can have at most 20 autosell rules.');
+      all[message.author.id].push(rule);
+      saveAutosellRules(all);
+
+      const desc = Object.entries(rule).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`✅ Autosell rule added: ${desc}\nPlants matching this will be sold instantly as you get them.`);
+    }
+
+    if (sub === 'remove') {
+      const idx = parseInt(args[2]) - 1;
+      const all = loadAutosellRules();
+      const rules = all[message.author.id] || [];
+      if (isNaN(idx) || idx < 0 || idx >= rules.length) return message.reply(`❌ Invalid rule number. Use \`!autosell list\` to see your rules.`);
+      const removed = rules.splice(idx, 1)[0];
+      all[message.author.id] = rules;
+      saveAutosellRules(all);
+      const desc = Object.entries(removed).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
+      return message.reply(`🗑️ Removed rule: ${desc}`);
+    }
+
+    if (sub === 'clear') {
+      const all = loadAutosellRules();
+      delete all[message.author.id];
+      saveAutosellRules(all);
+      return message.reply('✅ All your autosell rules have been cleared.');
+    }
+
+    return message.reply('Subcommands: `add` · `list` · `remove <number>` · `clear`');
+  }
+
   // ── !daily ────────────────────────────────────────────────────────────────
   if (cmd === 'daily') {
     const db = loadDB(); const user = getUser(db, message.author.id);
@@ -3028,7 +3168,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
@@ -3050,7 +3190,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -3099,22 +3239,26 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const lastUsed = user.crateCooldowns[crateKey] || 0;
     const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
     const remaining = cdMs - (Date.now() - lastUsed);
-    if (remaining > 0) {
+    if (remaining > 0) {  
       const unixTimestamp = Math.floor((Date.now() + remaining) / 1000);
       return message.reply(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
     }
     const results = openCrate(crateKey, db, message.author.id);
+    const addedPlants = [];
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
-      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); user.collection.push({ name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }); }
+      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); db[message.author.id] = user; }
       user.cratesOpened = (user.cratesOpened||0) + 1;
-      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
     }
-    const spoilerLines = user.collection.slice(-results.length).map(p =>
+    const spoilerLines = addedPlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color).setFooter({ text: TEST_IDS.has(message.author.id) ? ':test_tube: Test mode — no data saved' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })] });
+    const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
+    const cratePnl = crateValue - crate.price;
+    const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
   }
 
   // ── !equip / !unequip ─────────────────────────────────────────────────────
@@ -3126,7 +3270,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     if (!user.charms.includes(key)) return message.reply(`You don't own **${CHARMS[key].name}**.`);
     const ch = CHARMS[key];
-    if (cmd === 'equip') { if (user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Already equipped.`); user.equippedCharms.push(key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** equipped!`); }
+    if (cmd === 'equip') { if (user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Already equipped.`); user.equippedCharms = [key]; saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** equipped!`); }
     else { if (!user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Not equipped.`); user.equippedCharms = user.equippedCharms.filter(k => k !== key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** unequipped.`); }
   }
 
@@ -3437,6 +3581,41 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
   }
 
+  if (cmd === 'fixdupes' || cmd === 'currentdupes') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const db = loadDB();
+    const seen = {};
+    let count = 0;
+    const dupeList = [];
+    for (const [userId, userData] of Object.entries(db)) {
+      if (!userData.collection) continue;
+      const toRemove = [];
+      for (let i = 0; i < userData.collection.length; i++) {
+        const p = userData.collection[i];
+        const key = `${p.name}:${p.version}`;
+        if (seen[key]) {
+          toRemove.push(i);
+          count++;
+          dupeList.push(`**${p.name}** v${p.version} — <@${userId}> (dupe of <@${seen[key]}>)`);
+        } else {
+          seen[key] = userId;
+        }
+      }
+      if (cmd === 'fixdupes') {
+        for (const idx of toRemove.reverse()) userData.collection.splice(idx, 1);
+      }
+    }
+    if (cmd === 'fixdupes') {
+      saveDB(db);
+      const preview = dupeList.slice(0, 10).join('\n') + (dupeList.length > 10 ? `\n*...and ${dupeList.length - 10} more*` : '');
+      return message.reply(`✅ Removed **${count}** duplicate plant${count !== 1 ? 's' : ''}${count > 0 ? `:\n${preview}` : '.'}`);
+    } else {
+      if (!count) return message.reply('✅ No duplicates found.');
+      const preview = dupeList.slice(0, 15).join('\n') + (dupeList.length > 15 ? `\n*...and ${dupeList.length - 15} more*` : '');
+      return message.reply(`Found **${count}** duplicate plant${count !== 1 ? 's' : ''}:\n${preview}`);
+    }
+  }
+
   if (cmd === 'restoredata') {
   if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -3682,11 +3861,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           {
             name: '📦 Crates — open 10 plants at once',
             value: [
-              '`bronze` — 750 coins',
-              '`silver` — 2,500 coins',
-              '`gold` — 5,500 coins',
-              '`diamond` — 14,000 coins',
-              '`ruby` — 32,000 coins',
+              '`bronze` — 1,000 coins',
+              '`silver` — 5,000 coins',
+              '`gold` — 10,000 coins',
+              '`diamond` — 30,000 coins',
+              '`ruby` — 75,000 coins',
               '*Higher tier crates have significantly better rarity odds.*',
             ].join('\n'),
           },
@@ -4002,7 +4181,7 @@ app.get('/api/players', (req, res) => {
         const rank  = getRank(level);
         return { id, username: u.username || `User#${id.slice(-4)}`, avatarUrl: u.avatarUrl || null, level, score, plants: (u.collection||[]).length, tierName: tier.name, tierEmoji: tier.emoji, rankEmoji: rank.emoji, rankName: rank.name };
       })
-      .filter(e => e.plants > 0)
+      .filter(e => e.plants >= 0)
       .sort((a,b) => b.score - a.score);
     res.json(players);
   } catch(err) { res.status(500).json({ error: err.message }); }
@@ -4162,6 +4341,14 @@ const { WebSocketServer } = require('ws');
 const httpServer = require('http').createServer(app);
 const wss = new WebSocketServer({ server: httpServer });
 
+// Global user socket map — userId -> ws
+const userSockets = {};
+
+function pushToUser(userId, payload) {
+  const ws = userSockets[userId];
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
+}
+
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
 const CHAT_FILE = `${DATA_DIR}/auction_chats.json`;
 function loadChats() {
@@ -4181,9 +4368,15 @@ wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type === 'join') {
+      if (msg.type === 'auth') {
+        // Global auth — register this socket to the user
+        if (msg.userId) {
+          userInfo = { userId: msg.userId, username: msg.username, avatarUrl: msg.avatarUrl };
+          userSockets[msg.userId] = ws;
+        }
+      } else if (msg.type === 'join') {
         currentRoom = msg.auctionId;
-        userInfo = { username: msg.username, avatarUrl: msg.avatarUrl };
+        userInfo = { ...userInfo, username: msg.username, avatarUrl: msg.avatarUrl };
         if (!auctionRooms[currentRoom]) auctionRooms[currentRoom] = [];
         auctionRooms[currentRoom].push(ws);
         // Send existing messages to this client
@@ -4217,6 +4410,9 @@ wss.on('connection', (ws) => {
     if (currentRoom && auctionRooms[currentRoom]) {
       auctionRooms[currentRoom] = auctionRooms[currentRoom].filter(c => c !== ws);
     }
+    if (userInfo?.userId && userSockets[userInfo.userId] === ws) {
+      delete userSockets[userInfo.userId];
+    }
   });
 });
 
@@ -4233,17 +4429,7 @@ app.delete('/api/auction/:id', async (req, res) => {
   user.collection.push({ ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
-  // broadcast live bid to websocket room
-wss.clients.forEach(client => {
-  if (client.readyState === 1 && client._auctionId === req.params.id) {
-    client.send(JSON.stringify({
-      type: 'bid',
-      username: bidderUsername,
-      amount: bidAmount
-    }));
-  }
-});
-res.json({ success: true });
+  res.json({ success: true });
 });
 
 app.post('/api/auction/create', async (req, res) => {
@@ -4452,6 +4638,12 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
       saveTrades(webTrades);
     }
   }, 10 * 60_000);
+  // Notify target player instantly
+  pushToUser(targetId, {
+    type: 'notification',
+    notifType: 'trade_received',
+    message: `${req.user.username} wants to trade with you! Go to the Trade page.`
+  });
   res.json({ tradeId });
 });
 
