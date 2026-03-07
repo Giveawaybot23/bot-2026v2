@@ -2380,8 +2380,7 @@ function connectAuctionWS(auctionId) {
           : '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>';
         container.scrollTop = container.scrollHeight;
         } else if (msg.type === 'bid_update') {
-        // Update current bid display
-        const bidBox = document.querySelector(`[id^="bid-history-"]`);
+        // Update bid history list
         const bidHistoryEl = document.getElementById(`bid-history-${msg.auctionId}`);
         if (bidHistoryEl) {
           bidHistoryEl.innerHTML = msg.bids.map((b, i) => `
@@ -2396,9 +2395,20 @@ function connectAuctionWS(auctionId) {
               <div class="bid-entry-amount">${b.amount.toLocaleString()} coins</div>
             </div>`).join('');
         }
+        // Update current bid amount display
+        if (msg.currentBid !== undefined) {
+          const currentBidEl = document.querySelector(`#auction-detail-content [style*="Current Bid"] + div`);
+          if (currentBidEl) currentBidEl.textContent = msg.currentBid.toLocaleString() + ' coins';
+          // Update bid input minimum for other users
+          const newMin = Math.ceil(msg.currentBid * 1.05);
+          const bidInput = document.getElementById(`bid-input-${msg.auctionId}`);
+          if (bidInput) { bidInput.placeholder = `Min: ${newMin.toLocaleString()}`; bidInput.min = newMin; }
+          const submitBtn = document.getElementById(`bid-btn-${msg.auctionId}`);
+          if (submitBtn) submitBtn.onclick = () => submitWebBid(msg.auctionId, msg.currentBid);
+        }
         // Update timer if extended
         if (msg.endsAt) { const a = _auctionCache?.find?.(x => x.id === msg.auctionId); if (a) a.endsAt = msg.endsAt; }
-        
+
       } else if (msg.type === 'chat') {
         const placeholder = container.querySelector('div[style*="No messages"]');
         if (placeholder) placeholder.remove();
