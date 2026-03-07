@@ -1328,6 +1328,17 @@
   </div>
 </div>
 
+<!-- Trade Request Toast -->
+<div id="trade-request-toast" style="display:none;position:fixed;bottom:24px;right:24px;z-index:10000;background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:18px 20px;box-shadow:0 8px 40px rgba(14,13,11,0.18);max-width:320px;width:calc(100vw - 48px)">
+  <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px">🔄 Trade Request</div>
+  <div style="font-size:13px;color:var(--ink2);margin-bottom:14px" id="trade-toast-msg">Someone sent you a trade!</div>
+  <div style="display:flex;gap:8px">
+    <button onclick="acceptTradeRequest()" style="flex:1;background:#22c55e;color:white;border:none;border-radius:100px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'">✓ Accept</button>
+    <button onclick="declineTradeRequest()" style="flex:1;background:#ef4444;color:white;border:none;border-radius:100px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">✕ Decline</button>
+  </div>
+</div>
+
+
 <!-- Add Plant to Trade Modal -->
 <div id="trade-plant-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:20px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column">
@@ -3296,7 +3307,29 @@ if (localStorage.getItem('dark') === 'true') {
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
 const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
-let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [];
+let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null;
+
+function showTradeRequestToast(senderName, tradeId) {
+  _pendingTradeId = tradeId;
+  document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
+  document.getElementById('trade-request-toast').style.display = 'block';
+}
+function hideTradeRequestToast() {
+  document.getElementById('trade-request-toast').style.display = 'none';
+  _pendingTradeId = null;
+}
+async function acceptTradeRequest() {
+  if (!_pendingTradeId) return;
+  _tradeId = _pendingTradeId;
+  hideTradeRequestToast();
+  await refreshTrade();
+  startTradePoll();
+}
+async function declineTradeRequest() {
+  if (!_pendingTradeId) return;
+  try { await fetch(`/api/trade/${_pendingTradeId}/cancel`, { method:'POST', credentials:'include' }); } catch(e) {}
+  hideTradeRequestToast();
+}
 
 async function loadTradePage() {
   const loginMsg = document.getElementById('trade-login-msg');
@@ -3307,7 +3340,17 @@ async function loadTradePage() {
   try {
     const res = await fetch('/api/trade/active/me', { credentials:'include' });
     const trade = await res.json();
-    if (trade && trade.id) { _tradeId=trade.id; renderActiveTrade(trade); startTradePoll(); }
+    if (trade && trade.id) {
+  _tradeId = trade.id;
+  if (trade.initiatorId !== window._loggedInId) {
+    const senderName = trade.initiatorName || 'Someone';
+    document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
+    document.getElementById('trade-request-toast').style.display = 'block';
+    _pendingTradeId = trade.id;
+  } else {
+    renderActiveTrade(trade); startTradePoll();
+  }
+}
     else showTradeStartPanel();
   } catch(e) { showTradeStartPanel(); }
   try { const r = await fetch('/api/players'); _allPlayers = await r.json(); } catch(e) {}
@@ -3391,16 +3434,17 @@ for (let i = 0; i < SLOTS; i++) {
   const p = plants[i];
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
-    html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;position:relative">
+    html += `<div style="aspect-ratio:1;min-height:72px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;position:relative">
       <img src="${p.image||''}" onerror="this.style.display='none'" style="width:48px;height:48px;object-fit:contain">
       <div style="font-size:9px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2">${p.name}</div>
       <div style="font-size:9px;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</div>
       ${isMyGrid && !mySide.confirmed ? `<div onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:3px;right:3px;font-size:10px;color:var(--ink3);cursor:pointer;background:var(--bg2);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1" title="Remove">✕</div>` : ''}
     </div>`;
   } else if (isAddSlot) {
-    html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ink3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
+    html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;min-height:72px;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ink3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
   } else {
-    html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;opacity:0.3"></div>`;
+    html += `<div style="aspect-ratio:1;min-height:72px;background:transparent;border:1.5px dashed rgba(14,13,11,0.15);border-radius:10px;"></div>`;
+;
   }
 }
 el.innerHTML = html;
@@ -3701,8 +3745,11 @@ function initGlobalWS() {
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === 'notification') {
-        pushNotification(msg.notifType, msg.message);
-      }
+  pushNotification(msg.notifType, msg.message);
+}
+if (msg.type === 'trade_request') {
+  showTradeRequestToast(msg.senderName || 'Someone', msg.tradeId);
+}
     } catch {}
   };
 
