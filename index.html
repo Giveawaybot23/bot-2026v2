@@ -1293,7 +1293,7 @@
           <!-- THEIR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;position:relative"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
@@ -3569,18 +3569,21 @@ el.innerHTML = html;
   renderGrid(mySide.plants, true);
   renderGrid(theirSide.plants, false);
 
-  // Green confirmed overlay — only on the current user's grid
-  const myGridEl = document.getElementById('trade-my-grid');
-  const existingOverlay = document.getElementById('trade-my-grid-overlay');
-  if (existingOverlay) existingOverlay.remove();
-  if (mySide.confirmed) {
-    const overlay = document.createElement('div');
-    overlay.id = 'trade-my-grid-overlay';
-    overlay.style.cssText = 'position:absolute;inset:-4px;border-radius:12px;background:rgba(34,197,94,0.5);pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:2;backdrop-filter:blur(1px)';
-    overlay.innerHTML = '<span style="font-size:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.2))">✓</span>';
-    myGridEl.style.position = 'relative';
-    myGridEl.appendChild(overlay);
+  // Green confirmed overlay — shown on whichever side(s) have confirmed
+  function applyGridOverlay(gridId, overlayId, confirmed) {
+    const gridEl = document.getElementById(gridId);
+    const existing = document.getElementById(overlayId);
+    if (existing) existing.remove();
+    if (confirmed) {
+      const overlay = document.createElement('div');
+      overlay.id = overlayId;
+      overlay.style.cssText = 'position:absolute;inset:-4px;border-radius:12px;background:rgba(34,197,94,0.2);pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:2';
+      overlay.innerHTML = '<span style="font-size:28px;opacity:0.7;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15))">✓</span>';
+      gridEl.appendChild(overlay);
+    }
   }
+  applyGridOverlay('trade-my-grid',   'trade-my-grid-overlay',   mySide.confirmed);
+  applyGridOverlay('trade-their-grid','trade-their-grid-overlay', theirSide.confirmed);
 
   const myVal = mySide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (mySide.coins||0);
   const theirVal = theirSide.plants.reduce((s,p)=>s+(p.sellValue||0),0) + (theirSide.coins||0);
