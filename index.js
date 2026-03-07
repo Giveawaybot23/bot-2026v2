@@ -3227,11 +3227,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const lastUsed = user.crateCooldowns[crateKey] || 0;
     const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
     const remaining = cdMs - (Date.now() - lastUsed);
-    if (remaining > 0) {
+    if (remaining > 0) {  
       const unixTimestamp = Math.floor((Date.now() + remaining) / 1000);
       return message.reply(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
     }
     const results = openCrate(crateKey, db, message.author.id);
+    const addedPlants = [];
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
