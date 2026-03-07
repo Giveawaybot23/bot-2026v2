@@ -1616,8 +1616,14 @@ async function loadProfile(id) {
   try {
     showPage('profile-detail');
     document.getElementById('profile-detail-content').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:center;height:60vh;font-size:32px;opacity:0.3">🌱</div>
-    `;
+      <div style="display:flex;align-items:center;justify-content:center;height:60vh;position:relative">
+        <style>@keyframes _loadSpin{to{transform:rotate(360deg)}}</style>
+        <div style="position:relative;width:72px;height:72px">
+          <div style="position:absolute;inset:0;border-radius:50%;border:2px solid rgba(82,183,136,0.2);animation:_loadSpin 1.4s linear infinite"></div>
+          <div style="position:absolute;inset:10px;border-radius:50%;border:2px solid rgba(82,183,136,0.5);animation:_loadSpin 0.9s linear infinite reverse"></div>
+          <div style="position:absolute;inset:50%;transform:translate(-50%,-50%);font-size:22px;line-height:1">🌱</div>
+        </div>
+      </div>`;
 
     const [profileRes, avatarRes] = await Promise.all([
       fetch(`/api/profile/${id}`),
@@ -1627,393 +1633,473 @@ async function loadProfile(id) {
     const avatar = await avatarRes.json();
     if (data.error) return;
 
-    const tierColors = {
-      'Iron':'#8B8B8B','Bronze':'#CD7F32','Silver':'#C0C0C0','Gold':'#FFD700',
-      'Platinum':'#00BFFF','Diamond':'#B9F2FF','Master':'#9B59B6',
-      'Grandmaster':'#FF6600','Celestial':'#FF00FF','Eternal':'#FFFFFF'
-    };
-    const tc = tierColors[data.gardenTier?.name] || '#52b788';
     const avatarUrl = avatar.url || null;
 
+    /* ── Determine podium rank ── */
+    let globalRank = data.serverRank || null;
+    try {
+      const lb = window._cachedLB || await fetch('/api/leaderboards').then(r => r.json());
+      window._cachedLB = lb;
+      const idx = lb.garden.findIndex(e => (e.id || e.userId) === id);
+      if (idx !== -1) globalRank = idx + 1;
+    } catch(e) {}
+
+    const isPodium = globalRank && globalRank <= 3;
+
+    /* ── Podium theme tokens ── */
+    const podiumThemes = {
+      1: {
+        label: 'SOVEREIGN',
+        sublabel: 'First of the Garden',
+        crown: '👑',
+        p: '#F7E07A', s: '#C9A84C', t: '#8B6914',
+        g:  'rgba(247,224,122,', ga: 'rgba(201,168,76,',
+        orb1: 'rgba(247,224,122,0.055)', orb2: 'rgba(201,168,76,0.035)',
+        scan: 'rgba(255,240,120,0.022)',
+        xpFrom: '#6B4E10', xpTo: '#F7E07A',
+        shimFrom: '#C9A84C', shimTo: '#F7E07A',
+      },
+      2: {
+        label: 'CULTIVATOR',
+        sublabel: 'Second of the Garden',
+        crown: '🥈',
+        p: '#E4E4F0', s: '#A8A8C4', t: '#60607A',
+        g:  'rgba(228,228,240,', ga: 'rgba(168,168,196,',
+        orb1: 'rgba(200,200,228,0.045)', orb2: 'rgba(160,160,190,0.028)',
+        scan: 'rgba(210,210,240,0.018)',
+        xpFrom: '#40405A', xpTo: '#E4E4F0',
+        shimFrom: '#A8A8C4', shimTo: '#E4E4F0',
+      },
+      3: {
+        label: 'KEEPER',
+        sublabel: 'Third of the Garden',
+        crown: '🥉',
+        p: '#F4B880', s: '#C87844', t: '#7A4820',
+        g:  'rgba(244,184,128,', ga: 'rgba(200,120,68,',
+        orb1: 'rgba(244,184,128,0.050)', orb2: 'rgba(200,120,68,0.030)',
+        scan: 'rgba(240,160,90,0.020)',
+        xpFrom: '#5A2E08', xpTo: '#F4B880',
+        shimFrom: '#C87844', shimTo: '#F4B880',
+      },
+    };
+    const pk = isPodium ? podiumThemes[globalRank] : null;
+
+    const tierColors = {
+      Iron:'#8B8B8B', Bronze:'#CD7F32', Silver:'#C0C0C0', Gold:'#FFD700',
+      Platinum:'#00BFFF', Diamond:'#B9F2FF', Master:'#9B59B6',
+      Grandmaster:'#FF6600', Celestial:'#FF00FF', Eternal:'#FFFFFF',
+    };
+    const tc = tierColors[data.gardenTier?.name] || '#52b788';
+
     const rarityColors = {
-      'Common':'#9E9E9E','Uncommon':'#4CAF50','Rare':'#2196F3',
-      'Epic':'#9C27B0','Legendary':'#FFD700','Mythic':'#F44336','Secret':'#000000'
+      Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#aa88ff',
     };
 
-    // Group collection by rarity
+    /* ── Group collection by rarity ── */
     const grouped = {};
-    (data.collection||[]).forEach(p => {
+    (data.collection || []).forEach(p => {
       if (!grouped[p.rarity]) grouped[p.rarity] = [];
       grouped[p.rarity].push(p);
     });
     const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     window._profileGrouped = grouped;
 
+    /* ── Helpers ── */
+    const ink   = isPodium ? 'rgba(240,236,230,0.92)'    : 'var(--ink)';
+    const ink2  = isPodium ? 'rgba(200,196,190,0.70)'    : 'var(--ink2)';
+    const ink3  = isPodium ? 'rgba(160,156,150,0.50)'    : 'var(--ink3)';
+    const card  = isPodium ? 'rgba(22,20,16,0.88)'       : 'var(--card)';
+    const bg2   = isPodium ? 'rgba(255,255,255,0.04)'    : 'var(--bg2)';
+    const bord  = isPodium ? 'rgba(255,255,255,0.07)'    : 'var(--border)';
+
     document.getElementById('profile-detail-content').innerHTML = `
-      <style>
-  @keyframes profileShimmer {
-    0%{background-position:-400% center}
-    100%{background-position:400% center}
-  }
-  @keyframes profilePulse {
-    0%,100%{opacity:0.5;transform:scale(1)}
-    50%{opacity:1;transform:scale(1.05)}
-  }
-  @keyframes profileFloat {
-    0%,100%{transform:translateY(0)}
-    50%{transform:translateY(-8px)}
-  }
-  @keyframes profileFadeUp {
-    from{opacity:0;transform:translateY(30px)}
-    to{opacity:1;transform:translateY(0)}
-  }
-  @keyframes orbitSpin {
-    from{transform:rotate(0deg) translateX(120px) rotate(0deg)}
-    to{transform:rotate(360deg) translateX(120px) rotate(-360deg)}
-  }
-  @keyframes coinSheen {
-    0%   { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
-    15%  { opacity: 1; }
-    60%, 100% { transform: translateX(250%) skewX(-15deg); opacity: 0; }
-  }
-  @keyframes coinSpin {
-    0%, 30% { transform: rotateY(0deg); }
-    45%     { transform: rotateY(180deg); }
-    55%     { transform: rotateY(180deg); }
-    70%     { transform: rotateY(0deg); }
-    100%    { transform: rotateY(0deg); }
-  }
-  @keyframes podiumPulse {
-    0%, 100% { text-shadow: 0 0 6px currentColor; opacity: 1; }
-    50%      { text-shadow: 0 0 18px currentColor, 0 0 32px currentColor; opacity: 0.85; }
-  }
-  @keyframes goldPulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(201,168,76,0.4), 0 0 20px rgba(201,168,76,0.15), inset 0 1px 0 rgba(255,255,255,0.15); }
-    50%      { box-shadow: 0 0 14px rgba(201,168,76,0.7), 0 0 36px rgba(201,168,76,0.3), inset 0 1px 0 rgba(255,255,255,0.2); }
-  }
-  @keyframes rankGlow1 {
-    0%, 100% { box-shadow: 0 0 8px rgba(247,224,122,0.6), 0 0 20px rgba(201,168,76,0.3); }
-    50%      { box-shadow: 0 0 16px rgba(247,224,122,0.9), 0 0 40px rgba(201,168,76,0.5); }
-  }
-  @keyframes rankGlow2 {
-    0%, 100% { box-shadow: 0 0 8px rgba(220,220,220,0.5), 0 0 20px rgba(180,180,180,0.2); }
-    50%      { box-shadow: 0 0 16px rgba(220,220,220,0.8), 0 0 36px rgba(180,180,180,0.4); }
-  }
-  @keyframes rankGlow3 {
-    0%, 100% { box-shadow: 0 0 8px rgba(240,176,100,0.5), 0 0 20px rgba(160,96,48,0.25); }
-    50%      { box-shadow: 0 0 16px rgba(240,176,100,0.8), 0 0 36px rgba(160,96,48,0.45); }
-  }
 
-  .pd-shimmer-text {
-    background:linear-gradient(90deg,${tc}88,#fff,${tc},#fff,${tc}88);
-    background-size:400% auto;
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-    background-clip:text;
-    animation:profileShimmer 4s linear infinite;
-  }
-  .pd-glow-ring {
-    box-shadow:0 0 0 3px var(--card),0 0 0 5px ${tc}66,0 0 40px ${tc}44,0 0 80px ${tc}22;
-  }
-  .pd-collection-item {
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:10px 14px;
-    display:flex;align-items:center;gap:10px;
-    transition:all 0.2s;cursor:default;
-    animation:profileFadeUp 0.4s ease both;
-  }
-  .pd-collection-item:hover {
-    transform:translateY(-2px);
-    border-color:${tc}44;
-    box-shadow:0 4px 20px ${tc}22;
-  }
-  .pd-rarity-section summary {
-    cursor:pointer;
-    list-style:none;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:12px 18px;
-    background:var(--bg2);
-    border-radius:10px;
-    font-weight:600;font-size:14px;
-    color:var(--ink);
-    border:1px solid var(--border);
-    transition:all 0.2s;
-    user-select:none;
-  }
-  .pd-rarity-section summary:hover { background:var(--bg); }
-  .pd-rarity-section[open] summary { border-radius:10px 10px 0 0; border-bottom:none; }
-  .pd-rarity-section .pd-rarity-body {
-    border:1px solid var(--border);
-    border-top:none;
-    border-radius:0 0 10px 10px;
-    padding:12px;
-    display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;
-    background:var(--bg);
-  }
-  .pd-stat-card {
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:20px;
-    text-align:center;
-    position:relative;overflow:hidden;
-    animation:profileFadeUp 0.5s ease both;
-  }
-  .pd-stat-card::before {
-    content:'';position:absolute;top:0;left:0;right:0;height:2px;
-    background:linear-gradient(90deg,transparent,${tc},transparent);
-  }
+<!-- ░░░ KEYFRAMES & SCOPED STYLES ░░░ -->
+<style>
+@keyframes _pShimmer  { 0%{background-position:-400% center} 100%{background-position:400% center} }
+@keyframes _pFloat    { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-8px)} }
+@keyframes _pFadeUp   { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+@keyframes _pGlowPulse{ 0%,100%{opacity:0.45} 50%{opacity:1} }
+@keyframes _pOrbDrift { 0%{transform:translate(0,0) scale(1)} 33%{transform:translate(28px,-18px) scale(1.04)} 66%{transform:translate(-18px,14px) scale(0.97)} 100%{transform:translate(0,0) scale(1)} }
+@keyframes _pScan     { 0%{top:-2px} 100%{top:100%} }
+@keyframes _pSweep    { 0%{transform:translateX(-200%) skewX(-15deg);opacity:0} 12%{opacity:0.8} 60%,100%{transform:translateX(420%) skewX(-15deg);opacity:0} }
+@keyframes _pCrown    { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 50%{transform:translateY(-5px) rotate(1.5deg)} }
+@keyframes _pRankGlow { 0%,100%{text-shadow:0 0 18px currentColor,0 0 36px currentColor} 50%{text-shadow:0 0 36px currentColor,0 0 72px currentColor,0 0 110px currentColor} }
+@keyframes _pRingOut  { 0%{transform:translate(-50%,-50%) scale(0.85);opacity:0.5} 100%{transform:translate(-50%,-50%) scale(2.8);opacity:0} }
+@keyframes _pReveal   { from{opacity:0;transform:scale(0.94) translateY(14px)} to{opacity:1;transform:scale(1) translateY(0)} }
+@keyframes _pAura     { 0%,100%{box-shadow:var(--av-base)} 50%{box-shadow:var(--av-peak)} }
+@keyframes _pStatFloat{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 
-  /* ── COIN DISPLAY WRAPPER ── */
-  .coin-display-wrap {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
+${isPodium ? `
+/* Ambient background */
+._p-bg { position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden; }
+._p-orb {
+  position:absolute;border-radius:50%;filter:blur(90px);
+  animation:_pOrbDrift var(--dur) ease-in-out infinite;
+  will-change:transform;
+}
+._p-scan {
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,${pk.scan}1),transparent);
+  animation:_pScan 10s linear infinite;
+  filter:blur(1px);
+}
 
-  /* ── RANK BADGE ── */
-  .coin-rank-badge {
-    height: 34px;
-    display: inline-flex; align-items: center; justify-content: center;
-    padding: 0 10px;
-    border-radius: 10px;
-    background: rgba(10,10,10,0.75);
-    border: 1px solid rgba(255,255,255,0.08);
-    backdrop-filter: blur(12px);
-    font-size: 12px; font-weight: 800;
-    color: rgba(255,255,255,0.45);
-    letter-spacing: 0.01em;
-    transition: all 0.2s;
-  }
-  .coin-rank-badge.rank-1 {
-    color: #f7e07a;
-    border-color: rgba(247,224,122,0.35);
-    background: rgba(20,16,4,0.85);
-    animation: rankGlow1 2.5s ease-in-out infinite;
-  }
-  .coin-rank-badge.rank-2 {
-    color: #d8d8d8;
-    border-color: rgba(200,200,200,0.3);
-    background: rgba(12,12,14,0.85);
-    animation: rankGlow2 2.5s ease-in-out infinite;
-  }
-  .coin-rank-badge.rank-3 {
-    color: #f0b07a;
-    border-color: rgba(240,176,100,0.3);
-    background: rgba(18,10,4,0.85);
-    animation: rankGlow3 2.5s ease-in-out infinite;
-  }
+/* Podium card wrapper */
+._p-card {
+  position:relative;
+  background:linear-gradient(155deg,rgba(18,16,12,0.97) 0%,rgba(12,11,9,0.99) 100%);
+  border:1px solid ${pk.g}0.14);
+  border-radius:24px;overflow:hidden;
+  animation:_pReveal 0.65s cubic-bezier(0.16,1,0.3,1) both;
+}
+._p-card::before {
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(140deg,${pk.g}0.07) 0%,transparent 45%,${pk.ga}0.04) 100%);
+}
+._p-card::after {
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 0%,${pk.g}0.05) 50%,transparent 100%);
+  animation:_pSweep 7s ease-in-out infinite;
+}
 
-  /* ── COIN BADGE ── */
-  .coin-badge {
-    height: 34px;
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 0 14px 0 5px;
-    border-radius: 10px;
-    background: rgba(30,24,8,0.6);
-    border: 1px solid rgba(201,168,76,0.25);
-    backdrop-filter: blur(12px);
-    position: relative; overflow: hidden; cursor: default;
-    animation: goldPulse 3s ease-in-out infinite;
-    transition: border-color 0.2s;
-  }
-  .coin-badge:hover {
-    border-color: rgba(201,168,76,0.55);
-  }
-  .coin-badge::before {
-    content: '';
-    position: absolute; top: 0; left: 0; width: 40%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,220,100,0.07), transparent);
-    animation: coinSheen 5s ease-in-out infinite;
-  }
-  .coin-badge-icon {
-    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-    background: rgba(255,220,80,0.12);
-    border: 1px solid rgba(201,168,76,0.3);
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 8px rgba(201,168,76,0.4);
-    animation: coinSpin 7s ease-in-out infinite;
-  }
-  .coin-badge-icon svg {
-    width: 11px; height: 11px; fill: rgba(80,50,5,0.8);
-  }
-  .coin-badge-amount {
-    font-size: 13px; font-weight: 800;
-    background: linear-gradient(160deg, #f7e07a 0%, #c9a84c 50%, #f7e07a 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    background-clip: text;
-    letter-spacing: -0.02em; line-height: 1;
-    text-shadow: none;
-  }
+/* Rank badge */
+._p-rank-badge {
+  display:inline-flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,${pk.g}0.1),${pk.ga}0.06));
+  border:1px solid ${pk.g}0.32);
+  border-radius:100px;padding:9px 22px;
+  animation:_pReveal 0.7s cubic-bezier(0.16,1,0.3,1) 0.15s both;
+  position:relative;overflow:hidden;
+}
+._p-rank-badge::after {
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,${pk.g}0.08),transparent);
+  animation:_pSweep 5s ease-in-out infinite;
+}
+._p-rank-number {
+  font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;
+  color:${pk.p};animation:_pRankGlow 2.8s ease-in-out infinite;line-height:1;
+}
+._p-rank-label { font-size:9px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:${pk.s};opacity:0.85;line-height:1; }
+._p-rank-sub   { font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:${pk.s};opacity:0.5;line-height:1;margin-top:2px; }
+._p-crown { font-size:26px;display:inline-block;animation:_pCrown 3s ease-in-out infinite;filter:drop-shadow(0 0 10px ${pk.p}); }
 
-  /* light mode overrides — keep it subtle on light bg */
-  body:not(.dark) .coin-badge {
-    background: rgba(255,255,255,0.7);
-    border-color: rgba(201,168,76,0.35);
-    animation: none;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 10px rgba(201,168,76,0.12);
-  }
-  body:not(.dark) .coin-badge:hover {
-    box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 18px rgba(201,168,76,0.22);
-  }
-  body:not(.dark) .coin-rank-badge {
-    background: rgba(240,237,232,0.9);
-    border-color: rgba(14,13,11,0.1);
-    color: var(--ink3);
-  }
-  body:not(.dark) .coin-rank-badge.rank-1 {
-    background: rgba(255,248,220,0.95);
-    border-color: rgba(201,168,76,0.4);
-    color: #a07828;
-    animation: rankGlow1 2.5s ease-in-out infinite;
-  }
-  body:not(.dark) .coin-rank-badge.rank-2 {
-    background: rgba(245,245,248,0.95);
-    border-color: rgba(160,160,170,0.35);
-    color: #808088;
-    animation: rankGlow2 2.5s ease-in-out infinite;
-  }
-  body:not(.dark) .coin-rank-badge.rank-3 {
-    background: rgba(255,245,235,0.95);
-    border-color: rgba(200,130,70,0.35);
-    color: #a06030;
-    animation: rankGlow3 2.5s ease-in-out infinite;
-  }
-  body:not(.dark) .coin-badge-amount {
-    background: linear-gradient(160deg, #8a6010, #c9a84c, #8a6010);
-    -webkit-background-clip: text; background-clip: text;
-  }
+/* Aura avatar ring */
+._p-av-wrap {
+  --av-base: 0 0 0 3px rgba(10,9,7,1), 0 0 0 5px ${pk.g}0.22), 0 0 28px ${pk.g}0.14), 0 0 60px ${pk.g}0.07);
+  --av-peak: 0 0 0 3px rgba(10,9,7,1), 0 0 0 5px ${pk.g}0.45), 0 0 48px ${pk.g}0.30), 0 0 96px ${pk.g}0.15), 0 0 150px ${pk.g}0.06);
+  border-radius:50%;
+  animation:_pAura 2.8s ease-in-out infinite, _pFloat 4.2s ease-in-out infinite;
+}
 
+/* Concentric ring pulses (behind avatar) */
+._p-ring {
+  position:absolute;top:50%;left:50%;
+  width:220px;height:220px;border-radius:50%;pointer-events:none;
+  border:1px solid ${pk.g}0.07);
+  animation:_pRingOut 4.5s ease-out infinite;
+}
+._p-ring:nth-child(2){animation-delay:1.5s}
+._p-ring:nth-child(3){animation-delay:3s}
+
+/* Podium stat cards */
+._p-stat {
+  position:relative;overflow:hidden;
+  background:linear-gradient(150deg,rgba(22,20,15,0.92),rgba(14,12,9,0.96));
+  border:1px solid ${pk.g}0.11);border-radius:16px;
+  padding:20px;text-align:center;
+  transition:all 0.3s cubic-bezier(0.16,1,0.3,1);
+  animation:_pStatFloat var(--sd) ease-in-out infinite;
+}
+._p-stat:hover {
+  border-color:${pk.g}0.38) !important;
+  box-shadow:0 10px 36px ${pk.g}0.14),inset 0 1px 0 ${pk.g}0.1);
+  transform:translateY(-5px) !important;
+}
+._p-stat::before {
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,${pk.p},transparent);opacity:0.55;
+}
+._p-stat::after {
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 110%,${pk.g}0.07) 0%,transparent 65%);
+}
+
+/* XP bar */
+._p-xp { 
+  background:linear-gradient(90deg,${pk.xpFrom},${pk.s},${pk.p});
+  box-shadow:0 0 10px ${pk.g}0.38),0 0 22px ${pk.g}0.18);
+  border-radius:100px;height:100%;
+  transition:width 1.4s cubic-bezier(0.16,1,0.3,1);
+}
+
+/* Username shimmer */
+._p-uname {
+  background:linear-gradient(110deg,${pk.s} 0%,#fff 35%,${pk.p} 55%,${pk.s} 75%,${pk.p} 100%);
+  background-size:300% auto;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:_pShimmer 5s linear infinite;
+}
+` : ''}
+
+/* Shared collection styles */
+._p-item {
+  background:${card};border:1px solid ${bord};border-radius:10px;
+  padding:10px 14px;display:flex;align-items:center;gap:10px;
+  transition:all 0.2s;cursor:default;animation:_pFadeUp 0.35s ease both;
+}
+._p-item:hover {
+  transform:translateY(-2px);
+  border-color:${isPodium ? pk?.g+'0.22)' : tc+'44'};
+  box-shadow:0 4px 18px ${isPodium ? pk?.g+'0.09)' : tc+'22'};
+}
+._p-rarity-sum {
+  cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;background:${bg2};border-radius:10px;
+  font-weight:600;font-size:14px;color:${ink};
+  border:1px solid ${bord};transition:all 0.2s;user-select:none;
+}
+._p-rarity-sum:hover{background:${isPodium ? 'rgba(255,255,255,0.05)' : 'var(--bg)'};}
+details[open] ._p-rarity-sum{border-radius:10px 10px 0 0;border-bottom:none;}
+._p-rarity-body {
+  border:1px solid ${bord};border-top:none;border-radius:0 0 10px 10px;
+  padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;
+  background:${isPodium ? 'rgba(12,10,8,0.55)' : 'var(--bg)'};
+}
+._p-stat-plain {
+  background:${card};border:1px solid ${bord};border-radius:12px;
+  padding:20px;text-align:center;position:relative;overflow:hidden;
+  animation:_pFadeUp 0.5s ease both;
+}
+._p-stat-plain::before {
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,${tc},transparent);
+}
 </style>
 
-      <!-- Hero section -->
-      <div style="position:relative;min-height:380px;overflow:hidden;background:linear-gradient(180deg,${tc}18 0%,transparent 100%)">
-        
-        <!-- Back button -->
-        <button onclick="showPage('profiles')" style="position:absolute;top:20px;left:20px;z-index:10;background:var(--card);border:1px solid var(--border);border-radius:100px;padding:8px 18px;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.2s" onmouseover="this.style.background='var(--ink)';this.style.color='var(--bg)'" onmouseout="this.style.background='var(--card)';this.style.color='var(--ink)'">← Back</button>
+<!-- ░░░ PODIUM AMBIENT BACKGROUND ░░░ -->
+${isPodium ? `
+<div class="_p-bg" aria-hidden="true">
+  <div class="_p-ring"></div><div class="_p-ring"></div><div class="_p-ring"></div>
+  <div class="_p-orb" style="width:700px;height:700px;top:-150px;right:-180px;background:radial-gradient(circle,${pk.orb1} 0%,transparent 68%);--dur:15s"></div>
+  <div class="_p-orb" style="width:500px;height:500px;bottom:-80px;left:-100px;background:radial-gradient(circle,${pk.orb2} 0%,transparent 70%);--dur:20s;animation-delay:-8s"></div>
+  <div class="_p-orb" style="width:350px;height:350px;top:38%;right:8%;background:radial-gradient(circle,${pk.orb1} 0%,transparent 70%);--dur:13s;animation-delay:-4s"></div>
+  <div class="_p-scan"></div>
+</div>
+` : ''}
 
-        <!-- Ambient orbs -->
-        <div style="position:absolute;top:-100px;right:-100px;width:400px;height:400px;background:radial-gradient(circle,${tc}18 0%,transparent 70%);pointer-events:none;animation:profilePulse 4s ease-in-out infinite"></div>
-        <div style="position:absolute;bottom:-50px;left:-50px;width:300px;height:300px;background:radial-gradient(circle,${tc}0e 0%,transparent 70%);pointer-events:none"></div>
+<!-- ░░░ PAGE WRAPPER ░░░ -->
+<div style="position:relative;z-index:1;${isPodium ? 'background:linear-gradient(180deg,rgba(7,6,4,0.0) 0%,transparent 100%)' : ''}">
 
-        <!-- Content -->
-        <div style="display:flex;flex-direction:column;align-items:center;padding:60px 24px 40px;text-align:center;position:relative;z-index:2">
-          
-          <!-- Avatar -->
-          <div class="pd-glow-ring" style="width:120px;height:120px;border-radius:50%;overflow:hidden;background:var(--green-pale);display:flex;align-items:center;justify-content:center;font-size:48px;margin-bottom:24px;animation:profileFloat 4s ease-in-out infinite">
-            ${avatarUrl ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">` : (data.rank?.emoji||'🌱')}
-          </div>
+  <!-- ░░ HERO BAND ░░ -->
+  <div style="position:relative;min-height:420px;overflow:hidden;${isPodium
+    ? 'background:linear-gradient(180deg,rgba(8,7,5,0.98) 0%,rgba(10,9,7,0.94) 100%)'
+    : 'background:linear-gradient(180deg,'+tc+'18 0%,transparent 100%)'}">
 
-          <!-- Name -->
-          <div style="font-family:'DM Serif Display',serif;font-size:clamp(32px,5vw,52px);letter-spacing:-0.02em;color:var(--ink);margin-bottom:8px;animation:profileFadeUp 0.4s ease both">${data.username}</div>
+    ${!isPodium ? `<div style="position:absolute;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,${tc}12 0%,transparent 70%);pointer-events:none;animation:_pGlowPulse 4s ease-in-out infinite"></div>` : ''}
 
-          <!-- Title badge -->
-          ${data.title ? `
-          <div style="display:inline-flex;align-items:center;gap:8px;background:${tc}18;border:1px solid ${tc}44;border-radius:100px;padding:8px 20px;margin-bottom:16px;animation:profileFadeUp 0.5s ease both">
-            <span class="pd-shimmer-text" style="font-size:16px;font-weight:700;letter-spacing:0.04em">${data.title}</span>
-          </div>` : ''}
+    <!-- Back -->
+    <button onclick="showPage('profiles')" style="position:absolute;top:20px;left:20px;z-index:20;background:${isPodium ? 'rgba(255,255,255,0.05)' : 'var(--card)'};border:1px solid ${isPodium ? 'rgba(255,255,255,0.09)' : 'var(--border)'};border-radius:100px;padding:8px 18px;font-size:13px;font-weight:500;color:${isPodium ? 'rgba(220,216,210,0.8)' : 'var(--ink)'};cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.2s;backdrop-filter:blur(10px)" onmouseover="this.style.background='${isPodium ? 'rgba(255,255,255,0.1)' : 'var(--ink)'}';this.style.color='${isPodium ? '#fff' : 'var(--bg)'}'" onmouseout="this.style.background='${isPodium ? 'rgba(255,255,255,0.05)' : 'var(--card)'}';this.style.color='${isPodium ? 'rgba(220,216,210,0.8)' : 'var(--ink)'}'">← Back</button>
 
-          <!-- Rank + tier pills -->
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;animation:profileFadeUp 0.6s ease both">
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;font-weight:500;color:var(--ink2)">${data.rank?.emoji} ${data.rank?.name} · Lv. ${data.level}</div>
-            <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:6px 16px;font-size:13px;font-weight:700;color:${tc}"><img src="/images/tiers/${data.gardenTier?.name.toLowerCase()}.webp" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">${data.gardenTier?.name}</div>
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;color:var(--ink2)">#${data.serverRank} of ${data.serverTotal}</div>
-          </div>
+    <div style="display:flex;flex-direction:column;align-items:center;padding:68px 24px 44px;text-align:center;position:relative;z-index:2">
+
+      ${isPodium ? `
+      <!-- ★ PODIUM RANK BADGE ★ -->
+      <div class="_p-rank-badge" style="margin-bottom:26px">
+        <span class="_p-crown">${pk.crown}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px">
+          <span class="_p-rank-number">#${globalRank}</span>
+          <span class="_p-rank-label">${pk.label}</span>
+          <span class="_p-rank-sub">${pk.sublabel}</span>
         </div>
       </div>
+      ` : ''}
 
-      <!-- Stats + content -->
-      <div style="max-width:900px;margin:0 auto;padding:0 24px 80px">
+      <!-- Avatar -->
+      <div class="${isPodium ? '_p-av-wrap' : 'pd-glow-ring'}"
+        style="width:120px;height:120px;border-radius:50%;overflow:hidden;
+               background:${isPodium ? pk?.g+'0.07)' : 'var(--green-pale)'};
+               display:flex;align-items:center;justify-content:center;font-size:48px;
+               margin-bottom:24px;position:relative;
+               ${!isPodium ? 'animation:_pFloat 4s ease-in-out infinite' : ''}">
+        ${avatarUrl
+          ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">`
+          : (data.rank?.emoji || '🌱')}
+        ${isPodium ? `<div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${pk.g}0.28);pointer-events:none"></div>` : ''}
+      </div>
 
-        <!-- Stat cards -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px">
-          ${[
-            {val: data.plants, label:'Plants', icon:'🌿'},
-            {val: (data.gardenScore||0).toLocaleString(), label:'Garden Score', icon:'⭐'},
-            {val: (data.currency||0).toLocaleString(), label:'Coins', icon:'🪙'},
-            {val: data.achievements||0, label:'Achievements', icon:'🏆'},
-          ].map((s,i) => `
-            <div class="pd-stat-card" style="animation-delay:${i*0.08}s">
-              <div style="font-size:24px;margin-bottom:8px">${s.icon}</div>
-              <div style="font-family:'DM Serif Display',serif;font-size:26px;color:var(--ink);letter-spacing:-0.02em">${s.val}</div>
-              <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-top:4px">${s.label}</div>
+      <!-- Username -->
+      <div style="font-family:'DM Serif Display',serif;font-size:clamp(32px,5vw,52px);letter-spacing:-0.02em;margin-bottom:8px;animation:_pFadeUp 0.4s ease both">
+        ${isPodium
+          ? `<span class="_p-uname">${data.username}</span>`
+          : `<span style="color:var(--ink)">${data.username}</span>`}
+      </div>
+
+      ${data.title ? `
+      <div style="display:inline-flex;align-items:center;gap:8px;
+                  background:${isPodium ? pk.g+'0.09)' : tc+'18'};
+                  border:1px solid ${isPodium ? pk.g+'0.28)' : tc+'44'};
+                  border-radius:100px;padding:8px 20px;margin-bottom:16px;
+                  animation:_pFadeUp 0.5s ease both">
+        <span style="font-size:15px;font-weight:700;letter-spacing:0.04em;
+                     ${isPodium
+                        ? 'color:'+pk.s+';text-shadow:0 0 14px '+pk.g+'0.6)'
+                        : 'background:linear-gradient(90deg,'+tc+'88,#fff,'+tc+',#fff,'+tc+'88);background-size:400% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 4s linear infinite'}">
+          ${data.title}
+        </span>
+      </div>` : ''}
+
+      <!-- Rank + tier pills -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px;animation:_pFadeUp 0.6s ease both">
+        <div style="background:${isPodium ? 'rgba(255,255,255,0.05)' : 'var(--card)'};border:1px solid ${bord};border-radius:100px;padding:6px 16px;font-size:13px;font-weight:500;color:${ink2}">${data.rank?.emoji} ${data.rank?.name} · Lv. ${data.level}</div>
+        <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:6px 16px;font-size:13px;font-weight:700;color:${tc}"><img src="/images/tiers/${data.gardenTier?.name.toLowerCase()}.webp" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">${data.gardenTier?.name}</div>
+        <div style="background:${isPodium ? 'rgba(255,255,255,0.04)' : 'var(--card)'};border:1px solid ${bord};border-radius:100px;padding:6px 16px;font-size:13px;color:${ink3}">#${data.serverRank} of ${data.serverTotal}</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ░░ CONTENT BODY ░░ -->
+  <div style="max-width:900px;margin:0 auto;padding:0 24px 100px;position:relative;z-index:2">
+
+    <!-- STAT CARDS -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px">
+      ${[
+        { val: data.plants,                               label:'Plants',        icon:'🌿', i:0 },
+        { val: (data.gardenScore||0).toLocaleString(),    label:'Garden Score',  icon:'⭐',  i:1 },
+        { val: (data.currency||0).toLocaleString(),       label:'Coins',         icon:'🪙',  i:2 },
+        { val: data.achievements||0,                      label:'Achievements',  icon:'🏆',  i:3 },
+      ].map(s => `
+        <div class="${isPodium ? '_p-stat' : '_p-stat-plain'}"
+             style="${isPodium ? '--sd:'+(3.2+s.i*0.55)+'s' : ''};animation-delay:${s.i*0.08}s">
+          <div style="font-size:24px;margin-bottom:8px;position:relative;z-index:1">${s.icon}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:26px;letter-spacing:-0.02em;
+                      position:relative;z-index:1;
+                      ${isPodium ? 'color:'+pk.p : 'color:var(--ink)'}">
+            ${s.val}
+          </div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-top:4px;
+                      position:relative;z-index:1;
+                      ${isPodium ? 'color:'+pk.s+';opacity:0.65' : 'color:var(--ink3)'}">
+            ${s.label}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- XP BAR -->
+    <div style="background:${card};border:1px solid ${isPodium ? pk?.g+'0.1)' : 'var(--border)'};
+                border-radius:16px;padding:22px;margin-bottom:24px;position:relative;overflow:hidden">
+      ${isPodium ? `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${pk.g}0.04) 0%,transparent 55%);pointer-events:none"></div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;position:relative">
+        <div style="font-size:14px;font-weight:600;color:${ink}">Level Progress</div>
+        <div style="font-size:13px;color:${ink3}">${data.pct}% · ${(data.progress||0).toLocaleString()} / ${(data.needed||0).toLocaleString()} XP</div>
+      </div>
+      <div style="height:10px;background:${isPodium ? 'rgba(255,255,255,0.06)' : 'var(--bg2)'};border-radius:100px;overflow:hidden;position:relative">
+        <div class="${isPodium ? '_p-xp' : ''}"
+             style="${isPodium ? '' : 'background:linear-gradient(90deg,'+tc+','+tc+'88);box-shadow:0 0 12px '+tc+'66;border-radius:100px;'}
+                    height:100%;width:${data.pct}%;
+                    ${!isPodium ? 'transition:width 1.4s cubic-bezier(0.16,1,0.3,1)' : ''}">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:${ink3}">
+        <span>Lv. ${data.level}</span><span>Lv. ${data.level+1}</span>
+      </div>
+    </div>
+
+    <!-- POSTS FEED -->
+    <div style="margin-bottom:32px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:700;font-family:'DM Serif Display',serif;color:${ink}">Posts</div>
+        ${id === window._loggedInId ? `
+        <button onclick="openPostModal('${id}')"
+          style="background:${isPodium ? pk?.g+'0.12)' : 'var(--ink)'};
+                 border:1px solid ${isPodium ? pk?.g+'0.28)' : 'transparent'};
+                 color:${isPodium ? pk?.p : 'var(--bg)'};
+                 border-radius:100px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s"
+          onmouseover="this.style.background='var(--green)';this.style.borderColor='transparent';this.style.color='white'"
+          onmouseout="this.style.background='${isPodium ? pk?.g+'0.12)' : 'var(--ink)'}';this.style.borderColor='${isPodium ? pk?.g+'0.28)' : 'transparent'}';this.style.color='${isPodium ? pk?.p : 'var(--bg)'}'">
+          + New Post
+        </button>` : ''}
+      </div>
+      <div id="profile-feed-${id}" style="display:flex;flex-direction:column;gap:12px">
+        <div style="color:${ink3};font-size:14px;text-align:center;padding:24px;
+                    background:${bg2};border-radius:12px;border:1px dashed ${bord}">
+          Loading posts...
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLECTION HEADER -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:18px;font-weight:700;font-family:'DM Serif Display',serif;color:${ink}">
+        Collection
+        <span style="font-size:14px;font-weight:400;font-family:'DM Sans',sans-serif;color:${ink3}"> ${data.plants} plants</span>
+      </div>
+    </div>
+
+    <!-- COLLECTION SECTIONS -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${rarityOrder.filter(r => grouped[r]?.length).map(r => `
+        <details style="border-radius:10px" ${r==='Secret'||r==='Mythic'?'open':''}>
+          <summary class="_p-rarity-sum">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:10px;height:10px;border-radius:50%;
+                          background:${rarityColors[r]||'#999'};
+                          box-shadow:0 0 6px ${rarityColors[r]||'#999'}88"></div>
+              <span>${r}</span>
+              <span style="font-size:12px;font-weight:400;color:${ink3}">${grouped[r].length} plant${grouped[r].length>1?'s':''}</span>
             </div>
-          `).join('')}
-        </div>
-
-        <!-- XP bar -->
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <div style="font-size:14px;font-weight:600;color:var(--ink)">Level Progress</div>
-            <div style="font-size:13px;color:var(--ink3)">${data.pct}% · ${(data.progress||0).toLocaleString()} / ${(data.needed||0).toLocaleString()} XP</div>
-          </div>
-          <div style="height:10px;background:var(--bg2);border-radius:100px;overflow:hidden">
-            <div style="height:100%;width:${data.pct}%;background:linear-gradient(90deg,${tc},${tc}88);border-radius:100px;box-shadow:0 0 12px ${tc}66;transition:width 1.2s ease"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--ink3)">
-            <span>Lv. ${data.level}</span>
-            <span>Lv. ${data.level+1}</span>
-          </div>
-        </div>
-
-        <!-- Collection -->
-        <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:18px;font-weight:700;color:var(--ink);font-family:'DM Serif Display',serif">Collection <span style="font-size:14px;font-weight:400;color:var(--ink3);font-family:'DM Sans',sans-serif">${data.plants} plants</span></div>
-        </div>
-
-        <!-- Feed -->
-        <div style="margin-bottom:32px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <div style="font-size:18px;font-weight:700;color:var(--ink);font-family:'DM Serif Display',serif">Posts</div>
-            ${id === window._loggedInId ? `<button onclick="openPostModal('${id}')" style="background:var(--ink);color:var(--bg);border:none;border-radius:100px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--ink)'">+ New Post</button>` : ''}
-          </div>
-          <div id="profile-feed-${id}" style="display:flex;flex-direction:column;gap:12px">
-            <div style="color:var(--ink3);font-size:14px;text-align:center;padding:24px;background:var(--bg2);border-radius:12px;border:1px dashed var(--border)">Loading posts...</div>
-          </div>
-        </div>
-
-        <!-- Collection header -->
-        <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:18px;font-weight:700;color:var(--ink);font-family:'DM Serif Display',serif">Collection <span style="font-size:14px;font-weight:400;color:var(--ink3);font-family:'DM Sans',sans-serif">${data.plants} plants</span></div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${rarityOrder.filter(r => grouped[r]?.length).map(r => `
-            <details class="pd-rarity-section" ${r === 'Secret' || r === 'Mythic' ? 'open' : ''}>
-              <summary>
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:10px;height:10px;border-radius:50%;background:${rarityColors[r]||'#999'};box-shadow:0 0 6px ${rarityColors[r]||'#999'}88"></div>
-                  <span>${r}</span>
-                  <span style="font-size:12px;font-weight:400;color:var(--ink3)">${grouped[r].length} plant${grouped[r].length>1?'s':''}</span>
-                </div>
-                <span style="font-size:12px;color:var(--ink3)">▾</span>
-              </summary>
-              <div class="pd-rarity-body">
-                ${grouped[r].slice(0, 50).map((p,pi) => `
-                  <div class="pd-collection-item${p.version===1?' v1-item':''}" style="animation-delay:${pi*0.03}s;${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
-                    <div style="width:8px;height:8px;border-radius:50%;background:${p.version===1?'#c9a84c':rarityColors[p.rarity]||'#999'};flex-shrink:0;${p.version===1?'box-shadow:0 0 6px rgba(201,168,76,0.8);':''}"></div>
-                    <div style="flex:1;min-width:0">
-                      <div style="font-size:13px;font-weight:600;color:${p.version===1?'#c9a84c':'var(--ink)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${p.version===1?' 👑':''}</div>
-                      <div style="font-size:11px;color:var(--ink3)">${p.version===1?'<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.7)">👑 v1</span>':'v'+(p.version||'?')}${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}</div>
-                    </div>
+            <span style="font-size:12px;color:${ink3}">▾</span>
+          </summary>
+          <div class="_p-rarity-body">
+            ${grouped[r].slice(0,50).map((p,pi) => `
+              <div class="_p-item" style="animation-delay:${pi*0.02}s;${p.version===1
+                ? 'border-color:rgba(201,168,76,0.5);background:'+(isPodium?'rgba(30,24,8,0.75)':'linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%)')+';'+(isPodium?'box-shadow:0 0 14px rgba(201,168,76,0.1);':'')
+                : ''}">
+                <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                            background:${p.version===1?'#c9a84c':rarityColors[p.rarity]||'#999'};
+                            ${p.version===1?'box-shadow:0 0 7px rgba(201,168,76,0.9);':''}"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;
+                              color:${p.version===1?'#c9a84c':ink};
+                              white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    ${p.name}${p.version===1?' 👑':''}
                   </div>
-                `).join('')}
+                  <div style="font-size:11px;color:${ink3}">
+                    ${p.version===1
+                      ? '<span style="color:#c9a84c;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.7)">👑 v1</span>'
+                      : 'v'+(p.version||'?')}
+                    ${p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : ''}
+                  </div>
+                </div>
               </div>
-              ${grouped[r].length > 50 ? `
-                 <button onclick="loadMorePlants(this, '${r}', this.previousElementSibling)" data-rarity="${r}" data-offset="50" style="width:100%;padding:10px;background:var(--bg2);border:none;border-radius:0 0 10px 10px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='var(--bg2)'">
-                  Show ${grouped[r].length - 50} more ${r} plants ▾
-                </button>` : ''}
-            </details>
-          `).join('')}
-        </div>
+            `).join('')}
+          </div>
+          ${grouped[r].length > 50 ? `
+          <button onclick="loadMorePlants(this,'${r}',this.previousElementSibling)"
+            data-rarity="${r}" data-offset="50"
+            style="width:100%;padding:10px;
+                   background:${isPodium ? 'rgba(22,20,15,0.7)' : 'var(--bg2)'};
+                   border:none;border-radius:0 0 10px 10px;font-size:13px;font-weight:600;
+                   color:${ink3};cursor:pointer;font-family:inherit;transition:all 0.2s"
+            onmouseover="this.style.background='${isPodium ? 'rgba(30,28,22,0.9)' : 'var(--bg)'}'"
+            onmouseout="this.style.background='${isPodium ? 'rgba(22,20,15,0.7)' : 'var(--bg2)'}'">
+            Show ${grouped[r].length - 50} more ${r} plants ▾
+          </button>` : ''}
+        </details>
+      `).join('')}
+    </div>
 
-      </div>
+  </div><!-- /content body -->
+</div><!-- /page wrapper -->
     `;
 
-  loadProfileFeed(id);
-  } catch(err) { console.error(err); }
+    loadProfileFeed(id);
+
+  } catch(err) { console.error('[loadProfile]', err); }
 }
 
 function renderLBEntry(left, right, rightSub, pct, i, userId) {
