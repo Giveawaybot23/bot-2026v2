@@ -354,8 +354,8 @@ const CRATES = {
   bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,   minLevel: 5,  plants: 10, weights: { Common: 755000, Uncommon: 173000, Rare:  38000, Epic:  22000, Legendary:   800, Mythic:   150, Secret:    0 } },
   silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10, weights: { Common: 645000, Uncommon: 180000, Rare:  66000, Epic:  10000, Legendary:  3800, Mythic:   500, Secret:    0 } },
   gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500,  minLevel: 15, plants: 10, weights: { Common: 535000, Uncommon: 172000, Rare:  90000, Epic: 20000, Legendary: 16000, Mythic:  1500, Secret:  100 } },
-  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 355000, Uncommon: 150000, Rare: 105000, Epic: 320000, Legendary: 60000, Mythic:  7000, Secret:  700 } },
-  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common: 155000, Uncommon:  90000, Rare: 102000, Epic: 395000, Legendary: 85000, Mythic: 25000, Secret: 1100 } },
+  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 355000, Uncommon: 150000, Rare: 105000, Epic: 320000, Legendary: 100000, Mythic:  7000, Secret:  700 } },
+  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common: 155000, Uncommon:  90000, Rare: 102000, Epic: 395000, Legendary: 160000, Mythic: 25000, Secret: 1100 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
