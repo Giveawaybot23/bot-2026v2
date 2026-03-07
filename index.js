@@ -3581,11 +3581,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
   }
 
-  if (cmd === 'fixdupes') {
+  if (cmd === 'fixdupes' || cmd === 'currentdupes') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
     const db = loadDB();
     const seen = {};
-    let removed = 0;
+    let count = 0;
+    const dupeList = [];
     for (const [userId, userData] of Object.entries(db)) {
       if (!userData.collection) continue;
       const toRemove = [];
@@ -3594,15 +3595,25 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         const key = `${p.name}:${p.version}`;
         if (seen[key]) {
           toRemove.push(i);
-          removed++;
+          count++;
+          dupeList.push(`**${p.name}** v${p.version} — <@${userId}> (dupe of <@${seen[key]}>)`);
         } else {
           seen[key] = userId;
         }
       }
-      for (const idx of toRemove.reverse()) userData.collection.splice(idx, 1);
+      if (cmd === 'fixdupes') {
+        for (const idx of toRemove.reverse()) userData.collection.splice(idx, 1);
+      }
     }
-    saveDB(db);
-    return message.reply(`✅ Removed **${removed}** duplicate plant${removed !== 1 ? 's' : ''}.`);
+    if (cmd === 'fixdupes') {
+      saveDB(db);
+      const preview = dupeList.slice(0, 10).join('\n') + (dupeList.length > 10 ? `\n*...and ${dupeList.length - 10} more*` : '');
+      return message.reply(`✅ Removed **${count}** duplicate plant${count !== 1 ? 's' : ''}${count > 0 ? `:\n${preview}` : '.'}`);
+    } else {
+      if (!count) return message.reply('✅ No duplicates found.');
+      const preview = dupeList.slice(0, 15).join('\n') + (dupeList.length > 15 ? `\n*...and ${dupeList.length - 15} more*` : '');
+      return message.reply(`Found **${count}** duplicate plant${count !== 1 ? 's' : ''}:\n${preview}`);
+    }
   }
 
   if (cmd === 'restoredata') {
