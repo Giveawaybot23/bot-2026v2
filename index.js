@@ -4642,7 +4642,12 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
   pushToUser(targetId, {
     type: 'notification',
     notifType: 'trade_received',
-    message: `${req.user.username} wants to trade with you! Go to the Trade page.`
+    message: `${req.user.username} wants to trade with you!`
+  });
+  pushToUser(targetId, {
+    type: 'trade_request',
+    senderName: req.user.username,
+    tradeId: tradeId
   });
   res.json({ tradeId });
 });
