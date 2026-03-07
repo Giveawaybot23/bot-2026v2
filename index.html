@@ -3373,7 +3373,7 @@ async function loadTradePage() {
 function showTradeStartPanel() {
   document.getElementById('trade-active-panel').style.display = 'none';
   document.getElementById('trade-start-panel').style.display = 'block';
-  stopTradePoll(); _tradeId = null; _tradeData = null;
+  stopTradePoll(); _tradeId = null; _tradeData = null; _tradeAccepted = false;
 }
 
 function searchTradePlayers(q) {
@@ -3519,7 +3519,8 @@ async function confirmTrade() {
 async function cancelTrade() {
   if (!_tradeId) return;
   await fetch(`/api/trade/${_tradeId}/cancel`, { method:'POST', credentials:'include' });
-  showTradeStartPanel();
+  showTradeResultToast('declined');
+  setTimeout(showTradeStartPanel, 2500);
 }
 
 const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
@@ -3763,6 +3764,16 @@ function initGlobalWS() {
 }
 if (msg.type === 'trade_request') {
   showTradeRequestToast(msg.senderName || 'Someone', msg.tradeId);
+}
+if (msg.type === 'trade_declined') {
+  stopTradePoll();
+  showTradeResultToast('declined');
+  setTimeout(showTradeStartPanel, 2500);
+}
+if (msg.type === 'trade_complete') {
+  stopTradePoll();
+  showTradeResultToast('complete');
+  setTimeout(showTradeStartPanel, 3000);
 }
     } catch {}
   };

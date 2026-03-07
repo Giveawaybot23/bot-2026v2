@@ -4728,6 +4728,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
     saveDB(db);
     trade.status = 'complete';
+    pushToUser(trade.initiatorId, { type: 'trade_complete' });
+    pushToUser(trade.targetId,    { type: 'trade_complete' });
   }
   saveTrades(webTrades);
   res.json(trade);
@@ -4741,6 +4743,8 @@ app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
     return res.status(403).json({ error: 'Not your trade' });
   trade.status = 'cancelled';
   saveTrades(webTrades);
+  const otherId = trade.initiatorId === req.user.id ? trade.targetId : trade.initiatorId;
+  pushToUser(otherId, { type: 'trade_declined' });
   res.json({ ok: true });
 });
 
