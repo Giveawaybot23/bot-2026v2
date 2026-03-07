@@ -2296,6 +2296,7 @@ initAuth().then(() => {
   loadLiveData();
   triggerReveal();
   initGlobalWS();
+  startTradeNotifPoll();
 });
 triggerReveal(); // still run reveal for hero immediately
 
@@ -3393,7 +3394,7 @@ if (localStorage.getItem('dark') === 'true') {
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
 const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
-let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null;
+let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null, _tradeAccepted = false;
 
 function showTradeRequestToast(senderName, tradeId) {
   _pendingTradeId = tradeId;
@@ -3407,6 +3408,7 @@ function hideTradeRequestToast() {
 async function acceptTradeRequest() {
   if (!_pendingTradeId) return;
   _tradeId = _pendingTradeId;
+  _tradeAccepted = true;
   hideTradeRequestToast();
   showPage('trade');
   await refreshTrade();
@@ -3416,6 +3418,18 @@ async function declineTradeRequest() {
   if (!_pendingTradeId) return;
   try { await fetch(`/api/trade/${_pendingTradeId}/cancel`, { method:'POST', credentials:'include' }); } catch(e) {}
   hideTradeRequestToast();
+  showTradeResultToast('declined');
+}
+
+function showTradeResultToast(result) {
+  const isComplete = result === 'complete';
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:10000;background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:18px 22px;box-shadow:0 8px 40px rgba(14,13,11,0.18);max-width:320px;font-size:15px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:12px;transition:opacity 0.4s';
+  el.innerHTML = isComplete
+    ? '<span style="font-size:22px">✅</span> Trade complete!'
+    : '<span style="font-size:22px">❌</span> Trade declined.';
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 3000);
 }
 
 async function loadTradePage() {
@@ -3429,7 +3443,7 @@ async function loadTradePage() {
     const trade = await res.json();
     if (trade && trade.id) {
   _tradeId = trade.id;
-  if (trade.initiatorId !== window._loggedInId) {
+  if (trade.initiatorId !== window._loggedInId && !_tradeAccepted) {
     const senderName = trade.initiatorName || 'Someone';
     document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
     document.getElementById('trade-request-toast').style.display = 'block';
@@ -3446,7 +3460,7 @@ async function loadTradePage() {
 function showTradeStartPanel() {
   document.getElementById('trade-active-panel').style.display = 'none';
   document.getElementById('trade-start-panel').style.display = 'block';
-  stopTradePoll(); _tradeId = null; _tradeData = null;
+  stopTradePoll(); _tradeId = null; _tradeData = null; _tradeAccepted = false;
 }
 
 function searchTradePlayers(q) {
@@ -3497,8 +3511,8 @@ async function refreshTrade() {
     renderActiveTrade(trade);
     if (trade.status !== 'active') {
       stopTradePoll();
-      if (trade.status==='complete') { document.getElementById('trade-status-msg').innerHTML='✅ <span style="color:#00c864">Trade complete!</span>'; setTimeout(showTradeStartPanel,3000); }
-      else { document.getElementById('trade-status-msg').innerHTML=`❌ Trade ${trade.status}.`; setTimeout(showTradeStartPanel,2500); }
+      if (trade.status==='complete') { showTradeResultToast('complete'); setTimeout(showTradeStartPanel,3000); }
+      else { showTradeResultToast('declined'); setTimeout(showTradeStartPanel,2500); }
     }
   } catch(e) {}
 }
@@ -3592,7 +3606,8 @@ async function confirmTrade() {
 async function cancelTrade() {
   if (!_tradeId) return;
   await fetch(`/api/trade/${_tradeId}/cancel`, { method:'POST', credentials:'include' });
-  showTradeStartPanel();
+  showTradeResultToast('declined');
+  setTimeout(showTradeStartPanel, 2500);
 }
 
 const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
@@ -3811,6 +3826,30 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── BACKGROUND TRADE-REQUEST POLL ──
+// Ensures the toast fires on any page, not just when the trade page is open.
+// The WebSocket is the fast path; this poll is the reliable fallback.
+let _tradeNotifPollInterval = null;
+
+function startTradeNotifPoll() {
+  if (_tradeNotifPollInterval) return;
+  _tradeNotifPollInterval = setInterval(checkPendingTradeNotif, 8000);
+}
+
+async function checkPendingTradeNotif() {
+  if (!window._loggedInId) return;
+  if (_pendingTradeId) return; // toast already visible
+  if (_tradeAccepted) return;  // user already in a trade
+  try {
+    const res = await fetch('/api/trade/active/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const trade = await res.json();
+    if (trade && trade.id && trade.initiatorId !== window._loggedInId) {
+      showTradeRequestToast(trade.initiatorName || 'Someone', trade.id);
+    }
+  } catch(e) {}
+}
+
 // ── GLOBAL WEBSOCKET ──
 let _globalWS = null;
 
@@ -3836,6 +3875,16 @@ function initGlobalWS() {
 }
 if (msg.type === 'trade_request') {
   showTradeRequestToast(msg.senderName || 'Someone', msg.tradeId);
+}
+if (msg.type === 'trade_declined') {
+  stopTradePoll();
+  showTradeResultToast('declined');
+  setTimeout(showTradeStartPanel, 2500);
+}
+if (msg.type === 'trade_complete') {
+  stopTradePoll();
+  showTradeResultToast('complete');
+  setTimeout(showTradeStartPanel, 3000);
 }
     } catch {}
   };
