@@ -351,11 +351,11 @@ const CHARMS = {
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
 const CRATES = {
-  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,  minLevel: 5,  plants: 10, weights: { Common: 780000, Uncommon: 175000, Rare: 29700, Epic: 14000, Legendary: 250, Mythic: 50, Secret: 0 } },
-  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10, weights: { Common: 670000, Uncommon: 182000, Rare: 57000, Epic: 62000, Legendary: 2800, Mythic: 200, Secret: 0 } },
-  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500, minLevel: 15, plants: 10, weights: { Common: 570000, Uncommon: 175000, Rare: 80000, Epic: 155000, Legendary: 9500, Mythic: 1000, Secret: 100 } },
-  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 400000, Uncommon: 155000, Rare: 95000, Epic: 245000, Legendary: 30000, Mythic: 5500, Secret: 700 } },
-  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common: 190000, Uncommon: 95000, Rare: 95000, Epic: 370000, Legendary: 75000, Mythic: 22000, Secret: 1100 } },
+  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,   minLevel: 5,  plants: 10, weights: { Common: 755000, Uncommon: 173000, Rare:  38000, Epic:  22000, Legendary:   800, Mythic:   150, Secret:    0 } },
+  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10, weights: { Common: 645000, Uncommon: 180000, Rare:  66000, Epic:  72000, Legendary:  3800, Mythic:   500, Secret:    0 } },
+  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500,  minLevel: 15, plants: 10, weights: { Common: 535000, Uncommon: 172000, Rare:  90000, Epic: 168000, Legendary: 13000, Mythic:  1500, Secret:  100 } },
+  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 355000, Uncommon: 150000, Rare: 105000, Epic: 265000, Legendary: 40000, Mythic:  7000, Secret:  700 } },
+  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common: 155000, Uncommon:  90000, Rare: 102000, Epic: 395000, Legendary: 85000, Mythic: 25000, Secret: 1100 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
