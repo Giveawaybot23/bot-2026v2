@@ -2210,6 +2210,7 @@ initAuth().then(() => {
   loadLiveData();
   triggerReveal();
   initGlobalWS();
+  startTradeNotifPoll();
 });
 triggerReveal(); // still run reveal for hero immediately
 
@@ -3738,6 +3739,30 @@ document.addEventListener('click', e => {
     document.getElementById('notif-panel').style.display = 'none';
   }
 });
+
+// ── BACKGROUND TRADE-REQUEST POLL ──
+// Ensures the toast fires on any page, not just when the trade page is open.
+// The WebSocket is the fast path; this poll is the reliable fallback.
+let _tradeNotifPollInterval = null;
+
+function startTradeNotifPoll() {
+  if (_tradeNotifPollInterval) return;
+  _tradeNotifPollInterval = setInterval(checkPendingTradeNotif, 8000);
+}
+
+async function checkPendingTradeNotif() {
+  if (!window._loggedInId) return;
+  if (_pendingTradeId) return; // toast already visible
+  if (_tradeAccepted) return;  // user already in a trade
+  try {
+    const res = await fetch('/api/trade/active/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const trade = await res.json();
+    if (trade && trade.id && trade.initiatorId !== window._loggedInId) {
+      showTradeRequestToast(trade.initiatorName || 'Someone', trade.id);
+    }
+  } catch(e) {}
+}
 
 // ── GLOBAL WEBSOCKET ──
 let _globalWS = null;
