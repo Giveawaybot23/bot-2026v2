@@ -1925,20 +1925,47 @@ ${isPodium ? `
 
     </div><!-- /left -->
 
-    <!-- CENTER — posts feed -->
+    <!-- CENTER — inventory -->
     <div style="display:flex;flex-direction:column;gap:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div class="_sec" style="margin-bottom:0">Posts</div>
-        ${id === window._loggedInId ? `
-        <button onclick="openPostModal('${id}')"
-          style="background:${isPodium ? pk?.g+'.13)' : 'var(--ink)'};border:1px solid ${isPodium ? pk?.g+'.28)' : 'transparent'};color:${isPodium ? pk?.p : 'var(--bg)'};border-radius:100px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s"
-          onmouseover="this.style.background='var(--green)';this.style.color='white'"
-          onmouseout="this.style.background='${isPodium ? pk?.g+'.13)' : 'var(--ink)'}';this.style.color='${isPodium ? pk?.p : 'var(--bg)'}'">
-          + Post
-        </button>` : ''}
-      </div>
-      <div id="profile-feed-${id}" style="display:flex;flex-direction:column;gap:10px">
-        <div style="color:${ink3};font-size:13px;text-align:center;padding:20px;background:${bg2};border-radius:11px;border:1px dashed ${bord}">Loading posts…</div>
+      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="_sec" style="margin-bottom:0">Inventory</div>
+          <div style="font-size:11px;color:${ink3}" id="${pid}_inv_count"></div>
+        </div>
+
+        <!-- Filter selector -->
+        <div id="${pid}_inv_filter_wrap" style="margin-bottom:12px;display:none">
+          <div style="position:relative;display:inline-block;width:100%">
+            <div id="${pid}_inv_sel"
+              onclick="window['${pid}_inv_toggle']()"
+              style="display:flex;align-items:center;justify-content:space-between;
+                     padding:8px 12px;border-radius:10px;cursor:pointer;
+                     background:${bg2};border:1.5px solid ${bord};
+                     font-size:12px;font-weight:600;color:${ink2};
+                     transition:border-color .15s;user-select:none">
+              <span id="${pid}_inv_sel_label">All items</span>
+              <span id="${pid}_inv_sel_arrow" style="font-size:10px;opacity:.5;transition:transform .2s">▾</span>
+            </div>
+            <div id="${pid}_inv_dropdown"
+              style="display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:50;
+                     background:${isPodium ? 'rgba(18,16,12,0.98)' : 'var(--card)'};
+                     border:1.5px solid ${bord};border-radius:11px;overflow:hidden;
+                     box-shadow:0 8px 28px rgba(0,0,0,.35)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Inventory grid -->
+        <div id="${pid}_inv_grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-height:180px"></div>
+
+        <!-- Pager -->
+        <div class="_pg">
+          <button class="_pg-btn" id="${pid}_inv_prev" onclick="window['${pid}_inv_pg'](-1)">‹</button>
+          <div class="_pg-num" id="${pid}_inv_pnum"></div>
+          <button class="_pg-btn" id="${pid}_inv_next" onclick="window['${pid}_inv_pg'](1)">›</button>
+        </div>
+
       </div>
     </div><!-- /center -->
 
@@ -2036,7 +2063,155 @@ ${isPodium ? `
     window[`${pid}_pg`] = dir => { _page += dir; renderGrid(); };
 
     renderGrid();
-    loadProfileFeed(id);
+
+    /* ── Inventory paginator ── */
+    const invItems = data.inventory || [];
+
+    // Group by type/category if available
+    const invGrouped = {};
+    invItems.forEach(item => {
+      const cat = item.type || item.category || 'Item';
+      if (!invGrouped[cat]) invGrouped[cat] = [];
+      invGrouped[cat].push(item);
+    });
+    const invTypes = Object.keys(invGrouped);
+
+    const INV_PER = 16;
+    let _invFilter = 'all';
+    let _invPage   = 0;
+    let _invOpen   = false;
+
+    const invCountEl   = document.getElementById(`${pid}_inv_count`);
+    const invWrapEl    = document.getElementById(`${pid}_inv_filter_wrap`);
+    const invSelEl     = document.getElementById(`${pid}_inv_sel`);
+    const invLabelEl   = document.getElementById(`${pid}_inv_sel_label`);
+    const invArrowEl   = document.getElementById(`${pid}_inv_sel_arrow`);
+    const invDropEl    = document.getElementById(`${pid}_inv_dropdown`);
+
+    if (invCountEl) invCountEl.textContent = `${invItems.length} items`;
+
+    // Only show filter if there are multiple categories
+    if (invTypes.length > 1 && invWrapEl) {
+      invWrapEl.style.display = 'block';
+
+      // Build dropdown options
+      const options = [{ key: 'all', label: 'All items', count: invItems.length }, ...invTypes.map(t => ({ key: t, label: t, count: invGrouped[t].length }))];
+
+      const renderDropdown = () => {
+        if (!invDropEl) return;
+        invDropEl.innerHTML = options.map(opt => `
+          <div onclick="window['${pid}_inv_sf']('${opt.key}')"
+            style="display:flex;align-items:center;justify-content:space-between;
+                   padding:9px 13px;font-size:12px;cursor:pointer;
+                   background:${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'};
+                   color:${_invFilter === opt.key ? (isPodium ? pk?.p : tc) : ink2};
+                   font-weight:${_invFilter === opt.key ? '700' : '500'};
+                   transition:background .12s"
+            onmouseover="this.style.background='${isPodium ? pk?.g+'.09)' : tc+'11'}'"
+            onmouseout="this.style.background='${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'}'">
+            <span>${opt.label}</span>
+            <span style="font-size:10px;opacity:.5">${opt.count}</span>
+          </div>`).join('');
+      };
+
+      window[`${pid}_inv_toggle`] = () => {
+        _invOpen = !_invOpen;
+        if (invDropEl) invDropEl.style.display = _invOpen ? 'block' : 'none';
+        if (invArrowEl) invArrowEl.style.transform = _invOpen ? 'rotate(180deg)' : '';
+        if (invSelEl) invSelEl.style.borderColor = _invOpen ? (isPodium ? pk?.s||tc : tc) : '';
+        if (_invOpen) renderDropdown();
+      };
+
+      // Close on outside click
+      document.addEventListener('click', e => {
+        const wrap = document.getElementById(`${pid}_inv_filter_wrap`);
+        if (wrap && !wrap.contains(e.target)) {
+          _invOpen = false;
+          if (invDropEl) invDropEl.style.display = 'none';
+          if (invArrowEl) invArrowEl.style.transform = '';
+          if (invSelEl) invSelEl.style.borderColor = '';
+        }
+      }, { capture: true });
+
+      renderDropdown();
+    }
+
+    const getInvList = () => _invFilter === 'all' ? invItems : (invGrouped[_invFilter] || []);
+
+    const renderInvGrid = () => {
+      const items  = getInvList();
+      const pages  = Math.max(1, Math.ceil(items.length / INV_PER));
+      _invPage     = Math.max(0, Math.min(_invPage, pages - 1));
+      const slice  = items.slice(_invPage * INV_PER, (_invPage + 1) * INV_PER);
+      const grid   = document.getElementById(`${pid}_inv_grid`);
+      const pnum   = document.getElementById(`${pid}_inv_pnum`);
+      const prev   = document.getElementById(`${pid}_inv_prev`);
+      const next   = document.getElementById(`${pid}_inv_next`);
+      if (!grid) return;
+
+      if (!items.length) {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px 16px;color:${ink3};font-size:13px;border:1px dashed ${bord};border-radius:10px">No items in inventory</div>`;
+        if (pnum) pnum.textContent = '';
+        if (prev) prev.disabled = true;
+        if (next) next.disabled = true;
+        return;
+      }
+
+      grid.innerHTML = slice.map((item, i) => {
+        const itemColor = item.color || item.rarityColor || (isPodium ? pk?.s : tc) || '#52b788';
+        const imgContent = item.image
+          ? `<img src="${item.image}" loading="lazy" alt="${item.name||'Item'}" onerror="this.style.display='none'">`
+          : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:30px;background:${bg2}">${item.emoji||'📦'}</div>`;
+        const qty = item.quantity && item.quantity > 1
+          ? `<div style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.65);border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700;color:#fff;line-height:1.4">×${item.quantity}</div>`
+          : '';
+        return `
+          <div class="_pc" style="animation-delay:${i*.02}s;border-color:${itemColor}33">
+            <div class="_pc-bar" style="background:${itemColor}"></div>
+            <div style="position:relative">${imgContent}${qty}</div>
+            <div class="_pc-foot">
+              <div class="_pc-name">${item.name||'Item'}</div>
+              ${item.type||item.category ? `<div class="_pc-sub"><span style="width:5px;height:5px;border-radius:50%;flex-shrink:0;background:${itemColor}"></span><span>${item.type||item.category}</span></div>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      if (pnum) pnum.textContent = pages > 1 ? `${_invPage + 1} / ${pages}` : '';
+      if (prev) prev.disabled = _invPage === 0;
+      if (next) next.disabled = _invPage >= pages - 1;
+    };
+
+    window[`${pid}_inv_sf`] = (filter) => {
+      _invFilter = filter; _invPage = 0; _invOpen = false;
+      if (invDropEl) invDropEl.style.display = 'none';
+      if (invArrowEl) invArrowEl.style.transform = '';
+      if (invSelEl) invSelEl.style.borderColor = '';
+      if (invLabelEl) {
+        const opt = filter === 'all' ? 'All items' : filter;
+        invLabelEl.textContent = opt;
+        invLabelEl.style.color = filter === 'all' ? '' : (isPodium ? pk?.p : tc);
+      }
+      // Re-render dropdown to update active state
+      const options = [{ key:'all', label:'All items', count:invItems.length }, ...invTypes.map(t => ({ key:t, label:t, count:invGrouped[t].length }))];
+      if (invDropEl) invDropEl.innerHTML = options.map(opt => `
+        <div onclick="window['${pid}_inv_sf']('${opt.key}')"
+          style="display:flex;align-items:center;justify-content:space-between;
+                 padding:9px 13px;font-size:12px;cursor:pointer;
+                 background:${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'};
+                 color:${_invFilter === opt.key ? (isPodium ? pk?.p : tc) : ink2};
+                 font-weight:${_invFilter === opt.key ? '700' : '500'};
+                 transition:background .12s"
+          onmouseover="this.style.background='${isPodium ? pk?.g+'.09)' : tc+'11'}'"
+          onmouseout="this.style.background='${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'}'">
+          <span>${opt.label}</span>
+          <span style="font-size:10px;opacity:.5">${opt.count}</span>
+        </div>`).join('');
+      renderInvGrid();
+    };
+
+    window[`${pid}_inv_pg`] = dir => { _invPage += dir; renderInvGrid(); };
+
+    renderInvGrid();
 
   } catch(err) { console.error('[loadProfile]', err); }
 }
