@@ -2198,19 +2198,7 @@ async function loadNavCoins(userId) {
 initAuth().then(() => {
   loadLiveData();
   triggerReveal();
-  // Poll for incoming trade offers every 15 seconds
-  setInterval(async () => {
-    if (!window._loggedInId) return;
-    try {
-      const res = await fetch('/api/trade/active/me', { credentials: 'include' });
-      const trade = await res.json();
-      if (trade && trade.id && trade.targetId === window._loggedInId && !window._notifiedTrade) {
-        window._notifiedTrade = trade.id;
-        pushNotification('trade_received', `${trade.initiatorName} wants to trade with you! Go to the Trade page.`);
-      }
-      if (!trade) window._notifiedTrade = null;
-    } catch {}
-  }, 15000);
+  initGlobalWS();
 });
 triggerReveal(); // still run reveal for hero immediately
 
@@ -3691,6 +3679,38 @@ document.addEventListener('click', e => {
     document.getElementById('notif-panel').style.display = 'none';
   }
 });
+
+// ── GLOBAL WEBSOCKET ──
+let _globalWS = null;
+
+function initGlobalWS() {
+  if (!window._loggedInId) return;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  _globalWS = new WebSocket(`${proto}://${location.host}`);
+
+  _globalWS.onopen = () => {
+    _globalWS.send(JSON.stringify({
+      type: 'auth',
+      userId: window._loggedInId,
+      username: window._loggedInUsername,
+      avatarUrl: window._loggedInAvatarUrl || null
+    }));
+  };
+
+  _globalWS.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'notification') {
+        pushNotification(msg.notifType, msg.message);
+      }
+    } catch {}
+  };
+
+  _globalWS.onclose = () => {
+    // Reconnect after 5 seconds
+    setTimeout(() => { if (window._loggedInId) initGlobalWS(); }, 5000);
+  };
+}
 
 </script>
 </body>
