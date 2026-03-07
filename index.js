@@ -2003,9 +2003,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     return message.channel.send({
       embeds: [new EmbedBuilder()
         .setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`)
-        .setDescription(`*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`)
+        .setDescription(`${TEST_IDS.has(message.author.id) ? '' : `${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**${autoEarned > 0 ? `  ·  ⚡ Autosold **${autoEarned.toLocaleString()} coins**` : ''}\n\n`}*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`)
         .setColor(crate.color)
-        .setFooter({ text: TEST_IDS.has(message.author.id) ? '🧪 Test mode' : `${CURRENCY_EMOJI} Remaining: ${user.currency.toLocaleString()} ${CURRENCY_NAME}` })
       ]
     });
   } 
