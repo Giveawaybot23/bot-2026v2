@@ -3580,6 +3580,30 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
   }
 
+  if (cmd === 'fixdupes') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    const db = loadDB();
+    const seen = {};
+    let removed = 0;
+    for (const [userId, userData] of Object.entries(db)) {
+      if (!userData.collection) continue;
+      const toRemove = [];
+      for (let i = 0; i < userData.collection.length; i++) {
+        const p = userData.collection[i];
+        const key = `${p.name}:${p.version}`;
+        if (seen[key]) {
+          toRemove.push(i);
+          removed++;
+        } else {
+          seen[key] = userId;
+        }
+      }
+      for (const idx of toRemove.reverse()) userData.collection.splice(idx, 1);
+    }
+    saveDB(db);
+    return message.reply(`✅ Removed **${removed}** duplicate plant${removed !== 1 ? 's' : ''}.`);
+  }
+
   if (cmd === 'restoredata') {
   if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
