@@ -1276,7 +1276,7 @@
           <!-- YOUR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:220px"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
@@ -1293,7 +1293,7 @@
           <!-- THEIR side -->
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;min-height:220px"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
@@ -3386,6 +3386,12 @@ function renderActiveTrade(trade) {
   function renderGrid(plants, isMyGrid) {
     const SLOTS = 9;
     const el = document.getElementById(isMyGrid ? 'trade-my-grid' : 'trade-their-grid');
+    if (plants.length === 0 && !isAddSlot) {
+      el.innerHTML = isMyGrid
+        ? `<div onclick="openAddPlantModal()" style="grid-column:1/-1;padding:20px;border:2px dashed var(--border);border-radius:10px;text-align:center;color:var(--ink3);font-size:13px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+ Add plants to your offer</div>`
+        : `<div style="grid-column:1/-1;padding:20px;border:1px dashed var(--border);border-radius:10px;text-align:center;color:var(--ink3);font-size:13px">No plants added yet</div>`;
+      return;
+    }
     let html = '';
     for (let i = 0; i < SLOTS; i++) {
       const p = plants[i];
@@ -3399,7 +3405,7 @@ function renderActiveTrade(trade) {
         </div>`;
       } else if (isAddSlot) {
         html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;font-size:24px;color:var(--ink3)" onmouseover="this.style.borderColor='rgba(88,101,242,0.6)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
-      } else {
+      } else if (plants.length > 0) {
         html += `<div style="aspect-ratio:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;opacity:0.3"></div>`;
       }
     }
