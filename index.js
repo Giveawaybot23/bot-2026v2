@@ -3270,7 +3270,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     if (!user.charms.includes(key)) return message.reply(`You don't own **${CHARMS[key].name}**.`);
     const ch = CHARMS[key];
-    if (cmd === 'equip') { if (user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Already equipped.`); user.equippedCharms.push(key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** equipped!`); }
+    if (cmd === 'equip') { if (user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Already equipped.`); user.equippedCharms = [key]; saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** equipped!`); }
     else { if (!user.equippedCharms.includes(key)) return message.reply(`${ch.emoji} Not equipped.`); user.equippedCharms = user.equippedCharms.filter(k => k !== key); saveDB(db); return message.reply(`${ch.emoji} **${ch.name}** unequipped.`); }
   }
 
