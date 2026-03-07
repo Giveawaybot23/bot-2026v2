@@ -1696,9 +1696,10 @@ async function loadProfile(id) {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
       Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#aa88ff',
     };
-    const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityWeight = { Secret:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
 
-    /* ── Group & flatten collection ── */
+    /* ── Group collection by rarity ── */
     const grouped = {};
     (data.collection || []).forEach(p => {
       if (!grouped[p.rarity]) grouped[p.rarity] = [];
@@ -1749,7 +1750,7 @@ ${isPodium ? `
 ._p-un{background:linear-gradient(110deg,${pk.s} 0%,#fff 30%,${pk.p} 52%,${pk.s} 72%,${pk.p} 100%);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 5s linear infinite}
 ` : ''}
 
-/* plant card */
+/* ── plant card (collection + inventory shared) ── */
 ._pc{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:${card};border:1px solid ${bord};transition:transform .2s,border-color .2s,box-shadow .2s;animation:_pCardIn .28s ease both}
 ._pc:hover{transform:translateY(-4px)scale(1.02);box-shadow:0 12px 32px rgba(0,0,0,.22)}
 ._pc img{width:100%;aspect-ratio:1/1;object-fit:contain;padding:10px;display:block;background:${bg2}}
@@ -1758,45 +1759,73 @@ ${isPodium ? `
 ._pc-sub{font-size:10px;color:${ink3};display:flex;align-items:center;gap:4px}
 ._pc-bar{position:absolute;top:0;left:0;right:0;height:3px}
 
-/* stat row */
+/* ── stat row ── */
 ._sr{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:11px;background:${bg2};border:1px solid ${bord};transition:border-color .2s;animation:_pSlideL .35s ease both}
 ._sr:hover{border-color:${isPodium ? pk?.g+'.22)' : tc+'44'}}
 ._sr-icon{font-size:18px;width:26px;text-align:center;flex-shrink:0}
 ._sr-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};line-height:1}
 ._sr-val{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.02em;color:${isPodium ? pk?.p : 'var(--ink)'};line-height:1.1}
 
-/* ach badge */
+/* ── achievement badge ── */
 ._ab{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid ${bord};background:${bg2};transition:all .15s;cursor:default;animation:_pCardIn .3s ease both}
 ._ab:hover{transform:scale(1.18);border-color:${isPodium ? pk?.g+'.38)' : tc+'55'};box-shadow:0 4px 12px ${isPodium ? pk?.g+'.14)' : tc+'22'}}
 
-/* collection tabs */
+/* ── collection rarity tabs ── */
 ._ct{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
 ._ct-btn{padding:4px 10px;border-radius:7px;font-size:10px;font-weight:700;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s}
 ._ct-btn.on{background:${isPodium ? pk?.g+'.16)' : 'var(--ink)'};color:${isPodium ? pk?.p : 'var(--bg)'};border-color:${isPodium ? pk?.g+'.38)' : 'var(--ink)'}}
-._ct-btn:not(.on):hover{border-color:${bord};opacity:.8}
+._ct-btn:not(.on):hover{opacity:.75}
 
-/* pager */
+/* ── collection sort bar ── */
+._csb{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+._csb-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};margin-right:2px;white-space:nowrap}
+._cs-btn{padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+._cs-btn.on{background:${isPodium ? pk?.g+'.14)' : 'rgba(82,183,136,0.1)'};color:${isPodium ? pk?.p : '#52b788'};border-color:${isPodium ? pk?.g+'.32)' : 'rgba(82,183,136,0.35)'}}
+._cs-btn:not(.on):hover{color:${ink2};border-color:${bord}}
+._cs-sep{width:1px;height:14px;background:${bord};flex-shrink:0}
+._cs-toggle{padding:4px 9px;border-radius:6px;font-size:10px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap}
+._cs-toggle.on{background:rgba(201,168,76,0.12);color:#c9a84c;border-color:rgba(201,168,76,0.32)}
+._cs-toggle:not(.on):hover{color:${ink2};border-color:${bord}}
+
+/* ── pager ── */
 ._pg{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px}
 ._pg-btn{width:28px;height:28px;border-radius:7px;border:1.5px solid ${bord};background:transparent;cursor:pointer;color:${ink2};font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit}
 ._pg-btn:hover:not(:disabled){background:${isPodium ? pk?.g+'.14)' : 'var(--ink)'};color:${isPodium ? pk?.p : 'var(--bg)'};border-color:${isPodium ? pk?.g+'.36)' : 'var(--ink)'}}
 ._pg-btn:disabled{opacity:.22;cursor:default}
 ._pg-num{font-size:11px;font-weight:600;color:${ink3};min-width:52px;text-align:center}
 
-/* panel scroll */
-._lp{display:flex;flex-direction:column;gap:12px;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none;padding-bottom:16px}
+/* ── activity feed ── */
+._af-item{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border-bottom:1px solid ${bord};transition:background .15s;cursor:default}
+._af-item:last-child{border-bottom:none}
+._af-item:hover{background:${isPodium ? 'rgba(255,255,255,.025)' : 'rgba(240,237,232,0.03)'}}
+._af-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:1px}
+._af-body{flex:1;min-width:0}
+._af-title{font-size:11px;font-weight:500;color:${ink2};line-height:1.4}
+._af-title strong{color:${ink};font-weight:700}
+._af-time{font-size:10px;color:${ink3};margin-top:2px}
+._af-val{font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px;white-space:nowrap}
+
+/* ── panel sticky scroll ── */
+._lp{display:flex;flex-direction:column;gap:0;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none}
 ._lp::-webkit-scrollbar{display:none}
-._rp{position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none}
+._rp{position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:12px}
 ._rp::-webkit-scrollbar{display:none}
 
 ._sec{font-family:'DM Serif Display',serif;font-size:14px;color:${ink};letter-spacing:-.01em;margin-bottom:10px}
 
-@media(max-width:860px){
-  ._pcols{grid-template-columns:1fr!important}
+@media(max-width:920px){
+  ._pcols{grid-template-columns:1fr 1fr!important;grid-template-areas:"center right" "left right"!important}
+  ._pcol-left{grid-area:left}
+  ._pcol-center{grid-area:center}
+  ._pcol-right{grid-area:right}
   ._lp,._rp{position:static;max-height:none}
+}
+@media(max-width:600px){
+  ._pcols{grid-template-columns:1fr!important;grid-template-areas:"center" "right" "left"!important}
 }
 </style>
 
-<!-- ambient orbs — podium only, no rings or scan -->
+<!-- ambient orbs — podium only -->
 ${isPodium ? `
 <div class="_p-bg" aria-hidden="true">
   <div class="_p-orb" style="width:680px;height:680px;top:-160px;right:-180px;background:radial-gradient(circle,${pk.orb1} 0%,transparent 68%);--d:16s"></div>
@@ -1881,13 +1910,97 @@ ${isPodium ? `
   </div><!-- /hero -->
 
   <!-- ── 3-COLUMN BODY ── -->
-  <div class="_pcols" style="display:grid;grid-template-columns:220px 1fr 290px;gap:18px;max-width:1180px;margin:0 auto;padding:20px 18px 80px;position:relative;z-index:2">
+  <!-- left: ~220px activity feed | center: 1fr collection | right: ~360px stats+ach -->
+  <div class="_pcols" style="
+    display:grid;
+    grid-template-columns:220px 1fr 360px;
+    grid-template-areas:'left center right';
+    gap:18px;
+    max-width:1220px;
+    margin:0 auto;
+    padding:20px 18px 80px;
+    position:relative;z-index:2;
+    box-sizing:border-box">
 
-    <!-- LEFT — level, stats, achievements -->
-    <div class="_lp">
+    <!-- ══ LEFT — Activity feed ══ -->
+    <div class="_lp _pcol-left" style="grid-area:left">
+      <div style="background:${card};border:1px solid ${bord};border-radius:13px;overflow:hidden">
+        <!-- header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid ${bord}">
+          <div class="_sec" style="margin-bottom:0;font-size:13px">Activity</div>
+          <div style="font-size:10px;color:${ink3}">7 days</div>
+        </div>
+        <!-- feed items — rendered from data.activity or fallback placeholders -->
+        <div id="${pid}_feed">
+          ${(() => {
+            const acts = data.recentActivity || data.activity || [];
+            if (acts.length) {
+              return acts.slice(0,12).map(a => `
+                <div class="_af-item">
+                  <div class="_af-icon" style="background:${a.color||'rgba(82,183,136,0.12)'}22">${a.emoji||'🌿'}</div>
+                  <div class="_af-body">
+                    <div class="_af-title">${a.text||a.description||'Activity'}</div>
+                    <div class="_af-time">${a.time||a.ago||''}</div>
+                  </div>
+                  ${a.value ? `<div class="_af-val" style="color:${a.color||'#52b788'}">${a.value}</div>` : ''}
+                </div>`).join('');
+            }
+            // Graceful empty state
+            return `<div style="padding:28px 14px;text-align:center;color:${ink3};font-size:12px">No recent activity</div>`;
+          })()}
+        </div>
+      </div>
+    </div>
 
-      <!-- XP / Level -->
-      <div style="background:${card};border:1px solid ${isPodium ? pk?.g+'.1)' : 'var(--border)'};border-radius:13px;padding:15px;position:relative;overflow:hidden">
+    <!-- ══ CENTER — Collection ══ -->
+    <div class="_pcol-center" style="grid-area:center;display:flex;flex-direction:column;gap:0;min-width:0">
+      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
+
+        <!-- title row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="_sec" style="margin-bottom:0">Collection</div>
+          <div style="font-size:11px;color:${ink3}">${data.plants||0} plants</div>
+        </div>
+
+        <!-- Sort bar -->
+        <div class="_csb" id="${pid}_csb">
+          <span class="_csb-lbl">Sort</span>
+          <button class="_cs-btn on" data-sort="rarity" onclick="window['${pid}_setSort'](this,'rarity')">Rarity ↓</button>
+          <button class="_cs-btn"    data-sort="version" onclick="window['${pid}_setSort'](this,'version')">Version</button>
+          <button class="_cs-btn"    data-sort="name"    onclick="window['${pid}_setSort'](this,'name')">Name</button>
+          <div class="_cs-sep"></div>
+          <button class="_cs-toggle" id="${pid}_v1tog" onclick="window['${pid}_toggleV1'](this)">👑 v1</button>
+          <button class="_cs-toggle" id="${pid}_muttog" onclick="window['${pid}_toggleMut'](this)">✨ Mutated</button>
+        </div>
+
+        <!-- Rarity tabs -->
+        <div class="_ct" id="${pid}_tabs">
+          <button class="_ct-btn on" onclick="window['${pid}_sf']('all',this)">All</button>
+          ${rarityOrder.filter(r=>grouped[r]?.length).map(r =>
+            `<button class="_ct-btn" onclick="window['${pid}_sf']('${r}',this)"
+              style="border-color:${rarityColors[r]||'#999'}44;color:${rarityColors[r]||'#999'}"
+              >${r.slice(0,3)}</button>`
+          ).join('')}
+        </div>
+
+        <!-- Plant grid — 4 cols, same card dims as inventory in v4 -->
+        <div id="${pid}_grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-height:200px"></div>
+
+        <!-- Pager -->
+        <div class="_pg">
+          <button class="_pg-btn" id="${pid}_prev" onclick="window['${pid}_pg'](-1)">‹</button>
+          <div class="_pg-num" id="${pid}_pnum"></div>
+          <button class="_pg-btn" id="${pid}_next" onclick="window['${pid}_pg'](1)">›</button>
+        </div>
+
+      </div>
+    </div><!-- /center -->
+
+    <!-- ══ RIGHT — Stats + XP + Achievements ══ -->
+    <div class="_rp _pcol-right" style="grid-area:right">
+
+      <!-- XP / Level card -->
+      <div style="background:${card};border:1px solid ${isPodium ? pk?.g+'.1)' : bord};border-radius:13px;padding:15px;position:relative;overflow:hidden">
         ${isPodium ? `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${pk.g}.04) 0%,transparent 55%);pointer-events:none"></div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;position:relative">
           <div style="font-size:13px;font-weight:700;color:${ink}">Level ${data.level}</div>
@@ -1905,9 +2018,10 @@ ${isPodium ? `
       <!-- Stats -->
       <div style="display:flex;flex-direction:column;gap:7px">
         ${[
-          { icon:'🌿', lbl:'Plants',       val: (data.plants||0).toLocaleString(),    d:0 },
-          { icon:'⭐', lbl:'Garden Score', val: fmt(data.gardenScore||0),              d:1 },
-          { icon:'🪙', lbl:'Coins',        val: fmt(data.currency||0),                d:2 },
+          { icon:'🌿', lbl:'Plants',       val: (data.plants||0).toLocaleString(),   d:0 },
+          { icon:'⭐', lbl:'Garden Score', val: fmt(data.gardenScore||0),             d:1 },
+          { icon:'🪙', lbl:'Coins',        val: fmt(data.currency||0),               d:2 },
+          { icon:'⚡', lbl:'Total Claims', val: (data.totalClaims||0).toLocaleString(), d:3 },
         ].map(s => `
           <div class="_sr" style="animation-delay:${s.d*.07}s">
             <div class="_sr-icon">${s.icon}</div>
@@ -1921,18 +2035,17 @@ ${isPodium ? `
       <!-- Achievements -->
       <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
-          <div class="_sec">Achievements</div>
+          <div class="_sec" style="margin-bottom:0">Achievements</div>
           <div style="font-family:'DM Serif Display',serif;font-size:19px;line-height:1;color:${isPodium ? pk?.p : tc}">${data.achievements||0}</div>
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
           ${(() => {
             const list = data.achievementList;
             if (list && list.length) {
-              return list.slice(0,10).map((a,i) =>
+              return list.slice(0,14).map((a,i) =>
                 `<div class="_ab" style="animation-delay:${i*.04}s" title="${a.name||''}">${typeof a==='string' ? a : (a.emoji||'🏆')}</div>`
               ).join('');
             }
-            // placeholder icons when no achievement data
             return ['🏆','🌱','⚡','💎','🔥','🌟'].map((e,i) =>
               `<div class="_ab" style="animation-delay:${i*.04}s;opacity:.3">${e}</div>`
             ).join('') + `<div style="width:100%;font-size:11px;color:${ink3};padding:4px 0;margin-top:2px">None unlocked yet</div>`;
@@ -1940,103 +2053,55 @@ ${isPodium ? `
         </div>
       </div>
 
-    </div><!-- /left -->
-
-    <!-- CENTER — inventory -->
-    <div style="display:flex;flex-direction:column;gap:0">
-      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div class="_sec" style="margin-bottom:0">Inventory</div>
-          <div style="font-size:11px;color:${ink3}" id="${pid}_inv_count"></div>
-        </div>
-
-        <!-- Filter selector -->
-        <div id="${pid}_inv_filter_wrap" style="margin-bottom:12px;display:none">
-          <div style="position:relative;display:inline-block;width:100%">
-            <div id="${pid}_inv_sel"
-              onclick="window['${pid}_inv_toggle']()"
-              style="display:flex;align-items:center;justify-content:space-between;
-                     padding:8px 12px;border-radius:10px;cursor:pointer;
-                     background:${bg2};border:1.5px solid ${bord};
-                     font-size:12px;font-weight:600;color:${ink2};
-                     transition:border-color .15s;user-select:none">
-              <span id="${pid}_inv_sel_label">All items</span>
-              <span id="${pid}_inv_sel_arrow" style="font-size:10px;opacity:.5;transition:transform .2s">▾</span>
-            </div>
-            <div id="${pid}_inv_dropdown"
-              style="display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:50;
-                     background:${isPodium ? 'rgba(18,16,12,0.98)' : 'var(--card)'};
-                     border:1.5px solid ${bord};border-radius:11px;overflow:hidden;
-                     box-shadow:0 8px 28px rgba(0,0,0,.35)">
-            </div>
-          </div>
-        </div>
-
-        <!-- Inventory grid -->
-        <div id="${pid}_inv_grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-height:180px"></div>
-
-        <!-- Pager -->
-        <div class="_pg">
-          <button class="_pg-btn" id="${pid}_inv_prev" onclick="window['${pid}_inv_pg'](-1)">‹</button>
-          <div class="_pg-num" id="${pid}_inv_pnum"></div>
-          <button class="_pg-btn" id="${pid}_inv_next" onclick="window['${pid}_inv_pg'](1)">›</button>
-        </div>
-
-      </div>
-    </div><!-- /center -->
-
-    <!-- RIGHT — collection -->
-    <div class="_rp">
-      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div class="_sec" style="margin-bottom:0">Collection</div>
-          <div style="font-size:11px;color:${ink3}">${data.plants||0} plants</div>
-        </div>
-
-        <!-- Rarity tabs -->
-        <div class="_ct" id="${pid}_tabs">
-          <button class="_ct-btn on" onclick="window['${pid}_sf']('all',this)">All</button>
-          ${rarityOrder.filter(r=>grouped[r]?.length).map(r =>
-            `<button class="_ct-btn" onclick="window['${pid}_sf']('${r}',this)" style="border-color:${rarityColors[r]||'#999'}44;color:${rarityColors[r]||'#999'}">${r.slice(0,3)}</button>`
-          ).join('')}
-        </div>
-
-        <!-- Grid -->
-        <div id="${pid}_grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;min-height:180px"></div>
-
-        <!-- Pager -->
-        <div class="_pg">
-          <button class="_pg-btn" id="${pid}_prev" onclick="window['${pid}_pg'](-1)">‹</button>
-          <div class="_pg-num" id="${pid}_pnum"></div>
-          <button class="_pg-btn" id="${pid}_next" onclick="window['${pid}_pg'](1)">›</button>
-        </div>
-
-      </div>
     </div><!-- /right -->
 
   </div><!-- /3-col -->
 </div><!-- /page -->
     `;
 
-    /* ── Collection paginator ── */
-    const PER = 12;
-    let _filter = 'all';
-    let _page   = 0;
+    /* ════════════════════════════════════
+       COLLECTION PAGINATOR + SORT/FILTER
+    ════════════════════════════════════ */
+    const PER = 16; // 4×4 grid
+    let _filter  = 'all';
+    let _sortKey = 'rarity';  // 'rarity' | 'version' | 'name'
+    let _sortDir = -1;        // -1 = desc, 1 = asc
+    let _v1Only  = false;
+    let _mutOnly = false;
+    let _page    = 0;
 
-    const getList = () => _filter === 'all' ? allPlants : (grouped[_filter] || []);
+    const sortFns = {
+      rarity:  (a, b) => ((rarityWeight[b.rarity]||0) - (rarityWeight[a.rarity]||0)) || ((a.version||99) - (b.version||99)),
+      version: (a, b) => ((a.version||999) - (b.version||999)) * _sortDir,
+      name:    (a, b) => (a.name||'').localeCompare(b.name||'') * _sortDir,
+    };
+
+    const getList = () => {
+      let base = _filter === 'all' ? [...allPlants] : [...(grouped[_filter] || [])];
+      if (_v1Only)  base = base.filter(p => p.version === 1);
+      if (_mutOnly) base = base.filter(p => p.mutation);
+      base.sort(sortFns[_sortKey] || sortFns.rarity);
+      return base;
+    };
 
     const renderGrid = () => {
-      const items  = getList();
-      const pages  = Math.max(1, Math.ceil(items.length / PER));
-      _page        = Math.max(0, Math.min(_page, pages - 1));
-      const slice  = items.slice(_page * PER, (_page + 1) * PER);
-      const grid   = document.getElementById(`${pid}_grid`);
-      const pnum   = document.getElementById(`${pid}_pnum`);
-      const prev   = document.getElementById(`${pid}_prev`);
-      const next   = document.getElementById(`${pid}_next`);
+      const items = getList();
+      const pages = Math.max(1, Math.ceil(items.length / PER));
+      _page = Math.max(0, Math.min(_page, pages - 1));
+      const slice = items.slice(_page * PER, (_page + 1) * PER);
+      const grid  = document.getElementById(`${pid}_grid`);
+      const pnum  = document.getElementById(`${pid}_pnum`);
+      const prev  = document.getElementById(`${pid}_prev`);
+      const next  = document.getElementById(`${pid}_next`);
       if (!grid) return;
+
+      if (!items.length) {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:36px 16px;color:${ink3};font-size:12px;border:1px dashed ${bord};border-radius:10px">No plants match this filter</div>`;
+        if (pnum) pnum.textContent = '';
+        if (prev) prev.disabled = true;
+        if (next) next.disabled = true;
+        return;
+      }
 
       grid.innerHTML = slice.map((p, i) => {
         const rc   = rarityColors[p.rarity] || '#999';
@@ -2048,10 +2113,11 @@ ${isPodium ? `
           ? `<span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)}</span>`
           : '';
         const imgContent = p.image
-          ? `<img src="${p.image}" loading="lazy" alt="${p.name}" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2.replace(/'/g,"\\'")}\\'>${p.emoji||'🌿'}</div>'">`
+          ? `<img src="${p.image}" loading="lazy" alt="${p.name}"
+               onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2.replace(/'/g,"\\'")}\\'>${p.emoji||'🌿'}</div>'">`
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
         return `
-          <div class="_pc" style="animation-delay:${i*.025}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
+          <div class="_pc" style="animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
             <div class="_pc-bar" style="background:${barBg}"></div>
             ${imgContent}
             <div class="_pc-foot">
@@ -2070,6 +2136,28 @@ ${isPodium ? `
       if (next) next.disabled = _page >= pages - 1;
     };
 
+    /* Sort handler — toggles direction when same key re-clicked */
+    window[`${pid}_setSort`] = (btn, key) => {
+      const labels = { rarity:'Rarity', version:'Version', name:'Name' };
+      // If same key, flip direction
+      if (_sortKey === key) {
+        _sortDir *= -1;
+      } else {
+        _sortKey = key;
+        _sortDir = key === 'name' ? 1 : -1; // name defaults asc
+      }
+      // Update all button labels
+      document.querySelectorAll(`#${pid}_csb ._cs-btn`).forEach(b => {
+        const k = b.dataset.sort;
+        b.classList.toggle('on', k === _sortKey);
+        const arrow = k === _sortKey ? (_sortDir === -1 ? ' ↓' : ' ↑') : '';
+        b.textContent = (labels[k]||k) + arrow;
+      });
+      _page = 0;
+      renderGrid();
+    };
+
+    /* Rarity tab filter */
     window[`${pid}_sf`] = (filter, btn) => {
       _filter = filter; _page = 0;
       document.querySelectorAll(`#${pid}_tabs ._ct-btn`).forEach(b => b.classList.remove('on'));
@@ -2077,158 +2165,23 @@ ${isPodium ? `
       renderGrid();
     };
 
+    /* v1-only toggle */
+    window[`${pid}_toggleV1`] = btn => {
+      _v1Only = !_v1Only; _page = 0;
+      btn.classList.toggle('on', _v1Only);
+      renderGrid();
+    };
+
+    /* Mutated toggle */
+    window[`${pid}_toggleMut`] = btn => {
+      _mutOnly = !_mutOnly; _page = 0;
+      btn.classList.toggle('on', _mutOnly);
+      renderGrid();
+    };
+
     window[`${pid}_pg`] = dir => { _page += dir; renderGrid(); };
 
     renderGrid();
-
-    /* ── Inventory paginator ── */
-    const invItems = data.inventory || [];
-
-    // Group by type/category if available
-    const invGrouped = {};
-    invItems.forEach(item => {
-      const cat = item.type || item.category || 'Item';
-      if (!invGrouped[cat]) invGrouped[cat] = [];
-      invGrouped[cat].push(item);
-    });
-    const invTypes = Object.keys(invGrouped);
-
-    const INV_PER = 16;
-    let _invFilter = 'all';
-    let _invPage   = 0;
-    let _invOpen   = false;
-
-    const invCountEl   = document.getElementById(`${pid}_inv_count`);
-    const invWrapEl    = document.getElementById(`${pid}_inv_filter_wrap`);
-    const invSelEl     = document.getElementById(`${pid}_inv_sel`);
-    const invLabelEl   = document.getElementById(`${pid}_inv_sel_label`);
-    const invArrowEl   = document.getElementById(`${pid}_inv_sel_arrow`);
-    const invDropEl    = document.getElementById(`${pid}_inv_dropdown`);
-
-    if (invCountEl) invCountEl.textContent = `${invItems.length} items`;
-
-    // Only show filter if there are multiple categories
-    if (invTypes.length > 1 && invWrapEl) {
-      invWrapEl.style.display = 'block';
-
-      // Build dropdown options
-      const options = [{ key: 'all', label: 'All items', count: invItems.length }, ...invTypes.map(t => ({ key: t, label: t, count: invGrouped[t].length }))];
-
-      const renderDropdown = () => {
-        if (!invDropEl) return;
-        invDropEl.innerHTML = options.map(opt => `
-          <div onclick="window['${pid}_inv_sf']('${opt.key}')"
-            style="display:flex;align-items:center;justify-content:space-between;
-                   padding:9px 13px;font-size:12px;cursor:pointer;
-                   background:${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'};
-                   color:${_invFilter === opt.key ? (isPodium ? pk?.p : tc) : ink2};
-                   font-weight:${_invFilter === opt.key ? '700' : '500'};
-                   transition:background .12s"
-            onmouseover="this.style.background='${isPodium ? pk?.g+'.09)' : tc+'11'}'"
-            onmouseout="this.style.background='${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'}'">
-            <span>${opt.label}</span>
-            <span style="font-size:10px;opacity:.5">${opt.count}</span>
-          </div>`).join('');
-      };
-
-      window[`${pid}_inv_toggle`] = () => {
-        _invOpen = !_invOpen;
-        if (invDropEl) invDropEl.style.display = _invOpen ? 'block' : 'none';
-        if (invArrowEl) invArrowEl.style.transform = _invOpen ? 'rotate(180deg)' : '';
-        if (invSelEl) invSelEl.style.borderColor = _invOpen ? (isPodium ? pk?.s||tc : tc) : '';
-        if (_invOpen) renderDropdown();
-      };
-
-      // Close on outside click
-      document.addEventListener('click', e => {
-        const wrap = document.getElementById(`${pid}_inv_filter_wrap`);
-        if (wrap && !wrap.contains(e.target)) {
-          _invOpen = false;
-          if (invDropEl) invDropEl.style.display = 'none';
-          if (invArrowEl) invArrowEl.style.transform = '';
-          if (invSelEl) invSelEl.style.borderColor = '';
-        }
-      }, { capture: true });
-
-      renderDropdown();
-    }
-
-    const getInvList = () => _invFilter === 'all' ? invItems : (invGrouped[_invFilter] || []);
-
-    const renderInvGrid = () => {
-      const items  = getInvList();
-      const pages  = Math.max(1, Math.ceil(items.length / INV_PER));
-      _invPage     = Math.max(0, Math.min(_invPage, pages - 1));
-      const slice  = items.slice(_invPage * INV_PER, (_invPage + 1) * INV_PER);
-      const grid   = document.getElementById(`${pid}_inv_grid`);
-      const pnum   = document.getElementById(`${pid}_inv_pnum`);
-      const prev   = document.getElementById(`${pid}_inv_prev`);
-      const next   = document.getElementById(`${pid}_inv_next`);
-      if (!grid) return;
-
-      if (!items.length) {
-        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px 16px;color:${ink3};font-size:13px;border:1px dashed ${bord};border-radius:10px">No items in inventory</div>`;
-        if (pnum) pnum.textContent = '';
-        if (prev) prev.disabled = true;
-        if (next) next.disabled = true;
-        return;
-      }
-
-      grid.innerHTML = slice.map((item, i) => {
-        const itemColor = item.color || item.rarityColor || (isPodium ? pk?.s : tc) || '#52b788';
-        const imgContent = item.image
-          ? `<img src="${item.image}" loading="lazy" alt="${item.name||'Item'}" onerror="this.style.display='none'">`
-          : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:30px;background:${bg2}">${item.emoji||'📦'}</div>`;
-        const qty = item.quantity && item.quantity > 1
-          ? `<div style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.65);border-radius:5px;padding:1px 5px;font-size:9px;font-weight:700;color:#fff;line-height:1.4">×${item.quantity}</div>`
-          : '';
-        return `
-          <div class="_pc" style="animation-delay:${i*.02}s;border-color:${itemColor}33">
-            <div class="_pc-bar" style="background:${itemColor}"></div>
-            <div style="position:relative">${imgContent}${qty}</div>
-            <div class="_pc-foot">
-              <div class="_pc-name">${item.name||'Item'}</div>
-              ${item.type||item.category ? `<div class="_pc-sub"><span style="width:5px;height:5px;border-radius:50%;flex-shrink:0;background:${itemColor}"></span><span>${item.type||item.category}</span></div>` : ''}
-            </div>
-          </div>`;
-      }).join('');
-
-      if (pnum) pnum.textContent = pages > 1 ? `${_invPage + 1} / ${pages}` : '';
-      if (prev) prev.disabled = _invPage === 0;
-      if (next) next.disabled = _invPage >= pages - 1;
-    };
-
-    window[`${pid}_inv_sf`] = (filter) => {
-      _invFilter = filter; _invPage = 0; _invOpen = false;
-      if (invDropEl) invDropEl.style.display = 'none';
-      if (invArrowEl) invArrowEl.style.transform = '';
-      if (invSelEl) invSelEl.style.borderColor = '';
-      if (invLabelEl) {
-        const opt = filter === 'all' ? 'All items' : filter;
-        invLabelEl.textContent = opt;
-        invLabelEl.style.color = filter === 'all' ? '' : (isPodium ? pk?.p : tc);
-      }
-      // Re-render dropdown to update active state
-      const options = [{ key:'all', label:'All items', count:invItems.length }, ...invTypes.map(t => ({ key:t, label:t, count:invGrouped[t].length }))];
-      if (invDropEl) invDropEl.innerHTML = options.map(opt => `
-        <div onclick="window['${pid}_inv_sf']('${opt.key}')"
-          style="display:flex;align-items:center;justify-content:space-between;
-                 padding:9px 13px;font-size:12px;cursor:pointer;
-                 background:${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'};
-                 color:${_invFilter === opt.key ? (isPodium ? pk?.p : tc) : ink2};
-                 font-weight:${_invFilter === opt.key ? '700' : '500'};
-                 transition:background .12s"
-          onmouseover="this.style.background='${isPodium ? pk?.g+'.09)' : tc+'11'}'"
-          onmouseout="this.style.background='${_invFilter === opt.key ? (isPodium ? pk?.g+'.12)' : tc+'18') : 'transparent'}'">
-          <span>${opt.label}</span>
-          <span style="font-size:10px;opacity:.5">${opt.count}</span>
-        </div>`).join('');
-      renderInvGrid();
-    };
-
-    window[`${pid}_inv_pg`] = dir => { _invPage += dir; renderInvGrid(); };
-
-    renderInvGrid();
 
   } catch(err) { console.error('[loadProfile]', err); }
 }
