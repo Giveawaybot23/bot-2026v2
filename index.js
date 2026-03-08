@@ -411,6 +411,7 @@ const PLANTS = [
   { name: 'Sunpetal',       file: './images/sunpetal.png',       display: 'https://gardenhorizonswiki.com/images/plants/sunpetal.webp',       rarity: 'Common'    },
   { name: 'Dandelion',      file: './images/dandelion.png',      display: 'https://gardenhorizonswiki.com/images/plants/dandelion.webp',      rarity: 'Common'    },
   { name: 'Biohazard Melon',file: './images/biohazard-melon.png',display: 'https://gardenhorizonswiki.com/images/plants/biohazard-melon.webp',rarity: 'Common'    },
+  { name: 'Lostlight',      file: './images/lostlight.png',      display: 'https://gardenhorizonswiki.com/images/plants/lostlight.webp',      rarity: 'Common',    baseSellPrice: 100  },
   { name: 'Onion',          file: './images/onion.png',          display: 'https://gardenhorizonswiki.com/images/plants/onion.webp',          rarity: 'Uncommon'  },
   { name: 'Mushroom',       file: './images/mushroom.png',       display: 'https://gardenhorizonswiki.com/images/plants/mushroom.webp',       rarity: 'Uncommon'  },
   { name: 'Strawberry',      file: './images/strawberry.png',     display: 'https://gardenhorizonswiki.com/images/plants/strawberry.webp',    rarity: 'Uncommon'  },
