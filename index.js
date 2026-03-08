@@ -813,24 +813,36 @@ function getActiveTitle(user) {
 function getAvailableVersion(plantName, db) {
   const meta = loadMeta();
   if (!meta.plantVersions) meta.plantVersions = {};
+  // plantClaimed tracks every version ever issued so concurrent/rapid calls
+  // (e.g. 10 plants from one crate) can't hand out the same version twice.
+  // Math.max(high, ver) in the old recycled branch was always equal to `high`
+  // (since ver <= high), so it never actually recorded the reservation — fixed here.
+  if (!meta.plantClaimed) meta.plantClaimed = {};
+  if (!meta.plantClaimed[plantName]) meta.plantClaimed[plantName] = [];
+
   const high = meta.plantVersions[plantName] || 0;
-  const owned = new Set();
+
+  // Build the taken set from both the live db AND the persisted claimed list
+  const owned = new Set(meta.plantClaimed[plantName]);
   for (const userData of Object.values(db)) {
     for (const p of (userData.collection || [])) {
       if (p.name === plantName && p.version) owned.add(p.version);
     }
   }
+
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
   if (free.length > 0) {
     const ver = free[Math.floor(Math.random() * free.length)];
-    // ✅ Actually persist the reservation so the next call sees it as taken
-    meta.plantVersions[plantName] = Math.max(high, ver);
+    // Persist the claim immediately so the next call (same crate or concurrent user)
+    // sees this version as taken before the db is saved to disk.
+    meta.plantClaimed[plantName].push(ver);
     saveMeta(meta);
     return ver;
   }
   const newVer = high + 1;
   meta.plantVersions[plantName] = newVer;
+  meta.plantClaimed[plantName].push(newVer);
   meta.totalDrops = (meta.totalDrops || 0) + 1;
   saveMeta(meta);
   return newVer;
