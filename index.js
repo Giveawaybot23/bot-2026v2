@@ -423,7 +423,7 @@ const PLANTS = [
   { name: 'Apple',          file: './images/apple2-removebg-preview.png',          display: '/images/apple2-removebg-preview.png',          rarity: 'Rare'      },
   { name: 'Amberpine',      file: './images/amberpine2-removebg-preview.png',      display: '/images/amberpine2-removebg-preview.png',      rarity: 'Rare'      },
   { name: 'Birch',          file: './images/birch2-removebg-preview.png',          display: '/images/birch2-removebg-preview.png',          rarity: 'Rare'      },
-  { name: 'Starvine',       file: './images/starvine2-removebg-preview.png',       display: '/images/starvine2-removebg-preview.png',       rarity: 'Secret'    },
+  { name: 'Starvine',       file: './images/Starvine2-removebg-preview.png',       display: '/images/starvine2-removebg-preview.png',       rarity: 'Secret'    },
   { name: 'Wheat',          file: './images/wheat.png',                            display: '/images/wheat.png',                            rarity: 'Epic'      },
   { name: 'Banana',         file: './images/banana2-removebg-preview.png',         display: '/images/banana2-removebg-preview.png',         rarity: 'Epic'      },
   { name: 'Potato',         file: './images/potato2-removebg-preview.png',         display: '/images/potato2-removebg-preview.png',         rarity: 'Epic'      },
