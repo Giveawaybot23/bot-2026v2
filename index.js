@@ -354,7 +354,7 @@ function getMarketMultiplier(plantName) {
   return Math.max(0.5, Math.min(2.0, mult));
 }
 function calcSellValue(plant, rarity, mutation, version) {
-  const base    = rarity.sellPrice;
+  const base    = plant.baseSellPrice ?? rarity.sellPrice;
   const verMult = getVersionMultiplier(version);
   const mktMult = getMarketMultiplier(plant.name);
   const mutMult = mutation ? mutation.multiplier : 1.0;
@@ -438,6 +438,7 @@ const PLANTS = [
   { name: 'Mango',          file: './images/mango.png',          display: 'https://gardenhorizonswiki.com/images/plants/mango.webp',          rarity: 'Legendary' },
   { name: 'Bamboo',         file: './images/bamboo.png',         display: 'https://gardenhorizonswiki.com/images/plants/bamboo.webp',         rarity: 'Legendary' },
   { name: 'Octobranch',     file: './images/octobranch.png',     display: 'https://gardenhorizonswiki.com/images/plants/octobranch.webp',     rarity: 'Legendary' },
+  { name: 'Bluerose',       file: './images/bluerose.png',       display: 'https://gardenhorizonswiki.com/images/plants/bluerose.webp',       rarity: 'Legendary', baseSellPrice: 18000 },
   { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',   display: 'https://gardenhorizonswiki.com/images/plants/dawn-blossom.webp',   rarity: 'Mythic'    },
   { name: 'Olive',          file: './images/olive.png',          display: 'https://gardenhorizonswiki.com/images/plants/olive.webp',          rarity: 'Mythic'    },
 ];
