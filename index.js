@@ -354,7 +354,7 @@ function getMarketMultiplier(plantName) {
   return Math.max(0.5, Math.min(2.0, mult));
 }
 function calcSellValue(plant, rarity, mutation, version) {
-  const base    = plant.baseSellPrice ?? rarity.sellPrice;
+  const base    = rarity.sellPrice;
   const verMult = getVersionMultiplier(version);
   const mktMult = getMarketMultiplier(plant.name);
   const mutMult = mutation ? mutation.multiplier : 1.0;
@@ -411,21 +411,18 @@ const PLANTS = [
   { name: 'Sunpetal',       file: './images/sunpetal.png',       display: 'https://gardenhorizonswiki.com/images/plants/sunpetal.webp',       rarity: 'Common'    },
   { name: 'Dandelion',      file: './images/dandelion.png',      display: 'https://gardenhorizonswiki.com/images/plants/dandelion.webp',      rarity: 'Common'    },
   { name: 'Biohazard Melon',file: './images/biohazard-melon.png',display: 'https://gardenhorizonswiki.com/images/plants/biohazard-melon.webp',rarity: 'Common'    },
-  { name: 'Lostlight',      file: './images/lostlight.png',      display: 'https://gardenhorizonswiki.com/images/plants/lostlight.webp',      rarity: 'Common',    baseSellPrice: 100  },
   { name: 'Onion',          file: './images/onion.png',          display: 'https://gardenhorizonswiki.com/images/plants/onion.webp',          rarity: 'Uncommon'  },
   { name: 'Mushroom',       file: './images/mushroom.png',       display: 'https://gardenhorizonswiki.com/images/plants/mushroom.webp',       rarity: 'Uncommon'  },
   { name: 'Strawberry',      file: './images/strawberry.png',     display: 'https://gardenhorizonswiki.com/images/plants/strawberry.webp',    rarity: 'Uncommon'  },
   { name: 'Goldenberry',    file: './images/goldenberry.png',    display: 'https://gardenhorizonswiki.com/images/plants/goldenberry.webp',    rarity: 'Uncommon'  },
   { name: 'Bell Pepper',    file: './images/bellpepper.png',     display: 'https://gardenhorizonswiki.com/images/plants/bellpepper.webp',     rarity: 'Uncommon'  },
   { name: 'Lablush Berry',  file: './images/lablush-berry.png',  display: 'https://gardenhorizonswiki.com/images/plants/lablush-berry.webp',  rarity: 'Uncommon'  },
-  { name: 'Glowcorn',       file: './images/glowcorn.png',       display: 'https://gardenhorizonswiki.com/images/plants/glowcorn.webp',       rarity: 'Uncommon',  baseSellPrice: 175  },
   { name: 'Beetroot',       file: './images/beetroot.png',       display: 'https://gardenhorizonswiki.com/images/plants/beetroot.webp',       rarity: 'Rare'      },
   { name: 'Tomato',         file: './images/tomato.png',         display: 'https://gardenhorizonswiki.com/images/plants/tomato.webp',         rarity: 'Rare'      },
   { name: 'Rose',           file: './images/rose.png',           display: 'https://gardenhorizonswiki.com/images/plants/rose.webp',           rarity: 'Rare'      },
   { name: 'Apple',          file: './images/apple.png',          display: 'https://gardenhorizonswiki.com/images/plants/apple.webp',          rarity: 'Rare'      },
   { name: 'Amberpine',      file: './images/amberpine.png',      display: 'https://gardenhorizonswiki.com/images/plants/amberpine.webp',      rarity: 'Rare'      },
   { name: 'Birch',          file: './images/birch.png',          display: 'https://gardenhorizonswiki.com/images/plants/birch.webp',          rarity: 'Rare'      },
-  { name: 'Firefern',       file: './images/firefern.png',       display: 'https://gardenhorizonswiki.com/images/plants/firefern.webp',       rarity: 'Rare',      baseSellPrice: 325  },
   { name: 'Starvine',       file: './images/starvine.png',       display: 'https://gardenhorizonswiki.com/images/plants/starvine.webp',       rarity: 'Secret'      },
   { name: 'Wheat',          file: './images/wheat.png',          display: 'https://gardenhorizonswiki.com/images/plants/wheat.webp',          rarity: 'Epic'      },
   { name: 'Banana',         file: './images/banana.png',         display: 'https://gardenhorizonswiki.com/images/plants/banana.webp',         rarity: 'Epic'      },
@@ -434,7 +431,6 @@ const PLANTS = [
   { name: 'Emberwood',      file: './images/emberwood.png',      display: 'https://gardenhorizonswiki.com/images/plants/emberwood.webp',      rarity: 'Epic'      },
   { name: 'Orange',         file: './images/orange.png',         display: 'https://gardenhorizonswiki.com/images/plants/orange.webp',         rarity: 'Epic'      },
   { name: 'Radiant Petal',  file: './images/radiant-petal.png',  display: 'https://gardenhorizonswiki.com/images/plants/radiant-petal.webp',  rarity: 'Epic'      },
-  { name: 'Glowflower',     file: './images/glowflower.png',     display: 'https://gardenhorizonswiki.com/images/plants/glowflower.webp',     rarity: 'Epic',      baseSellPrice: 3000 },
   { name: 'Cabbage',        file: './images/cabbage.png',        display: 'https://gardenhorizonswiki.com/images/plants/cabbage.webp',        rarity: 'Legendary' },
   { name: 'Cherry',         file: './images/cherry.png',         display: 'https://gardenhorizonswiki.com/images/plants/cherry.webp',         rarity: 'Legendary' },
   { name: 'Dawn Fruit',     file: './images/dawn-fruit.png',     display: 'https://gardenhorizonswiki.com/images/plants/dawn-fruit.webp',     rarity: 'Legendary' },
@@ -442,8 +438,6 @@ const PLANTS = [
   { name: 'Mango',          file: './images/mango.png',          display: 'https://gardenhorizonswiki.com/images/plants/mango.webp',          rarity: 'Legendary' },
   { name: 'Bamboo',         file: './images/bamboo.png',         display: 'https://gardenhorizonswiki.com/images/plants/bamboo.webp',         rarity: 'Legendary' },
   { name: 'Octobranch',     file: './images/octobranch.png',     display: 'https://gardenhorizonswiki.com/images/plants/octobranch.webp',     rarity: 'Legendary' },
-  { name: 'Bluerose',       file: './images/bluerose.png',       display: 'https://gardenhorizonswiki.com/images/plants/bluerose.webp',       rarity: 'Legendary', baseSellPrice: 18000 },
-  { name: 'Glowvein',       file: './images/glowvein.png',       display: 'https://gardenhorizonswiki.com/images/plants/glowvein.webp',       rarity: 'Legendary', baseSellPrice: 14500 },
   { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',   display: 'https://gardenhorizonswiki.com/images/plants/dawn-blossom.webp',   rarity: 'Mythic'    },
   { name: 'Olive',          file: './images/olive.png',          display: 'https://gardenhorizonswiki.com/images/plants/olive.webp',          rarity: 'Mythic'    },
 ];
