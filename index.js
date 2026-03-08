@@ -416,7 +416,7 @@ const PLANTS = [
   { name: 'Strawberry',     file: './images/strawberry2-removebg-preview.png',     display: '/images/strawberry2-removebg-preview.png',     rarity: 'Uncommon'  },
   { name: 'Goldenberry',    file: './images/goldenberry2-removebg-preview.png',    display: '/images/goldenberry2-removebg-preview.png',    rarity: 'Uncommon'  },
   { name: 'Bell Pepper',    file: './images/bellpepper2-removebg-preview.png',     display: '/images/bellpepper2-removebg-preview.png',     rarity: 'Uncommon'  },
-  { name: 'Lablush Berry',  file: './images/Lablushberry2-removebg-preview.png',  display: '/images/lablush-berry2-removebg-preview.png',  rarity: 'Uncommon'  },
+  { name: 'Lablush Berry',  file: './images/Lablushberry2-removebg-preview.png',  display: '/images/Lablushberry2-removebg-preview.png',  rarity: 'Uncommon'  },
   { name: 'Beetroot',       file: './images/beetroot2-removebg-preview.png',       display: '/images/beetroot2-removebg-preview.png',       rarity: 'Rare'      },
   { name: 'Tomato',         file: './images/tomato2-removebg-preview.png',         display: '/images/tomato2-removebg-preview.png',         rarity: 'Rare'      },
   { name: 'Rose',           file: './images/rose2-removebg-preview.png',           display: '/images/rose2-removebg-preview.png',           rarity: 'Rare'      },
