@@ -1823,6 +1823,8 @@ ${isPodium ? `
 @media(max-width:600px){
   ._pcols{grid-template-columns:1fr!important;grid-template-areas:"center" "right" "left"!important}
 }
+@keyframes _pWingL {0%,100%{opacity:0.18;transform:translateX(0)}50%{opacity:0.26;transform:translateX(-8px)}}
+@keyframes _pWingR {0%,100%{opacity:0.18;transform:scaleX(-1) translateX(0)}50%{opacity:0.26;transform:scaleX(-1) translateX(-8px)}}
 </style>
 
 <!-- ambient orbs — podium only -->
@@ -1877,8 +1879,27 @@ ${isPodium ? `
       <div style="font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--ink3);opacity:.5;margin-top:6px">Garden Rank</div>
     </div>` : '')}
 
+    <!-- ── Flanking tier wings ── -->
+    ${data.gardenTier?.name ? `
+    <div aria-hidden="true" style="position:absolute;left:0;top:0;bottom:0;width:38%;pointer-events:none;display:flex;align-items:center;justify-content:flex-start;padding-left:3%;z-index:1;overflow:hidden">
+      <img src="/images/tiers/${data.gardenTier.name.toLowerCase()}.webp"
+        style="width:clamp(140px,18vw,240px);height:auto;object-fit:contain;
+          opacity:0.18;
+          filter:drop-shadow(0 0 28px ${tc}) drop-shadow(0 0 60px ${tc}88) drop-shadow(0 0 120px ${tc}44);
+          animation:_pWingL 5s ease-in-out infinite"
+        onerror="this.style.display='none'">
+    </div>
+    <div aria-hidden="true" style="position:absolute;right:0;top:0;bottom:0;width:38%;pointer-events:none;display:flex;align-items:center;justify-content:flex-end;padding-right:3%;z-index:1;overflow:hidden">
+      <img src="/images/tiers/${data.gardenTier.name.toLowerCase()}.webp"
+        style="width:clamp(140px,18vw,240px);height:auto;object-fit:contain;
+          opacity:0.18;
+          filter:drop-shadow(0 0 28px ${tc}) drop-shadow(0 0 60px ${tc}88) drop-shadow(0 0 120px ${tc}44);
+          animation:_pWingR 5s ease-in-out infinite"
+        onerror="this.style.display='none'">
+    </div>` : ''}
+
     <!-- Avatar + identity -->
-    <div style="display:flex;flex-direction:column;align-items:center;padding:${isPodium ? '20px' : '26px'} 24px 32px;text-align:center;position:relative;z-index:2">
+    <div style="display:flex;flex-direction:column;align-items:center;padding:\${isPodium ? '20px' : '26px'} 24px 32px;text-align:center;position:relative;z-index:2">
 
       <div class="${isPodium ? '_p-av' : ''}"
         style="width:96px;height:96px;border-radius:50%;overflow:hidden;
