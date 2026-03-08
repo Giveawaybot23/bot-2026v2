@@ -1305,16 +1305,6 @@
         <div id="trade-status-msg" style="margin-top:16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink2)"></div>
       </div>
     </div>
-    <!-- Waiting for recipient to accept -->
-    <div id="trade-waiting-panel" style="display:none">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:60px 24px;text-align:center">
-        <div style="font-size:52px;margin-bottom:20px">🔄</div>
-        <div id="trade-waiting-text" style="font-size:20px;font-weight:700;color:var(--ink);margin-bottom:10px">Waiting for player</div>
-        <div style="font-size:14px;color:var(--ink3);margin-bottom:32px">They need to accept your trade request before you can begin.</div>
-        <button onclick="cancelTrade()" style="background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.25);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s">✕ Cancel Trade</button>
-      </div>
-    </div>
-
     <div id="trade-start-panel">
       <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px">
         <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:16px">Start a New Trade</div>
@@ -3507,7 +3497,7 @@ if (localStorage.getItem('dark') === 'true') {
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
 const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
-let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null, _tradeAccepted = false, _waitingForRecipient = false, _tradeTargetName = null, _dotsInterval = null;
+let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null, _tradeAccepted = false, _selfCancelled = false;
 
 function showTradeRequestToast(senderName, tradeId) {
   _pendingTradeId = tradeId;
@@ -3523,8 +3513,6 @@ async function acceptTradeRequest() {
   _tradeId = _pendingTradeId;
   _tradeAccepted = true;
   hideTradeRequestToast();
-  // Notify backend so it can send trade_accepted to the initiator via WS
-  try { await fetch(`/api/trade/${_tradeId}/accept`, { method:'POST', credentials:'include' }); } catch(e) {}
   showPage('trade');
   await refreshTrade();
   startTradePoll();
@@ -3572,54 +3560,25 @@ async function loadTradePage() {
     const res = await fetch('/api/trade/active/me', { credentials:'include' });
     const trade = await res.json();
     if (trade && trade.id) {
-      _tradeId = trade.id;
-      _pendingTradeId = trade.id;
-      const isInitiator = trade.initiatorId === window._loggedInId;
-      if (isInitiator && !_tradeAccepted) {
-        // Proposing user — hold on waiting screen until recipient accepts via WS
-        showTradeWaitingPanel(trade.targetName || 'player');
-        startTradePoll();
-      } else {
-        // Recipient (already accepted) or initiator re-entering after acceptance
-        _tradeAccepted = true;
-        renderActiveTrade(trade);
-        startTradePoll();
-      }
-    } else showTradeStartPanel();
+  _tradeId = trade.id;
+  if (trade.initiatorId !== window._loggedInId && !_tradeAccepted) {
+    const senderName = trade.initiatorName || 'Someone';
+    document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
+    document.getElementById('trade-request-toast').style.display = 'block';
+    _pendingTradeId = trade.id;
+  } else {
+    renderActiveTrade(trade); startTradePoll();
+  }
+}
+    else showTradeStartPanel();
   } catch(e) { showTradeStartPanel(); }
   try { const r = await fetch('/api/players'); _allPlayers = await r.json(); } catch(e) {}
 }
 
-function showTradeWaitingPanel(targetName) {
-  document.getElementById('trade-active-panel').style.display = 'none';
-  document.getElementById('trade-start-panel').style.display = 'none';
-  document.getElementById('trade-waiting-panel').style.display = 'block';
-  _waitingForRecipient = true;
-  _tradeTargetName = targetName || 'player';
-  // Animated dots: 1 → 2 → 3 → 1 → ...
-  if (_dotsInterval) clearInterval(_dotsInterval);
-  let dotCount = 1;
-  const textEl = document.getElementById('trade-waiting-text');
-  function updateDots() {
-    textEl.textContent = `Waiting for ${_tradeTargetName}` + '.'.repeat(dotCount);
-    dotCount = dotCount >= 3 ? 1 : dotCount + 1;
-  }
-  updateDots();
-  _dotsInterval = setInterval(updateDots, 600);
-}
-
-function stopWaiting() {
-  _waitingForRecipient = false;
-  if (_dotsInterval) { clearInterval(_dotsInterval); _dotsInterval = null; }
-  document.getElementById('trade-waiting-panel').style.display = 'none';
-}
-
 function showTradeStartPanel() {
   document.getElementById('trade-active-panel').style.display = 'none';
-  document.getElementById('trade-waiting-panel').style.display = 'none';
   document.getElementById('trade-start-panel').style.display = 'block';
-  stopWaiting();
-  stopTradePoll(); _tradeId = null; _tradeData = null; _tradeAccepted = false; _tradeTargetName = null;
+  stopTradePoll(); _tradeId = null; _tradeData = null; _tradeAccepted = false;
 }
 
 function searchTradePlayers(q) {
@@ -3651,18 +3610,13 @@ async function startTrade() {
     if (!match) { errEl.textContent='Player not found. Select from the list.'; errEl.style.display='block'; return; }
     _tradeTargetId = match.id;
   }
-  // Find the target's display name
-  const targetPlayer = _allPlayers.find(p => p.id === _tradeTargetId);
-  const targetName = targetPlayer?.username || input;
   try {
     const res = await fetch('/api/trade/create', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ targetId:_tradeTargetId }) });
     const data = await res.json();
     if (!res.ok) { errEl.textContent=data.error||'Could not start trade.'; errEl.style.display='block'; return; }
     _tradeId = data.tradeId;
-    pushNotification('trade_received', `You sent a trade offer to ${targetName}!`);
-    // Show waiting screen — don't enter trade until recipient accepts
-    showTradeWaitingPanel(targetName);
-    startTradePoll();
+    pushNotification('trade_received', `You sent a trade offer. Share the Trade page link with them!`);
+    await refreshTrade(); startTradePoll();
   } catch(e) { errEl.textContent='Network error.'; errEl.style.display='block'; }
 }
 
@@ -3672,15 +3626,12 @@ async function refreshTrade() {
     const res = await fetch(`/api/trade/${_tradeId}`, { credentials:'include' });
     if (!res.ok) { showTradeStartPanel(); return; }
     const trade = await res.json(); _tradeData = trade;
+    renderActiveTrade(trade);
     if (trade.status !== 'active') {
       stopTradePoll();
       if (trade.status==='complete') { showTradeResultToast('complete'); setTimeout(showTradeStartPanel,3000); }
       else { showTradeResultToast('declined'); setTimeout(showTradeStartPanel,2500); }
-      return;
     }
-    // Stay on waiting panel until recipient accepts (signalled via WS trade_accepted)
-    if (_waitingForRecipient) return;
-    renderActiveTrade(trade);
   } catch(e) {}
 }
 
@@ -3788,6 +3739,7 @@ async function confirmTrade() {
 
 async function cancelTrade() {
   if (!_tradeId) return;
+  _selfCancelled = true;
   await fetch(`/api/trade/${_tradeId}/cancel`, { method:'POST', credentials:'include' });
   showTradeResultToast('declined');
   setTimeout(showTradeStartPanel, 2500);
@@ -4061,18 +4013,13 @@ function initGlobalWS() {
 if (msg.type === 'trade_request') {
   showTradeRequestToast(msg.senderName || 'Someone', msg.tradeId);
 }
-if (msg.type === 'trade_accepted') {
-  // Recipient accepted — initiator can now enter the trade
-  if (_waitingForRecipient) {
-    stopWaiting();
-    if (_tradeData) renderActiveTrade(_tradeData);
-    else refreshTrade();
-  }
-}
 if (msg.type === 'trade_declined') {
   stopTradePoll();
-  showTradeResultToast('declined');
-  setTimeout(showTradeStartPanel, 2500);
+  if (!_selfCancelled) {
+    showTradeResultToast('declined');
+    setTimeout(showTradeStartPanel, 2500);
+  }
+  _selfCancelled = false;
 }
 if (msg.type === 'trade_complete') {
   stopTradePoll();
