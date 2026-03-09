@@ -154,7 +154,8 @@ const COOLDOWN_EXEMPT_IDS = [
 ];
 
 const BOT_ADMIN_IDS = [
-  '734159803995259042', // add whoever you trust here
+  '734159803995259042',
+  '239725298403246081', // add whoever you trust here
 ];
 
 function isBotAdmin(userId) {
@@ -2804,7 +2805,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !wipecards ────────────────────────────────────────────────────────────
   if (cmd === 'wipecards') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]);
     if (!target) return message.reply('Usage: `!wipecards @user`');
     const CONFIRM_PHRASE = `WIPECARDS-${target.id.slice(-6).toUpperCase()}`;
@@ -2816,7 +2817,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !wipeall ──────────────────────────────────────────────────────────────
   if (cmd === 'wipeall') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const CONFIRM_PHRASE = `WIPE-${message.guild.id.slice(-6).toUpperCase()}`;
     pendingWipes[message.author.id] = { guildId: message.guild.id, phrase: CONFIRM_PHRASE, ts: Date.now() };
     setTimeout(() => delete pendingWipes[message.author.id], 60_000);
@@ -2834,7 +2835,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !setrarity ────────────────────────────────────────────────────────────
   if (cmd === 'setrarity') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     if (!args[1] || args[1] === 'clear') { devRarity = null; return message.reply('🔧 Dev rarity cleared.'); }
     const match = RARITIES.find(r => r.name.toLowerCase() === args[1].toLowerCase());
     if (!match) return message.reply(`Options: ${RARITIES.map(r=>r.name).join(', ')}`);
@@ -2902,7 +2903,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !testrank — admin: preview all 9 garden tiers in one image ────────────
   if (cmd === 'testrank') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     // Build a fake leaderboard with one entry per tier, scores set just above each threshold
     const fakeEntries = GARDEN_TIERS.map((tier, i) => ({
       username:   `[${tier.name} Preview]`,
@@ -3572,14 +3573,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
   // ── Admin: currency/xp management ────────────────────────────────────────
   if (cmd === 'addcurrency' || cmd === 'givecoin') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
     const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
   if (cmd === 'addplant') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]);
     if (!target) return message.reply('Usage: `!addplant @user <plant name> [-v version] [-m mutation] [-r rarity]`');
 
@@ -3643,28 +3644,28 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   }
 
   if (cmd === 'addxp') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addxp @user <amount>`');
     const db = loadDB(); addXP(db, target.id, amount); saveDB(db);
     return message.reply(`✅ Gave **${amount} XP** to **${target.username}**.`);
   }
   if (cmd === 'removexp') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!removexp @user <amount>`');
     const db = loadDB(); const user = getUser(db, target.id); user.xp = Math.max(0, (user.xp || 0) - amount); saveDB(db);
     return message.reply(`✅ Removed **${amount} XP** from **${target.username}**.`);
   }
   if (cmd === 'removecurrency' || cmd === 'removecoin') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!removecurrency @user <amount>`');
     const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db);
     return message.reply(`✅ Removed ${fmt(amount)} from **${target.username}**.`);
   }
   if (cmd === 'removeplant') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]);
     if (!target) return message.reply('Usage: `!removeplant @user <plant name> [-v version] [-m mutation] [-r rarity] [--all]`');
     const db = loadDB(); const user = getUser(db, target.id);
@@ -3731,7 +3732,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
   // ── !wipeuser ─────────────────────────────────────────────────────────────
   if (cmd === 'wipeuser') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]);
     if (!target) return message.reply('Usage: `!wipeuser @user`');
     const CONFIRM_PHRASE = `WIPE-USER-${target.id.slice(-6).toUpperCase()}`;
@@ -3872,7 +3873,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   }
 
   if (cmd === 'fixdupes' || cmd === 'currentdupes') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const db = loadDB();
     const seen = {};
     let count = 0;
@@ -3907,7 +3908,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   }
 
   if (cmd === 'restoredata') {
-  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+  if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   return message.reply('✅ Data directory ensured. Now redeploy and your bot will recreate fresh files.');
 }
