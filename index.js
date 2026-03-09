@@ -153,6 +153,14 @@ const COOLDOWN_EXEMPT_IDS = [
   '1263885067227496472',
 ];
 
+const BOT_ADMIN_IDS = [
+  '734159803995259042', // add whoever you trust here
+];
+
+function isBotAdmin(userId) {
+  return BOT_ADMIN_IDS.includes(userId);
+}
+
 const TEST_IDS = new Set([
   '239725298403246081',
 ]);
@@ -445,11 +453,11 @@ const PLANTS = [
 
   // ── UNRELEASED — uncomment to release ──
   { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
-  // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary' },
-  // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Epic'      },
-  // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Mythic'    },
-  // { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Rare'      },
-  // { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Epic'      },
+  // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
+  // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
+  // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Mythic', dropOnly: true    },
+  // { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Rare', dropOnly: true      },
+  // { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Epic', dropOnly: true      },
 ];
 
 
@@ -2658,7 +2666,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !say ──────────────────────────────────────────────────────────────────
   if (cmd === 'say') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return message.reply('Admins only.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     const channelId = args[args.length - 1];
     const text = args.slice(1, args.length - 1).join(' ');
     if (!text || !channelId) return message.reply('Usage: `!say <text> <channelId>`');
