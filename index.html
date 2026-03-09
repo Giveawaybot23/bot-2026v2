@@ -1709,12 +1709,13 @@ async function loadProfile(id) {
     const allPlants = rarityOrder.flatMap(r => grouped[r] || []);
 
     /* ── Color tokens ── */
-    const ink  = isPodium ? 'rgba(240,236,230,0.92)' : 'var(--ink)';
-    const ink2 = isPodium ? 'rgba(200,196,190,0.68)' : 'var(--ink2)';
-    const ink3 = isPodium ? 'rgba(155,150,144,0.50)' : 'var(--ink3)';
-    const card = isPodium ? 'rgba(22,20,16,0.90)'    : 'var(--card)';
-    const bg2  = isPodium ? 'rgba(255,255,255,0.04)' : 'var(--bg2)';
-    const bord = isPodium ? 'rgba(255,255,255,0.07)' : 'var(--border)';
+    const isDark = document.body.classList.contains('dark');
+    const ink  = (isPodium && isDark) ? 'rgba(240,236,230,0.92)' : 'var(--ink)';
+    const ink2 = (isPodium && isDark) ? 'rgba(200,196,190,0.68)' : 'var(--ink2)';
+    const ink3 = (isPodium && isDark) ? 'rgba(155,150,144,0.50)' : 'var(--ink3)';
+    const card = (isPodium && isDark) ? 'rgba(22,20,16,0.90)'    : 'var(--card)';
+    const bg2  = (isPodium && isDark) ? 'rgba(255,255,255,0.04)' : 'var(--bg2)';
+    const bord = (isPodium && isDark) ? 'rgba(255,255,255,0.07)' : 'var(--border)';
 
     /* ── Unique element ID namespace ── */
     const pid = `pd_${id.replace(/\W/g,'_')}`;
