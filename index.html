@@ -922,7 +922,7 @@
         <span id="notif-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:#e53935;color:white;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:100px;padding:0 4px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg)"></span>
       </button>
       <!-- Panel -->
-      <div id="notif-panel" style="display:none;position:absolute;top:calc(100% + 10px);right:0;width:360px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 48px rgba(14,13,11,0.18);z-index:9999;overflow:hidden">
+      <div id="notif-panel" style="display:none;position:absolute;top:calc(100% + 10px);right:0;width:360px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 12px 48px rgba(14,13,11,0.18);z-index:9999;overflow:visible">
         <div style="padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
           <div style="font-size:15px;font-weight:700;color:var(--ink)">Notifications</div>
           <div style="display:flex;gap:8px;align-items:center">
@@ -3885,9 +3885,6 @@ function renderNotifList() {
 
   if (!notifs.length) {
     el.innerHTML = `<div style="padding:32px 20px;text-align:center;color:var(--ink3);font-size:14px">No notifications yet</div>`;
-    // mark all as read after rendering
-  saveNotifs(notifs.map(n => ({ ...n, read: true })));
-  refreshNotifBadge();
     return;
   }
 
@@ -3906,9 +3903,6 @@ function renderNotifList() {
       <button onclick="deleteNotif('${n.id}')" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0;border-radius:4px;transition:color 0.15s" onmouseover="this.style.color='#e53935'" onmouseout="this.style.color='var(--ink3)'">✕</button>
     </div>`;
   }).join('');
-  // mark all as read after rendering
-  saveNotifs(notifs.map(n => ({ ...n, read: true })));
-  refreshNotifBadge();
 }
 
 function renderNotifSettings() {

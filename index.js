@@ -4035,7 +4035,14 @@ async function endAuction(auctionId, fallbackChannel) {
   if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
 
   // DM winner
-  try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [embed] }); } catch {}
+  try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [new EmbedBuilder().setTitle('🏆 You won an auction!').setDescription(`You won **${auction.plant.name}** \`v${auction.plant.version||'?'}\` for **${fmt(winner.amount)} coins**!`).setColor(0x00c864)] }); } catch {}
+  // DM seller
+  try { const s = await client.users.fetch(auction.sellerId); await s.send({ embeds: [new EmbedBuilder().setTitle('💰 Your auction sold!').setDescription(`**${auction.plant.name}** sold to **${winner.username}** for **${fmt(winner.amount)} coins**!`).setColor(0x52b788)] }); } catch {}
+  // DM outbid users
+  for (const bid of auction.bids.slice(0,-1)) {
+    if (bid.userId === winner.userId) continue;
+    try { const u = await client.users.fetch(bid.userId); await u.send({ embeds: [new EmbedBuilder().setTitle('📉 You were outbid!').setDescription(`You were outbid on **${auction.plant.name}**. Final price: **${fmt(winner.amount)} coins**.`).setColor(0xFF6600)] }); } catch {}
+  }
 }
 
 // ─── End Race ─────────────────────────────────────────────────────────────────
@@ -4615,13 +4622,14 @@ app.post('/api/market/buy/:id', async (req, res) => {
   saveDB(db);
   saveListings(listings.filter(l => l.id !== req.params.id));
 
+  // DM seller
+  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** \`v${listing.plant.version||'?'}\` was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+
   res.json({ success: true });
 });
-
-app.get('/api/chat/:auctionId', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
-});
+
 
 // ─── Web Trade API ────────────────────────────────────────────────────────────
 app.post('/api/trade/create', express.json(), async (req, res) => {
@@ -4664,6 +4672,7 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
     notifType: 'trade_received',
     message: `${req.user.username} wants to trade with you! Go to the Trade page.`
   });
+  try { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } catch {}
   res.json({ tradeId });
 });
 
@@ -4750,6 +4759,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     trade.status = 'complete';
     pushToUser(trade.initiatorId, { type: 'trade_complete' });
     pushToUser(trade.targetId,    { type: 'trade_complete' });
+    try { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
+    try { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
   }
   saveTrades(webTrades);
   res.json(trade);
