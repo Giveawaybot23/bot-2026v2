@@ -4627,8 +4627,10 @@ app.post('/api/market/buy/:id', async (req, res) => {
 
   res.json({ success: true });
 });
+  app.get('/api/auction/:auctionId/chats', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
+});
 
 
 // ─── Web Trade API ────────────────────────────────────────────────────────────
