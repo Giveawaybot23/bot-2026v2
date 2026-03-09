@@ -997,9 +997,16 @@ const WEEKLY_PAYOUTS = [1500000, 1000000, 750000];
 const PAYOUT_FILE = `${DATA_DIR}/payouts.json`;
 function loadPayoutState() {
   try {
-    if (!fs.existsSync(PAYOUT_FILE)) fs.writeFileSync(PAYOUT_FILE, JSON.stringify({ lastDaily: 0, lastWeekly: 0 }));
+    if (!fs.existsSync(PAYOUT_FILE)) {
+      const initial = { lastDaily: Date.now(), lastWeekly: Date.now() };
+      fs.writeFileSync(PAYOUT_FILE, JSON.stringify(initial));
+      return initial;
+    } 
     return JSON.parse(fs.readFileSync(PAYOUT_FILE));
-  } catch { return { lastDaily: 0, lastWeekly: 0 }; }
+  } catch {
+    const initial = { lastDaily: Date.now(), lastWeekly: Date.now() };
+    return initial;
+  }
 }
 function savePayoutState(s) { fs.writeFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
 
@@ -1369,87 +1376,215 @@ async function buildLevelLBData(db, page = 1) {
   return { entries, totalPages };
 }
 
-// ─── Profile Image ────────────────────────────────────────────────────────────
 async function generateProfileImage(data) {
-  const W = 560, H = 300;
-  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
+  const W = 580, H = 310;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#0f1117'; ctx.fillRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0f1117';
+  ctx.fillRect(0, 0, W, H);
   const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  bgGrad.addColorStop(0, 'rgba(77,150,255,0.09)'); bgGrad.addColorStop(1, 'rgba(123,47,190,0.05)');
-  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+  bgGrad.addColorStop(0, 'rgba(77,150,255,0.07)');
+  bgGrad.addColorStop(1, 'rgba(123,47,190,0.04)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Top accent bar
   const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, '#4d96ff'); topBar.addColorStop(1, '#7B2FBE');
-  ctx.fillStyle = topBar; ctx.fillRect(0, 0, W, 5);
-  const AV = 96, ACX = 60, ACY = 90;
-  ctx.save(); ctx.beginPath(); ctx.arc(ACX, ACY, AV/2, 0, Math.PI*2); ctx.clip();
-  try { const buf = await fetchImageBuffer(data.avatarUrl); const img = await loadImage(buf); ctx.drawImage(img, ACX - AV/2, ACY - AV/2, AV, AV); }
-  catch { ctx.fillStyle = '#2a2a4e'; ctx.fillRect(ACX - AV/2, ACY - AV/2, AV, AV); }
-  ctx.restore(); ctx.strokeStyle = '#4d96ff'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(ACX, ACY, AV/2 + 3, 0, Math.PI*2); ctx.stroke();
-  const TX = ACX + AV/2 + 20;
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.fillText(data.username, TX, 46);
-  if (data.title) { ctx.fillStyle = '#a78bfa'; ctx.font = '15px Arial'; ctx.fillText(data.title, TX, 70); }
-  const pillY = data.title ? 96 : 76;
-  const pillTx = `${data.rankEmoji}  ${data.rankName}  ·  Lv. ${data.level}`;
-  ctx.font = 'bold 14px Arial';
-  const pillW = ctx.measureText(pillTx).width + 24;
-  ctx.fillStyle = 'rgba(77,150,255,0.22)'; ctx.beginPath(); ctx.roundRect(TX, pillY-13, pillW, 26, 8); ctx.fill();
-  ctx.strokeStyle = 'rgba(77,150,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(TX, pillY-13, pillW, 26, 8); ctx.stroke();
-  ctx.fillStyle = '#4d96ff'; ctx.fillText(pillTx, TX+12, pillY);
+  topBar.addColorStop(0, '#4d96ff');
+  topBar.addColorStop(1, '#7B2FBE');
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, W, 4);
 
-  // Garden rank pill
-  const gardenPillY = pillY + 32;
-  const gardenTierHex = '#' + data.gardenTier.color.toString(16).padStart(6, '0');
-  const gardenTx = `${data.gardenTier.emoji}  ${data.gardenTier.name}  ·  ${data.gardenScore.toLocaleString()} pts`;
+  // Avatar
+  const AV = 88, ACX = 64, ACY = 88;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(ACX, ACY, AV / 2 + 3, 0, Math.PI * 2);
+  ctx.strokeStyle = '#4d96ff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(ACX, ACY, AV / 2, 0, Math.PI * 2);
+  ctx.clip();
+  try {
+    const buf = await fetchImageBuffer(data.avatarUrl);
+    const img = await loadImage(buf);
+    ctx.drawImage(img, ACX - AV / 2, ACY - AV / 2, AV, AV);
+  } catch {
+    ctx.fillStyle = '#2a2a4e';
+    ctx.fillRect(ACX - AV / 2, ACY - AV / 2, AV, AV);
+  }
+  ctx.restore();
+
+  // Username
+  const TX = ACX + AV / 2 + 20;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(data.username, TX, 36);
+
+  // Title
+  if (data.title) {
+    const cleanTitle = data.title.replace(/<:[^:]+:\d+>/g, '').trim();
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '13px Arial';
+    ctx.fillText(cleanTitle, TX, 58);
+  }
+
+  // Rank pill
+  const pillY = data.title ? 80 : 66;
+  const rankTxt = `${data.rankEmoji}  ${data.rankName}  ·  Lv. ${data.level}`;
   ctx.font = 'bold 13px Arial';
-  const gardenPillW = ctx.measureText(gardenTx).width + 24;
-  ctx.fillStyle = `rgba(${parseInt(gardenTierHex.slice(1,3),16)},${parseInt(gardenTierHex.slice(3,5),16)},${parseInt(gardenTierHex.slice(5,7),16)},0.18)`;
-  ctx.beginPath(); ctx.roundRect(TX, gardenPillY-12, gardenPillW, 24, 8); ctx.fill();
-  ctx.strokeStyle = `rgba(${parseInt(gardenTierHex.slice(1,3),16)},${parseInt(gardenTierHex.slice(3,5),16)},${parseInt(gardenTierHex.slice(5,7),16)},0.5)`;
-  ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(TX, gardenPillY-12, gardenPillW, 24, 8); ctx.stroke();
-  ctx.fillStyle = gardenTierHex; ctx.fillText(gardenTx, TX+12, gardenPillY);
+  const pillW = ctx.measureText(rankTxt).width + 24;
+  ctx.fillStyle = 'rgba(77,150,255,0.20)';
+  ctx.beginPath();
+  ctx.roundRect(TX, pillY - 13, pillW, 26, 8);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(77,150,255,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(TX, pillY - 13, pillW, 26, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#4d96ff';
+  ctx.fillText(rankTxt, TX + 12, pillY);
 
-  const barX = TX, barW = Math.min(W - TX - 24, 320), barH = 10, barY = gardenPillY + 22;
-  ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 5); ctx.fill();
+  // Garden tier pill with image icon
+  const tierPillY = pillY + 32;
+  const tierHex = '#' + data.gardenTier.color.toString(16).padStart(6, '0');
+  const tierR = parseInt(tierHex.slice(1, 3), 16);
+  const tierG = parseInt(tierHex.slice(3, 5), 16);
+  const tierB = parseInt(tierHex.slice(5, 7), 16);
+
+  const tierIconMap = {
+    Iron:        './images/tier/iron.png',
+    Bronze:      './images/tier/bronze.png',
+    Silver:      './images/tier/silver.png',
+    Gold:        './images/tier/gold.png',
+    Platinum:    './images/tier/platinum.png',
+    Diamond:     './images/tier/diamond.png',
+    Master:      './images/tier/master.png',
+    Grandmaster: './images/tier/grandmaster.png',
+    Celestial:   './images/tier/celestial.png',
+    '???':       './images/tier/celestial.png',
+  };
+
+  const ICON_SIZE = 20, ICON_GAP = 6;
+  const gardenTxt = `${data.gardenTier.name}  ·  ${data.gardenScore.toLocaleString()} pts`;
+  ctx.font = 'bold 13px Arial';
+  const gardenPillW = ctx.measureText(gardenTxt).width + ICON_SIZE + ICON_GAP + 28;
+
+  ctx.fillStyle = `rgba(${tierR},${tierG},${tierB},0.15)`;
+  ctx.beginPath();
+  ctx.roundRect(TX, tierPillY - 13, gardenPillW, 26, 8);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(${tierR},${tierG},${tierB},0.45)`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(TX, tierPillY - 13, gardenPillW, 26, 8);
+  ctx.stroke();
+
+  let iconDrawn = false;
+  const tierIconPath = tierIconMap[data.gardenTier.name];
+  if (tierIconPath) {
+    try {
+      const tierImg = await loadImage(tierIconPath);
+      ctx.drawImage(tierImg, TX + 8, tierPillY - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
+      iconDrawn = true;
+    } catch {}
+  }
+  ctx.fillStyle = tierHex;
+  ctx.fillText(gardenTxt, TX + 8 + (iconDrawn ? ICON_SIZE + ICON_GAP : 0), tierPillY);
+
+  // XP bar
+  const barX = TX, barW = Math.min(W - TX - 24, 300), barH = 9;
+  const barY = tierPillY + 20;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 5);
+  ctx.fill();
   const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-  xpGrad.addColorStop(0, '#4d96ff'); xpGrad.addColorStop(1, '#a78bfa');
-  ctx.fillStyle = xpGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*(data.pct/100), 8), barH, 5); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px Arial'; ctx.fillText(`${data.pct}% to next level`, barX, barY + barH + 14);
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(20, 195); ctx.lineTo(W-20, 195); ctx.stroke();
+  xpGrad.addColorStop(0, '#4d96ff');
+  xpGrad.addColorStop(1, '#a78bfa');
+  ctx.fillStyle = xpGrad;
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, Math.max(barW * (data.pct / 100), 8), barH, 5);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.font = '12px Arial';
+  ctx.fillText(`${data.pct}% to next level`, barX, barY + barH + 13);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(20, 192);
+  ctx.lineTo(W - 20, 192);
+  ctx.stroke();
+
+  // Stats
   const stats = [
-    { icon:'💰', label:'Balance', value: data.balance.toLocaleString() },
-    { icon:'🌱', label:'Plants',  value: String(data.plants) },
-    { icon:'🏅', label:'Achiev.', value: `${data.achievements}/${data.totalAchievements}` },
+    { icon: '💰', label: 'Balance', value: data.balance.toLocaleString() },
+    { icon: '🌱', label: 'Plants',  value: String(data.plants) },
+    { icon: '🏅', label: 'Achiev.', value: `${data.achievements}/${data.totalAchievements}` },
   ];
-  const PILL_W = (W-48)/3, PILL_H = 60, PILL_Y = 207;
+  const PILL_W = (W - 48) / 3, PILL_H = 58, PILL_Y = 204;
   stats.forEach((s, i) => {
-    const px = 16 + i*(PILL_W+8);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px Arial'; ctx.textAlign = 'center';
-    ctx.fillText(s.label, px + PILL_W/2, PILL_Y+18);
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 17px Arial';
-    ctx.fillText(`${s.icon} ${s.value}`, px + PILL_W/2, PILL_Y+44);
+    const px = 16 + i * (PILL_W + 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.40)';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.label, px + PILL_W / 2, PILL_Y + 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(`${s.icon} ${s.value}`, px + PILL_W / 2, PILL_Y + 40);
     ctx.textAlign = 'left';
   });
+
+  // Equipped charms
   if (data.equippedCharms.length) {
-    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '13px Arial';
-    ctx.fillText('Equipped', W-16, ACY-20); ctx.font = '26px Arial';
-    ctx.fillText(data.equippedCharms.join('  '), W-16, ACY+8); ctx.textAlign = 'left';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '12px Arial';
+    ctx.fillText('Equipped', W - 16, ACY - 22);
+    ctx.font = '24px Arial';
+    ctx.fillText(data.equippedCharms.join('  '), W - 16, ACY + 6);
+    ctx.textAlign = 'left';
   }
-  const R = W - 20; ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = '12px Arial'; ctx.fillText(`Total XP: ${data.totalXp.toLocaleString()}`, R, 148);
+
+  // Server rank + total XP
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.font = '12px Arial';
+  ctx.fillText(`Total XP: ${data.totalXp.toLocaleString()}`, W - 16, 148);
   if (data.serverRank <= 3) {
-    const gc = ['#FFD700','#C0C0C0','#CD7F32'][data.serverRank - 1];
-    ctx.save(); ctx.shadowColor = gc; ctx.shadowBlur = 10; ctx.fillStyle = gc; ctx.font = 'bold 12px Arial';
-    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, R, 164); ctx.restore();
+    const gc = ['#FFD700', '#C0C0C0', '#CD7F32'][data.serverRank - 1];
+    ctx.save();
+    ctx.shadowColor = gc;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = gc;
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, W - 16, 166);
+    ctx.restore();
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = '12px Arial';
-    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, R, 164);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.font = '12px Arial';
+    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, W - 16, 166);
   }
   ctx.textAlign = 'left';
+
+  drawWatermark(ctx, W, H);
   return canvas.toBuffer('image/png');
 }
 
