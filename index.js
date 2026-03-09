@@ -365,11 +365,12 @@ function getMarketMultiplier(plantName) {
   return Math.max(0.5, Math.min(2.0, mult));
 }
 function calcSellValue(plant, rarity, mutation, version) {
-  const base    = rarity.sellPrice;
-  const verMult = getVersionMultiplier(version);
-  const mktMult = getMarketMultiplier(plant.name);
-  const mutMult = mutation ? mutation.multiplier : 1.0;
-  return Math.max(1, Math.round(base * verMult * mktMult * mutMult));
+  const base      = rarity.sellPrice;
+  const dropBonus = plant.dropOnly ? (rarity.name === 'Secret' ? 1.15 : 1.80) : 1.0;
+  const verMult   = getVersionMultiplier(version);
+  const mktMult   = getMarketMultiplier(plant.name);
+  const mutMult   = mutation ? mutation.multiplier : 1.0;
+  return Math.max(1, Math.round(base * dropBonus * verMult * mktMult * mutMult));
 }
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
@@ -453,12 +454,14 @@ const PLANTS = [
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
   // ── UNRELEASED — uncomment to release ──
+  // { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
+  // { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
   { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
   // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
-  // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
-  // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Mythic', dropOnly: true    },
-  // { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Rare', dropOnly: true      },
-  // { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Epic', dropOnly: true      },
+  // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
+  // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
+  // { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
+  // { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
 ];
 
 
@@ -1468,16 +1471,16 @@ async function generateProfileImage(data) {
   const tierB = parseInt(tierHex.slice(5, 7), 16);
 
   const tierIconMap = {
-    Iron:        './images/tiers/iron.png',
-    Bronze:      './images/tiers/bronze.png',
-    Silver:      './images/tiers/silver.png',
-    Gold:        './images/tiers/gold.png',
-    Platinum:    './images/tiers/platinum.png',
-    Diamond:     './images/tiers/diamond.png',
-    Master:      './images/tiers/master.png',
-    Grandmaster: './images/tiers/grandmaster.png',
-    Celestial:   './images/tiers/celestial.png',
-    '???':       './images/tiers/celestial.png',
+    Iron:        null,
+    Bronze:      './images/tiers/bronze.webp',
+    Silver:      './images/tiers/silver.webp',
+    Gold:        './images/tiers/gold.webp',
+    Platinum:    './images/tiers/platinum.webp',
+    Diamond:     './images/tiers/diamond.webp',
+    Master:      './images/tiers/master.webp',
+    Grandmaster: './images/tiers/grandmaster.webp',
+    Celestial:   './images/tiers/celestial.webp',
+    '???':       './images/tiers/celestial.webp',
   };
 
   const ICON_SIZE = 20, ICON_GAP = 6;
@@ -2849,7 +2852,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     const { level, needed, progress, pct } = xpToNextLevel(user.xp || 0);
     const rank = getRank(level), title = getActiveTitle(user);
     const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, xp: u.xp||0, score: calcWeightedGardenScore(u.collection||[]) })).sort((a,b) => b.score-a.score);
-    const serverRank = allUsers.findIndex(e => e.id === req.params.id) + 1;
+    const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
     const imgBuf = await generateLevelCardImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, needed, progress, rankEmoji: rank.emoji, rankName: rank.name, title, totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length });
     const att = new AttachmentBuilder(imgBuf, { name: 'level.png' });
     return message.channel.send({ files: [att], embeds: [new EmbedBuilder().setImage('attachment://level.png').setColor(0x5C6BC0)] });
