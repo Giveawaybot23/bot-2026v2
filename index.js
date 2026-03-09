@@ -1459,16 +1459,16 @@ async function generateProfileImage(data) {
   const tierB = parseInt(tierHex.slice(5, 7), 16);
 
   const tierIconMap = {
-    Iron:        './images/tier/iron.png',
-    Bronze:      './images/tier/bronze.png',
-    Silver:      './images/tier/silver.png',
-    Gold:        './images/tier/gold.png',
-    Platinum:    './images/tier/platinum.png',
-    Diamond:     './images/tier/diamond.png',
-    Master:      './images/tier/master.png',
-    Grandmaster: './images/tier/grandmaster.png',
-    Celestial:   './images/tier/celestial.png',
-    '???':       './images/tier/celestial.png',
+    Iron:        './images/tiers/iron.png',
+    Bronze:      './images/tiers/bronze.png',
+    Silver:      './images/tiers/silver.png',
+    Gold:        './images/tiers/gold.png',
+    Platinum:    './images/tiers/platinum.png',
+    Diamond:     './images/tiers/diamond.png',
+    Master:      './images/tiers/master.png',
+    Grandmaster: './images/tiers/grandmaster.png',
+    Celestial:   './images/tiers/celestial.png',
+    '???':       './images/tiers/celestial.png',
   };
 
   const ICON_SIZE = 20, ICON_GAP = 6;
