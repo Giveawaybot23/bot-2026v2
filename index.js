@@ -51,6 +51,7 @@ const SERVER_NAME     = 'Horizon Hub';
 const WATERMARK       = 'LA';
 
 let auctionChannels = {};
+let payoutChannels = {};
 
 let sellbatchV10Protection = true;
 
@@ -182,6 +183,7 @@ function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, nul
   if (s.relaxedDropChannels) relaxedDropChannels = s.relaxedDropChannels;
   if (s.vPingChannels)       vPingChannels       = s.vPingChannels;
   if (s.auctionChannels) auctionChannels = s.auctionChannels;
+  if (s.payoutChannels) payoutChannels = s.payoutChannels;
 })();
 
 
@@ -442,6 +444,7 @@ const PLANTS = [
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
   // ── UNRELEASED — uncomment to release ──
+  // { name: 'Glowflower',  file: './images/Glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
   // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary' },
   // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Epic'      },
   // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Mythic'    },
@@ -769,8 +772,8 @@ function pickRarityWithCharms(db, userId, customWeights) {
   }
   return pickRarity(weights);
 }
-function pickPlant(rarityName) {
-  const pool = PLANTS.filter(p => p.rarity === rarityName);
+function pickPlant(rarityName, allowDropOnly = false) {
+  const pool = PLANTS.filter(p => p.rarity === rarityName && (allowDropOnly || !p.dropOnly));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
 }
 function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
@@ -940,7 +943,7 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    plant = pickPlant(rarity.name);
+    plant = pickPlant(rarity.name, true);
   }
   let mutation;
   if (forcedMutation) {
@@ -985,6 +988,112 @@ function startDropLoop() {
       if (ch) await tryActivityDrop(ch).catch(console.error);
     }
   }, 30_000);
+}
+
+// ─── Payout Config ────────────────────────────────────────────────────────────
+const DAILY_PAYOUTS  = [250000, 175000, 100000];
+const WEEKLY_PAYOUTS = [1500000, 1000000, 750000];
+
+const PAYOUT_FILE = `${DATA_DIR}/payouts.json`;
+function loadPayoutState() {
+  try {
+    if (!fs.existsSync(PAYOUT_FILE)) fs.writeFileSync(PAYOUT_FILE, JSON.stringify({ lastDaily: 0, lastWeekly: 0 }));
+    return JSON.parse(fs.readFileSync(PAYOUT_FILE));
+  } catch { return { lastDaily: 0, lastWeekly: 0 }; }
+}
+function savePayoutState(s) { fs.writeFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
+
+function startPayoutLoop() {
+  const DAY  = 24 * 60 * 60 * 1000;
+  const WEEK = 7  * 24 * 60 * 60 * 1000;
+
+  setInterval(async () => {
+    const state = loadPayoutState();
+    const now   = Date.now();
+
+    // ── Daily payout ────────────────────────────────────────────────────────
+    if (now - state.lastDaily >= DAY) {
+      state.lastDaily = now;
+      savePayoutState(state);
+
+      const lb = loadClaimsLB();
+      const top = lb
+        .filter(e => !TEST_IDS.has(e.userId))
+        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, DAY) }))
+        .filter(e => e.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
+      if (!top.length) return;
+
+      const db = loadDB();
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines  = [];
+
+      for (let i = 0; i < top.length; i++) {
+        const entry  = top[i];
+        const payout = DAILY_PAYOUTS[i];
+        const user   = getUser(db, entry.userId);
+        user.currency += payout;
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+      }
+      saveDB(db);
+
+      for (const [guildId, chId] of Object.entries(payoutChannels)) {
+        const ch = client.channels.cache.get(chId);
+        if (!ch) continue;
+        await ch.send({ embeds: [new EmbedBuilder()
+          .setTitle('🌱 Daily Claims Payout!')
+          .setDescription(`The **24-hour claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setColor(0x00C853)
+          .setFooter({ text: 'Next payout in 24 hours · Keep claiming to stay on top!' })
+          .setTimestamp()
+        ]}).catch(console.error);
+      }
+    }
+
+    // ── Weekly payout ───────────────────────────────────────────────────────
+    if (now - state.lastWeekly >= WEEK) {
+      state.lastWeekly = now;
+      savePayoutState(state);
+
+      const lb = loadClaimsLB();
+      const top = lb
+        .filter(e => !TEST_IDS.has(e.userId))
+        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, 7 * 24 * 60 * 60 * 1000) }))
+        .filter(e => e.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
+      if (!top.length) return;
+
+      const db = loadDB();
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines  = [];
+
+      for (let i = 0; i < top.length; i++) {
+        const entry  = top[i];
+        const payout = WEEKLY_PAYOUTS[i];
+        const user   = getUser(db, entry.userId);
+        user.currency += payout;
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+      }
+      saveDB(db);
+
+      for (const [guildId, chId] of Object.entries(payoutChannels)) {
+        const ch = client.channels.cache.get(chId);
+        if (!ch) continue;
+        await ch.send({ embeds: [new EmbedBuilder()
+          .setTitle('🌿 Weekly Claims Payout!')
+          .setDescription(`The **weekly claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setColor(0x4CAF50)
+          .setFooter({ text: 'Next payout in 7 days · Keep claiming to stay on top!' })
+          .setTimestamp()
+        ]}).catch(console.error);
+      }
+    }
+
+  }, 60 * 1000); // check every minute
 }
 
 // ─── Decay Loop ───────────────────────────────────────────────────────────────
@@ -1780,6 +1889,7 @@ client.once('ready', () => {
 
   startDropLoop();
   startDecayLoop();
+  startPayoutLoop();
 
   // Resume any auctions that were running before restart
   const auctions = loadAuctions();
@@ -2377,6 +2487,22 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     }
 
     return message.channel.send({ embeds: [embed] });
+  }
+
+  // ── !setpayout ────────────────────────────────────────────────────────────
+  if (cmd === 'setpayout') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[1]?.toLowerCase() === 'stop') {
+      delete payoutChannels[message.guild.id];
+      const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
+      return message.reply('✅ Payout announcements disabled.');
+    }
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply('❌ Channel not found.');
+    payoutChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
+    return message.reply(`✅ Payout announcements → <#${targetCh.id}>.\n\nDaily top 3 pays out every 24h, weekly top 3 every 7 days.`);
   }
 
   // ── !setauction ───────────────────────────────────────────────────────────
@@ -3324,6 +3450,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
     if (!plant) return message.reply(`❌ Plant **${plantName}** not found. Check spelling.`);
+    if (plant.dropOnly) return message.reply(`❌ **${plant.name}** can only be obtained through drops.`);
 
     const db = loadDB();
     const user = getUser(db, target.id);
