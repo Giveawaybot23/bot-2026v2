@@ -1765,7 +1765,7 @@ ${isPodium ? `
 ._sr:hover{border-color:${isPodium ? pk?.g+'.22)' : tc+'44'}}
 ._sr-icon{font-size:18px;width:26px;text-align:center;flex-shrink:0}
 ._sr-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};line-height:1}
-._sr-val{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.02em;color:${isPodium ? pk?.p : 'var(--ink)'};line-height:1.1}
+._sr-val{font-family:'DM Serif Display',serif;font-size:19px;letter-spacing:-.02em;color:${(isPodium && isDark) ? pk?.p : 'var(--ink)'};line-height:1.1}
 
 /* ── achievement badge ── */
 ._ab{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid ${bord};background:${bg2};transition:all .15s;cursor:default;animation:_pCardIn .3s ease both}

@@ -440,7 +440,6 @@ const PLANTS = [
   { name: 'Octobranch',     file: './images/octobranch2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/octobranch2-removebg-preview.png',     rarity: 'Legendary' },
   { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',                     display: 'https://bot2026-production-06e3.up.railway.app/images/dawn-blossom.png',                     rarity: 'Mythic'    },
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
-  { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
   // ── UNRELEASED — uncomment to release ──
   // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary' },
