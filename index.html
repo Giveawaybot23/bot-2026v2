@@ -803,12 +803,69 @@
 }
 
 /* ── AUCTION DETAIL PAGE ── */
-.auction-detail { padding: 32px 48px 80px; max-width: 1100px; margin: 0 auto; }
+.auction-detail { padding: 32px 48px 80px; max-width: 1060px; margin: 0 auto; }
 .auction-detail-grid {
-  display: grid; grid-template-columns: 340px 1fr; gap: 32px; margin-top: 32px;
+  display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-top: 24px; align-items: start;
 }
 @media (max-width: 768px) {
   .auction-detail-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── AUCTION DETAIL GLOW SYSTEM ── */
+@keyframes _adV1Pulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(201,168,76,0.5), 0 0 24px rgba(201,168,76,0.15), 0 4px 32px rgba(14,13,11,0.08); }
+  50%      { box-shadow: 0 0 0 1px rgba(201,168,76,0.9), 0 0 48px rgba(201,168,76,0.35), 0 4px 32px rgba(14,13,11,0.08); }
+}
+@keyframes _adV1Sweep {
+  0%        { transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  8%        { opacity: 0.5; }
+  55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
+}
+@keyframes _adSecretPulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(160,100,255,0.4), 0 0 28px rgba(140,80,255,0.12), 0 4px 32px rgba(14,13,11,0.08); }
+  50%     { box-shadow: 0 0 0 1px rgba(190,130,255,0.85), 0 0 55px rgba(160,100,255,0.32), 0 4px 32px rgba(14,13,11,0.08); }
+}
+@keyframes _adSecretSweep {
+  0%        { transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  8%        { opacity: 0.35; }
+  55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
+}
+
+.ad-glow-v1 {
+  border-color: rgba(201,168,76,0.55) !important;
+  background: linear-gradient(160deg, var(--card) 50%, rgba(201,168,76,0.06) 100%) !important;
+  animation: _adV1Pulse 2.8s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-v1::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 45%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,215,80,0.07), transparent);
+  animation: _adV1Sweep 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.ad-glow-secret {
+  border-color: rgba(160,100,255,0.45) !important;
+  background: linear-gradient(160deg, var(--card) 50%, rgba(130,70,255,0.05) 100%) !important;
+  animation: _adSecretPulse 3s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-secret::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 45%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(180,120,255,0.07), transparent);
+  animation: _adSecretSweep 5s ease-in-out 0.8s infinite;
+  pointer-events: none;
+}
+.ad-glow-secret-v1 {
+  border-color: rgba(180,120,255,0.65) !important;
+  background: linear-gradient(160deg, var(--card) 40%, rgba(140,70,255,0.09) 100%) !important;
+  animation: _adSecretPulse 2.4s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-secret-v1::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(200,150,255,0.11), rgba(255,200,255,0.05), transparent);
+  animation: _adSecretSweep 3.8s ease-in-out infinite;
+  pointer-events: none;
 }
 .auction-plant-card {
   background: var(--card); border-radius: 20px;
@@ -2741,14 +2798,19 @@ async function showAuctionDetail(auctionId) {
     const a        = auctions.find(x => x.id === auctionId);
     if (!a) { content.innerHTML = '<p style="padding:40px;color:var(--ink3)">Auction not found or has ended.</p>'; return; }
 
+    const isV1     = a.plant.version === 1;
+    const isSecret = a.plant.rarity === 'Secret';
+    const glowClass = isSecret && isV1 ? 'ad-glow-secret-v1'
+                    : isV1            ? 'ad-glow-v1'
+                    : isSecret        ? 'ad-glow-secret'
+                    : '';
+
     const color  = '#' + a.plant.color.toString(16).padStart(6,'0');
     const minBid = Math.max(a.currentBid + 1, Math.ceil(a.currentBid * 1.05));
 
-    // Seed chat if empty
     if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
     connectAuctionWS(auctionId);
 
-    // load avatars for bids
     const bidAvatarMap = {};
     a.bids.forEach(b => {
       if (_avatarCache[b.userId]) bidAvatarMap[b.userId] = _avatarCache[b.userId];
@@ -2762,7 +2824,7 @@ async function showAuctionDetail(auctionId) {
       });
     });
 
-    const bidsHtmlFull = a.bids.length ? a.bids.map((b, i) => `
+    const bidsHtml = a.bids.length ? a.bids.map((b, i) => `
       <div class="bid-entry${i === 0 ? ' top-bid' : ''}">
         <div class="bid-entry-avatar" id="bid-av-${b.userId}" style="overflow:hidden;padding:0">
           ${bidAvatarMap[b.userId]
@@ -2775,76 +2837,79 @@ async function showAuctionDetail(auctionId) {
         </div>
         <div class="bid-entry-amount">${b.amount.toLocaleString()} coins</div>
       </div>`).join('')
-    : '<div style="padding:20px;color:var(--ink3);font-size:14px;text-align:center">No bids yet — be the first!</div>';
+    : '<div style="padding:20px;color:var(--ink3);font-size:13px;text-align:center">No bids yet — be the first!</div>';
 
-    if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
+    // Secret v1 gets an extra crown badge above the name overlay
+    const secretV1Crown = (isSecret && isV1)
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(180,120,255,0.18);border:1px solid rgba(180,120,255,0.45);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#c89fff;backdrop-filter:blur(8px);box-shadow:0 0 16px rgba(160,100,255,0.3)">💎 Secret · v1</div>`
+      : isV1
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.45);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#e8c96a;backdrop-filter:blur(8px);box-shadow:0 0 14px rgba(201,168,76,0.28)">👑 v1 · First Copy</div>`
+      : isSecret
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(160,100,255,0.15);border:1px solid rgba(160,100,255,0.38);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#b880ff;backdrop-filter:blur(8px)">💎 Secret</div>`
+      : '';
 
     content.innerHTML = `
-      <div style="display:grid;grid-template-columns:300px 1fr 300px;gap:24px;align-items:start" id="auction-detail-grid">
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start" id="auction-detail-grid">
 
-        <!-- LEFT: bid history -->
-        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
-          <div class="auction-panel">
-            <div class="auction-panel-header">
-              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+        <!-- LEFT: plant hero + bid controls -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Hero image card -->
+          <div class="${glowClass}" style="border-radius:18px;border:1px solid var(--border);overflow:hidden;position:relative;background:var(--card)">
+            ${secretV1Crown}
+            <!-- Image zone -->
+            <div style="position:relative;width:100%;aspect-ratio:4/3;max-height:420px;overflow:hidden;background:var(--bg2)">
+              <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};z-index:3"></div>
+              ${a.plant.localImage
+                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:32px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+                : ''}
+              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:110px">${a.plant.emoji}</div>
+              <!-- Bottom gradient overlay: name + seller + badges -->
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 20px 18px;background:linear-gradient(0deg,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.28) 60%,transparent 100%);z-index:3">
+                <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px">${a.plant.name}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:9px">Listed by <strong style="color:rgba(255,255,255,0.82)">${a.sellerName}</strong></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span style="background:${color}cc;color:#fff;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
+                  ${a.plant.version === 1
+                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
+                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:11px;font-weight:600;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
+                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+                </div>
+              </div>
             </div>
-            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtmlFull}</div>
-          </div>
-        </div>
-
-        <!-- MIDDLE: big image + info -->
-        <div>
-          <!-- Hero image -->
-          <div style="width:100%;aspect-ratio:1/1;max-height:480px;border-radius:20px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);position:relative;margin-bottom:20px">
-            <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${color};z-index:2"></div>
-            ${a.plant.localImage
-              ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:24px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+            <!-- Remove button (seller, no bids) -->
+            ${a.sellerId === window._loggedInId
+              ? (!a.bids.length
+                ? `<div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg2)"><button onclick="confirmRemoveAuction('${a.id}')" style="width:100%;padding:9px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button></div>`
+                : `<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--ink3);text-align:center;background:var(--bg2)">🔒 Can't remove — bids have been placed</div>`)
               : ''}
-            <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage ? 'none' : 'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:120px">${a.plant.emoji}</div>
-            <!-- Name overlay -->
-            <div style="position:absolute;top:0;left:0;right:0;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0.6) 0%,transparent 100%);z-index:2">
-              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#fff;letter-spacing:-0.02em;margin-bottom:2px">${a.plant.name}</div>
-              <div style="font-size:12px;color:rgba(255,255,255,0.6)">Listed by <strong style="color:rgba(255,255,255,0.85)">${a.sellerName}</strong></div>
-              ${a.sellerId === window._loggedInId ? (!a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button>` : `<div style="margin-top:10px;font-size:12px;color:var(--ink3);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:inline-block">🔒 Can't remove — bids have been placed</div>`) : ''}
+          </div>
+
+          <!-- Stat tiles row: timer + current bid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Time Remaining</div>
+              <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1">--</div>
             </div>
-            <!-- Rarity badge overlay -->
-            <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
-              <span style="background:${color}dd;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.rarity}</span>
-              ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}
-              ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:${mutationColor(a.plant.mutation.name)};font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Current Bid</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1" id="detail-current-bid-${auctionId}">${a.currentBid.toLocaleString()}<span style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--ink3);margin-left:4px">coins</span></div>
             </div>
           </div>
 
-          <!-- Bid box -->
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px">
-            <!-- Timer + current bid row -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-              <div style="background:var(--bg2);border-radius:10px;padding:14px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:6px">Time Remaining</div>
-                <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);letter-spacing:-0.02em">--</div>
-              </div>
-              <div style="background:var(--bg2);border-radius:10px;padding:14px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:6px">Current Bid</div>
-                <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);letter-spacing:-0.02em">${a.currentBid.toLocaleString()} coins</div>
-              </div>
-            </div>
-
-            <!-- Buy now -->
+          <!-- Bid / buy card -->
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
             ${a.buyoutPrice ? `
-            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:16px">
+            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:14px">
               ⚡ Buy Now — ${a.buyoutPrice.toLocaleString()} coins
             </button>` : ''}
 
-            <!-- Feedback -->
             <div id="bid-feedback-${auctionId}" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:12px;text-align:center"></div>
 
-            <!-- Balance row -->
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:8px;font-weight:500">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:7px;font-weight:500">
               <span>Place your bid</span>
               <span id="bid-balance-${auctionId}" style="color:var(--ink2)"></span>
             </div>
-
-            <!-- Input -->
             <div class="auction-bid-input-wrap">
               <input class="auction-bid-input" type="number" id="bid-input-${auctionId}"
                 placeholder="Min: ${minBid.toLocaleString()}"
@@ -2852,13 +2917,21 @@ async function showAuctionDetail(auctionId) {
                 oninput="validateBidInput('${auctionId}', ${a.currentBid}, this.value)">
               <button class="auction-bid-btn" id="bid-btn-${auctionId}" onclick="submitWebBid('${auctionId}', ${a.currentBid})" disabled style="opacity:0.5">Bid</button>
             </div>
-
-            <div style="font-size:11px;color:var(--ink3);margin-top:10px">Min increment: +5% · next min bid is <strong>${minBid.toLocaleString()} coins</strong></div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:9px">Min increment +5% · next min: <strong style="color:var(--ink2)">${minBid.toLocaleString()} coins</strong></div>
           </div>
-        </div>
 
-        <!-- RIGHT: chat only -->
-        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
+        </div><!-- /left -->
+
+        <!-- RIGHT sidebar: bid history + chat -->
+        <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:84px">
+
+          <!-- Bid history -->
+          <div class="auction-panel">
+            <div class="auction-panel-header">
+              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtml}</div>
+          </div>
 
           <!-- Live chat -->
           <div class="auction-panel">
@@ -2866,8 +2939,8 @@ async function showAuctionDetail(auctionId) {
               💬 Live Chat <span>auction room</span>
             </div>
             <div class="chat-messages" id="chat-msgs-${auctionId}">
-              ${(_auctionChats[auctionId] || []).map(m => renderChatMsg(m)).join('')}
-              ${!(_auctionChats[auctionId] || []).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
+              ${(_auctionChats[auctionId]||[]).map(m => renderChatMsg(m)).join('')}
+              ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
             </div>
             <div class="chat-input-wrap">
               <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
@@ -2876,10 +2949,10 @@ async function showAuctionDetail(auctionId) {
             </div>
           </div>
 
-        </div>
+        </div><!-- /right -->
       </div>`;
 
-    // Countdown
+    // Countdown timer
     const detailTick = () => {
       const el = document.getElementById(`detail-timer-${auctionId}`);
       if (!el) { clearInterval(detailTimer); return; }
@@ -2892,7 +2965,7 @@ async function showAuctionDetail(auctionId) {
     const detailTimer = setInterval(detailTick, 1000);
     _auctionTimers.push(detailTimer);
 
-    // Balance + auth check
+    // Balance
     if (window._loggedInId) {
       try {
         const pRes  = await fetch(`/api/profile/${window._loggedInId}`);
