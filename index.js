@@ -454,14 +454,14 @@ const PLANTS = [
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
   // ── UNRELEASED — uncomment to release ──
-  // { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
-  // { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
-  { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
-  // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
-  // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
-  // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
-  // { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
-  // { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
+   // { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
+   // { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
+  // { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
+   // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
+   // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
+   // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
+   //{ name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
+  //  { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
 ];
 
 
