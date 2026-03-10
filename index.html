@@ -3765,10 +3765,14 @@ for (let i = 0; i < SLOTS; i++) {
   const p = plants[i];
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
-    html += `<div style="aspect-ratio:1;min-height:72px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px;position:relative">
-      <img src="${p.image||''}" onerror="this.style.display='none'" style="width:48px;height:48px;object-fit:contain">
-      <div style="font-size:9px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2">${p.name}</div>
-      <div style="font-size:9px;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</div>
+    const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
+    html += `<div style="aspect-ratio:1;min-height:96px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden">
+      <img src="${p.image||''}" onerror="this.style.display='none'" style="width:68px;height:68px;object-fit:contain;flex-shrink:0">
+      <div style="font-size:10px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+      <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:center">
+        <span style="font-size:9px;font-weight:700;color:${rarityColor};background:${rarityColors[p.rarity]||'var(--border)'}22;border-radius:4px;padding:1px 5px;letter-spacing:0.03em">${p.rarity}</span>
+        <span style="font-size:9px;font-weight:600;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</span>
+      </div>
       ${isMyGrid && !mySide.confirmed ? `<div onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:3px;right:3px;font-size:10px;color:var(--ink3);cursor:pointer;background:var(--bg2);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1" title="Remove">✕</div>` : ''}
     </div>`;
   } else if (isAddSlot) {
