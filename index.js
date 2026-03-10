@@ -1041,14 +1041,72 @@ function startPayoutLoop() {
   const DAY  = 24 * 60 * 60 * 1000;
   const WEEK = 7  * 24 * 60 * 60 * 1000;
 
+  async function buildStatusEmbed(state) {
+    const lb = loadClaimsLB();
+    const dailyTop = lb
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, DAY) }))
+      .filter(e => e.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+    const weeklyTop = lb
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
+      .filter(e => e.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+    const medals = ['🥇', '🥈', '🥉'];
+    const dailyTs  = Math.floor(state.dailyEndsAt  / 1000);
+    const weeklyTs = Math.floor(state.weeklyEndsAt / 1000);
+    const dailyLines = dailyTop.length
+      ? dailyTop.map((e, i) => `${medals[i]} <@${e.userId}> — **${e.count} claims** · +${CURRENCY_EMOJI} **${DAILY_PAYOUTS[i].toLocaleString()}**`).join('\n')
+      : '*No claims yet — be the first!*';
+    const weeklyLines = weeklyTop.length
+      ? weeklyTop.map((e, i) => `${medals[i]} <@${e.userId}> — **${e.count} claims** · +${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[i].toLocaleString()}**`).join('\n')
+      : '*No claims yet — be the first!*';
+    return new EmbedBuilder()
+      .setTitle('🏆 Claims Leaderboard')
+      .addFields(
+        { name: `🌱 Daily — resets <t:${dailyTs}:R>`, value: dailyLines },
+        { name: `🌿 167h — resets <t:${weeklyTs}:R>`, value: weeklyLines },
+        { name: '💰 Payouts', value: '**Daily:** 🥇 250,000 · 🥈 175,000 · 🥉 100,000\n**167h:** 🥇 1,500,000 · 🥈 1,000,000 · 🥉 750,000' }
+      )
+      .setColor(0x00C853)
+      .setFooter({ text: 'Claim plants to climb the leaderboard! · Updates every 5 minutes' })
+      .setTimestamp();
+  }
+
+  async function refreshStatusMessage(chId, state) {
+    const ch = client.channels.cache.get(chId);
+    if (!ch) return;
+    if (statusMessages[chId]) {
+      const old = await ch.messages.fetch(statusMessages[chId]).catch(() => null);
+      if (old) await old.delete().catch(() => {});
+    }
+    const embed = await buildStatusEmbed(state);
+    const msg = await ch.send({ embeds: [embed] }).catch(console.error);
+    if (msg) statusMessages[chId] = msg.id;
+  }
+
+  // Post initial status messages when bot starts
+  client.once('ready', async () => {
+    await new Promise(r => setTimeout(r, 5000)); // wait 5s for cache
+    let state = loadPayoutState();
+    if (!state.dailyEndsAt)  { state.dailyEndsAt  = Date.now() + DAY;  savePayoutState(state); }
+    if (!state.weeklyEndsAt) { state.weeklyEndsAt = Date.now() + WEEK; savePayoutState(state); }
+    for (const chId of Object.values(payoutChannels)) {
+      await refreshStatusMessage(chId, state).catch(console.error);
+    }
+  });
+
+  let tickCount = 0;
+
   setInterval(async () => {
     const state = loadPayoutState();
     const now   = Date.now();
+    let didPayout = false;
 
-    // ── Daily payout ────────────────────────────────────────────────────────
-    if (now - state.lastDaily >= DAY) {
-      state.lastDaily = now;
+    // ── Daily payout ──────────────────────────────────────────────────────
+    if (now >= state.dailyEndsAt) {
+      state.dailyEndsAt += DAY;
       savePayoutState(state);
+      didPayout = true;
 
       const lb = loadClaimsLB();
       const top = lb
@@ -1057,8 +1115,6 @@ function startPayoutLoop() {
         .filter(e => e.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
-
-      if (!top.length) return;
 
       const db = loadDB();
       const medals = ['🥇', '🥈', '🥉'];
@@ -1069,37 +1125,41 @@ function startPayoutLoop() {
         const payout = DAILY_PAYOUTS[i];
         const user   = getUser(db, entry.userId);
         user.currency += payout;
-        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
       }
-      saveDB(db);
+      if (top.length) saveDB(db);
 
       for (const [guildId, chId] of Object.entries(payoutChannels)) {
         const ch = client.channels.cache.get(chId);
         if (!ch) continue;
+
+        // Post winner announcement
         await ch.send({ embeds: [new EmbedBuilder()
-          .setTitle('🌱 Daily Claims Payout!')
-          .setDescription(`The **24-hour claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setTitle('🌱 Daily Cycle Complete!')
+          .setDescription(
+            top.length
+              ? `The **24-hour cycle** has ended. Rewards paid out:\n\n${lines.join('\n')}`
+              : `The **24-hour cycle** ended with no claims.`
+          )
           .setColor(0x00C853)
-          .setFooter({ text: 'Next payout in 24 hours · Keep claiming to stay on top!' })
           .setTimestamp()
         ]}).catch(console.error);
       }
     }
 
-    // ── Weekly payout ───────────────────────────────────────────────────────
-    if (now - state.lastWeekly >= WEEK) {
-      state.lastWeekly = now;
+    // ── Weekly payout ─────────────────────────────────────────────────────
+    if (now >= state.weeklyEndsAt) {
+      state.weeklyEndsAt += WEEK;
       savePayoutState(state);
+      didPayout = true;
 
       const lb = loadClaimsLB();
       const top = lb
         .filter(e => !TEST_IDS.has(e.userId))
-        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, 7 * 24 * 60 * 60 * 1000) }))
+        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
         .filter(e => e.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
-
-      if (!top.length) return;
 
       const db = loadDB();
       const medals = ['🥇', '🥈', '🥉'];
@@ -1110,24 +1170,37 @@ function startPayoutLoop() {
         const payout = WEEKLY_PAYOUTS[i];
         const user   = getUser(db, entry.userId);
         user.currency += payout;
-        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
       }
-      saveDB(db);
+      if (top.length) saveDB(db);
 
       for (const [guildId, chId] of Object.entries(payoutChannels)) {
         const ch = client.channels.cache.get(chId);
         if (!ch) continue;
+
         await ch.send({ embeds: [new EmbedBuilder()
-          .setTitle('🌿 Weekly Claims Payout!')
-          .setDescription(`The **weekly claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setTitle('🌿 Weekly Cycle Complete!')
+          .setDescription(
+            top.length
+              ? `The **7-day cycle** has ended. Rewards paid out:\n\n${lines.join('\n')}`
+              : `The **7-day cycle** ended with no claims.`
+          )
           .setColor(0x4CAF50)
-          .setFooter({ text: 'Next payout in 7 days · Keep claiming to stay on top!' })
           .setTimestamp()
         ]}).catch(console.error);
       }
     }
 
-  }, 60 * 1000); // check every minute
+    // ── Refresh status message every 5 minutes or after a payout ─────────
+    tickCount++;
+    if (didPayout || tickCount % 5 === 0) {
+      const freshState = loadPayoutState();
+      for (const chId of Object.values(payoutChannels)) {
+        await refreshStatusMessage(chId, freshState).catch(console.error);
+      }
+    }
+
+  }, 60 * 1000);
 }
 
 // ─── Decay Loop ───────────────────────────────────────────────────────────────
@@ -4643,7 +4716,22 @@ app.post('/api/auction/create', async (req, res) => {
   if (announceCh) {
     const ch = client.channels.cache.get(announceCh);
     if (ch) {
-      ch.send(`🌿 **${req.user.username}** just listed **${plant.name}** \`v${plant.version}\` for auction — [click here to view](https://sproutapp.net/#auctions)`).catch(console.error);
+      const rCfg = getRarityConfig(plant.rarity);
+ch.send({ embeds: [new EmbedBuilder()
+  .setTitle('🔨 New Auction Listed!')
+  .setDescription(`<@${req.user.id}> just put up **${plant.name}** for auction!`)
+  .addFields(
+    { name: 'Rarity', value: `${rCfg.emoji} ${plant.rarity}`, inline: true },
+    { name: 'Version', value: `\`v${plant.version}\``, inline: true },
+    { name: 'Mutation', value: plant.mutation ? `${plant.mutation.emoji} ${plant.mutation.name}` : 'None', inline: true },
+    { name: 'Starting Bid', value: `${CURRENCY_EMOJI} **${start.toLocaleString()}**`, inline: true },
+    { name: 'Buyout', value: buyout ? `${CURRENCY_EMOJI} **${buyout.toLocaleString()}**` : 'None', inline: true },
+    { name: 'View Auction', value: `[Click here to bid](https://sproutapp.net/#auctions)`, inline: true },
+  )
+  .setThumbnail(plant.image)
+  .setColor(rCfg.color)
+  .setTimestamp()
+]}).catch(console.error); 
     }
   }
 
