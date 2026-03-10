@@ -2717,6 +2717,7 @@ function connectAuctionWS(auctionId) {
 }
 
 async function showAuctionDetail(auctionId) {
+  window._currentAuctionDetailId = auctionId;
   showPage('auction-detail');
   const content = document.getElementById('auction-detail-content');
   content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:60vh;font-size:32px;opacity:0.3">🔨</div>`;
@@ -4130,6 +4131,60 @@ async function checkPendingTradeNotif() {
   } catch(e) {}
 }
 
+// ── LIVE UPDATE HELPERS ──
+function updateNavCoins(newBalance) {
+  const el = document.getElementById('coin-display');
+  if (!el) return;
+  const amountEl = el.querySelector('.coin-badge-amount');
+  if (!amountEl) return;
+
+  const c = newBalance;
+  const amount = c >= 1000000 ? (c/1000000).toFixed(1)+'M' : c >= 1000 ? (c/1000).toFixed(1)+'k' : c.toLocaleString();
+
+  // Flash animation
+  amountEl.style.transition = 'color 0.15s, transform 0.15s';
+  amountEl.style.color = '#52b788';
+  amountEl.style.transform = 'scale(1.15)';
+  amountEl.textContent = amount;
+  setTimeout(() => {
+    amountEl.style.color = 'var(--ink)';
+    amountEl.style.transform = 'scale(1)';
+  }, 600);
+}
+
+function handleAuctionEnded(auctionId) {
+  // Remove from grid if showing
+  const card = document.getElementById(`ac-${auctionId}`);
+  if (card) {
+    card.style.transition = 'opacity 0.4s, transform 0.4s';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+      card.remove();
+      const grid = document.getElementById('auction-grid');
+      if (grid && !grid.querySelector('.auction-card')) {
+        grid.innerHTML = `<div class="auction-slot"><div class="auction-slot-icon">🔨</div>No active auctions right now.<br>Use <code>!auction</code> in Discord to list one.</div>`;
+      }
+    }, 400);
+  }
+  // If we're in the detail view of this auction, go back
+  if (window._currentAuctionDetailId === auctionId) {
+    showAuctionEndedBanner();
+  }
+}
+
+function showAuctionEndedBanner() {
+  const detail = document.getElementById('auction-detail-view');
+  if (!detail) return;
+  const existing = detail.querySelector('.auction-ended-banner');
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.className = 'auction-ended-banner';
+  banner.style.cssText = 'position:sticky;top:64px;z-index:10;background:#e53935;color:white;text-align:center;padding:12px;font-weight:600;font-size:14px;border-radius:8px;margin-bottom:16px';
+  banner.textContent = '🔨 This auction has ended.';
+  detail.prepend(banner);
+}
+
 // ── GLOBAL WEBSOCKET ──
 let _globalWS = null;
 
@@ -4152,6 +4207,32 @@ function initGlobalWS() {
       const msg = JSON.parse(event.data);
       if (msg.type === 'notification') {
   pushNotification(msg.notifType, msg.message);
+}
+if (msg.type === 'coin_update') {
+  updateNavCoins(msg.balance);
+}
+if (msg.type === 'market_update') {
+  loadMarketData();
+}
+if (msg.type === 'auction_ended') {
+  handleAuctionEnded(msg.auctionId);
+}
+if (msg.type === 'auction_new') {
+  loadAuctionData();
+}
+if (msg.type === 'auction_bid_grid') {
+  const card = document.getElementById(`ac-${msg.auctionId}`);
+  if (card) {
+    const bidEl = card.querySelector('.auction-card-bid');
+    if (bidEl) {
+      bidEl.innerHTML = `Current bid: <strong>${msg.currentBid.toLocaleString()} coins</strong>${msg.topBidder ? ` · ${msg.topBidder}` : ''}`;
+      bidEl.style.transition = 'color 0.3s';
+      bidEl.style.color = 'var(--green)';
+      setTimeout(() => { bidEl.style.color = ''; }, 1000);
+    }
+    // Update stored endsAt for the timer
+    if (window._auctionEndTimes) window._auctionEndTimes[msg.auctionId] = msg.endsAt;
+  }
 }
 if (msg.type === 'trade_accepted') {
   // The other player accepted — dismiss the waiting overlay and enter the trade

@@ -4304,6 +4304,10 @@ async function endAuction(auctionId, fallbackChannel) {
   buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
+  broadcastAll({ type: 'auction_ended', auctionId });
+  pushCoinUpdate(winner.userId, buyer.currency);
+  pushCoinUpdate(auction.sellerId, seller.currency);
+
   const embed = new EmbedBuilder()
     .setTitle('🔨 Auction Complete!')
     .setDescription(`${rCfg.emoji} **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
@@ -4516,6 +4520,9 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       saveDB(db);
       auctions.splice(idx, 1);
       saveAuctions(auctions);
+      broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
+      pushCoinUpdate(req.user.id, buyer.currency);
+      pushCoinUpdate(auction.sellerId, seller.currency);
       return res.json({ success: true, buyout: true });
     }
 
@@ -4573,6 +4580,8 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     (auctionRooms[req.params.id] || []).forEach(client => {
       if (client.readyState === 1) client.send(bidPayload);
     });
+    // Also broadcast a lightweight grid update to all users
+    broadcastAll({ type: 'auction_bid_grid', auctionId: req.params.id, currentBid: bidAmount, topBidder: req.user.username, endsAt: auction.endsAt });
 
     res.json({
       success: true,
@@ -4652,6 +4661,17 @@ const userSockets = {};
 function pushToUser(userId, payload) {
   const ws = userSockets[userId];
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
+}
+
+function broadcastAll(payload) {
+  const data = JSON.stringify(payload);
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(data);
+  });
+}
+
+function pushCoinUpdate(userId, newBalance) {
+  pushToUser(userId, { type: 'coin_update', balance: newBalance });
 }
 
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
@@ -4734,6 +4754,7 @@ app.delete('/api/auction/:id', async (req, res) => {
   user.collection.push({ ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
+  broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
   res.json({ success: true });
 });
 
@@ -4775,6 +4796,7 @@ app.post('/api/auction/create', async (req, res) => {
 
   setTimeout(() => endAuction(auctionId, null), h * 3600000);
 
+  broadcastAll({ type: 'auction_new' });
   res.json({ success: true, auctionId });
 });
 
@@ -4863,6 +4885,8 @@ if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error
   listings.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
   saveListings(listings);
 
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, getUser(loadDB(), req.user.id).currency);
   res.json({ success: true, listingId });
 });
 
@@ -4877,6 +4901,8 @@ app.delete('/api/market/:id', async (req, res) => {
   user.collection.push({ ...listing.plant });
   saveDB(db);
   saveListings(listings.filter(l => l.id !== req.params.id));
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, getUser(db, req.user.id).currency);
   res.json({ success: true });
 });
 
@@ -4903,9 +4929,13 @@ app.post('/api/market/buy/:id', async (req, res) => {
   // DM seller
   try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** \`v${listing.plant.version||'?'}\` was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
 
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, buyer.currency);
+  pushCoinUpdate(listing.sellerId, seller.currency);
   res.json({ success: true });
 });
-  app.get('/api/auction/:auctionId/chats', (req, res) => {
+
+app.get('/api/auction/:auctionId/chats', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
 });
