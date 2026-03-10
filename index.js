@@ -4895,6 +4895,16 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   res.json(trade);
 });
 
+app.post('/api/trade/:id/accept', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const trade = webTrades[req.params.id];
+  if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
+  if (trade.targetId !== req.user.id) return res.status(403).json({ error: 'Only the trade target can accept' });
+  // Notify the initiator that the target accepted and is now in the trade
+  pushToUser(trade.initiatorId, { type: 'trade_accepted', tradeId: trade.id });
+  res.json({ ok: true });
+});
+
 app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
   const trade = webTrades[req.params.id];
