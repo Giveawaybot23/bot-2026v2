@@ -2393,7 +2393,7 @@ function renderMarket() {
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
     return `<div class="market-card" data-rarity="${item.rarity}">
-      <div class="market-card-rarity-bar" style="background:${color}"></div>
+      <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
         ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
         : `<span class="market-card-emoji">${item.emoji || '🌿'}</span>`}
@@ -3326,8 +3326,8 @@ function renderInventoryPage() {
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
     return `
-      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer">
-        <div class="market-card-rarity-bar" style="background:${color}"></div>
+      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer;${p.rarity==='Secret'?'background:#0a0a0a;border-color:rgba(156,95,255,0.3)':''}">
+        <div class="market-card-rarity-bar" style="background:${color};${p.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
         <img src="${p.image}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
         <div class="market-card-name">${p.name}</div>
         <div class="market-card-meta" style="margin-top:6px">
