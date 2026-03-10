@@ -1023,6 +1023,16 @@ function loadPayoutState() {
 }
 function savePayoutState(s) { fs.writeFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
 
+// ─── Payout Channel Config ────────────────────────────────────────────────────
+const PAYOUT_CHANNEL_FILE = `${DATA_DIR}/payout-channels.json`;
+function loadPayoutChannels() {
+  try {
+    if (!fs.existsSync(PAYOUT_CHANNEL_FILE)) return {};
+    return JSON.parse(fs.readFileSync(PAYOUT_CHANNEL_FILE));
+  } catch { return {}; }
+}
+function savePayoutChannels(data) { fs.writeFileSync(PAYOUT_CHANNEL_FILE, JSON.stringify(data, null, 2)); }
+
 function startPayoutLoop() {
   const DAY  = 24 * 60 * 60 * 1000;
   const WEEK = 7  * 24 * 60 * 60 * 1000;
@@ -2596,6 +2606,11 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     message.delete().catch(() => {});
     return;
   }
+
+  // ── !web ──────────────────────────────────────────────────────────────────
+if (cmd === 'web') {
+  return message.reply('🌿 **Sprout** — https://sproutapp.net/#');
+}
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
   if (cmd === 'setdrop') {
