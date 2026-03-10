@@ -2366,6 +2366,7 @@ async function initAuth() {
       window._loggedInId = data.user.id;
       document.getElementById('notif-bell-wrap').style.display = 'block';
       refreshNotifBadge();
+      syncNotifPrefsFromServer();
       document.getElementById('nav-inventory').style.display = '';
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
@@ -3938,6 +3939,24 @@ function getNotifPrefs() {
 }
 function saveNotifPrefs(prefs) {
   localStorage.setItem('gh_notif_prefs', JSON.stringify(prefs));
+  // Sync to server so bot DMs respect the pref
+  if (window._loggedInId) {
+    fetch('/api/notif-prefs', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify(prefs) }).catch(()=>{});
+  }
+}
+
+// Load prefs from server on login and merge into localStorage
+async function syncNotifPrefsFromServer() {
+  if (!window._loggedInId) return;
+  try {
+    const res = await fetch('/api/notif-prefs', { credentials:'include' });
+    if (!res.ok) return;
+    const serverPrefs = await res.json();
+    const localPrefs  = getNotifPrefs();
+    // Server is source of truth — overwrite local with server values
+    const merged = { ...localPrefs, ...serverPrefs };
+    localStorage.setItem('gh_notif_prefs', JSON.stringify(merged));
+  } catch(e) {}
 }
 
 function pushNotification(type, message) {
@@ -3967,7 +3986,12 @@ function toggleNotifPanel() {
   const panel = document.getElementById('notif-panel');
   const open  = panel.style.display === 'none';
   panel.style.display = open ? 'block' : 'none';
-  if (open) { renderNotifList(); renderNotifSettings(); }
+  if (open) {
+    // Always reset to list view when opening, hide settings
+    document.getElementById('notif-settings-panel').style.display = 'none';
+    document.getElementById('notif-list').style.display = 'block';
+    renderNotifList();
+  }
 }
 
 function markAllRead() {
@@ -4015,7 +4039,7 @@ function renderNotifSettings() {
   el.innerHTML = NOTIF_TYPES.map(t => {
     const val = prefs[t.key] || 'site';
     return `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div style="font-size:13px;color:var(--ink);display:flex;align-items:center;gap:7px"><span>${t.emoji}</span>${t.label}</div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         ${['off','bot','site','both'].map(opt => `
@@ -4030,8 +4054,7 @@ function renderNotifSettings() {
 function setNotifPref(type, val, btn) {
   const prefs = getNotifPrefs();
   prefs[type] = val;
-  saveNotifPrefs(prefs);
-  // re-render all buttons for this type
+  saveNotifPrefs(prefs); // also syncs to server
   document.querySelectorAll(`[data-type="${type}"]`).forEach(b => {
     const active = b.dataset.opt === val;
     b.style.border      = `1.5px solid ${active ? 'var(--ink)' : 'var(--border)'}`;
@@ -4041,9 +4064,19 @@ function setNotifPref(type, val, btn) {
 }
 
 function showNotifSettings() {
-  const panel = document.getElementById('notif-settings-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  if (panel.style.display === 'block') renderNotifSettings();
+  const settingsPanel = document.getElementById('notif-settings-panel');
+  const listEl        = document.getElementById('notif-list');
+  const isOpen = settingsPanel.style.display !== 'none';
+  if (isOpen) {
+    // Go back to list view
+    settingsPanel.style.display = 'none';
+    listEl.style.display = 'block';
+  } else {
+    // Show settings, hide list so the panel doesn't overflow/scroll the page
+    listEl.style.display = 'none';
+    settingsPanel.style.display = 'block';
+    renderNotifSettings();
+  }
 }
 
 function formatTimeAgo(ts) {

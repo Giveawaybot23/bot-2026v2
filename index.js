@@ -713,6 +713,7 @@ function getUser(db, userId) {
   if (!u.claimStreak)    u.claimStreak    = 0;
   if (!u.lastClaimDrop)  u.lastClaimDrop  = null;
   if (!u.claimCooldowns) u.claimCooldowns = {};
+  if (!u.notifPrefs)     u.notifPrefs     = {};
   if (!u.lastActivity)   u.lastActivity   = Date.now();
   if (u.decayWarned === undefined) u.decayWarned = false;
   return u;
@@ -4953,8 +4954,33 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
     senderName: req.user.username,
     tradeId
   });
-  try { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } catch {}
+  try { if (canBotDM(targetId, 'trade_received')) { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } } catch {}
   res.json({ tradeId });
+});
+
+// ─── Notification Preferences API ────────────────────────────────────────────
+function canBotDM(userId, notifType) {
+  const db = loadDB();
+  const user = db[userId];
+  if (!user) return true; // default allow
+  const pref = (user.notifPrefs || {})[notifType] || 'site';
+  return pref === 'bot' || pref === 'both';
+}
+
+app.get('/api/notif-prefs', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  res.json(user.notifPrefs || {});
+});
+
+app.post('/api/notif-prefs', express.json(), (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  user.notifPrefs = { ...(user.notifPrefs || {}), ...req.body };
+  saveDB(db);
+  res.json({ ok: true });
 });
 
 app.get('/api/trade/active/me', (req, res) => {
@@ -5014,8 +5040,6 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
     return res.status(403).json({ error: 'Not your trade' });
   const mySide = trade.sides[req.user.id];
-  if (!mySide.plants.length && mySide.coins === 0)
-    return res.status(400).json({ error: 'Add something to your offer first' });
   mySide.confirmed = true;
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
@@ -5040,8 +5064,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     trade.status = 'complete';
     pushToUser(trade.initiatorId, { type: 'trade_complete' });
     pushToUser(trade.targetId,    { type: 'trade_complete' });
-    try { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
-    try { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
+    try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+    try { if (canBotDM(trade.targetId, 'trade_complete'))    { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
   }
   saveTrades(webTrades);
   res.json(trade);
