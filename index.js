@@ -825,54 +825,46 @@ function getActiveTitle(user) {
 }
 
 // ─── Version system ───────────────────────────────────────────────────────────
-function getAvailableVersion(plantName, db) {
-  const meta = loadMeta();
+function getAvailableVersionFromMeta(plantName, db, meta) {
   if (!meta.plantVersions) meta.plantVersions = {};
-  // plantClaimed tracks every version ever issued so concurrent/rapid calls
-  // (e.g. 10 plants from one crate) can't hand out the same version twice.
-  // Math.max(high, ver) in the old recycled branch was always equal to `high`
-  // (since ver <= high), so it never actually recorded the reservation — fixed here.
-  if (!meta.plantClaimed) meta.plantClaimed = {};
+  if (!meta.plantClaimed)  meta.plantClaimed  = {};
   if (!meta.plantClaimed[plantName]) meta.plantClaimed[plantName] = [];
 
   const high = meta.plantVersions[plantName] || 0;
 
-  // Build the taken set from both the live db AND the persisted claimed list
   const owned = new Set(meta.plantClaimed[plantName]);
-for (const userData of Object.values(db)) {
-  for (const p of (userData.collection || [])) {
-    if (p.name === plantName && p.version) owned.add(p.version);
+  for (const userData of Object.values(db)) {
+    for (const p of (userData.collection || [])) {
+      if (p.name === plantName && p.version) owned.add(p.version);
+    }
   }
-}
-// Reserve versions currently held in active auctions
-for (const auction of loadAuctions()) {
-  if (auction.plant.name === plantName && auction.plant.version) {
-    owned.add(auction.plant.version);
+  for (const auction of loadAuctions()) {
+    if (auction.plant.name === plantName && auction.plant.version) owned.add(auction.plant.version);
   }
-}
-// Reserve versions currently held in active market listings
-for (const listing of loadListings()) {
-  if (listing.plant.name === plantName && listing.plant.version) {
-    owned.add(listing.plant.version);
+  for (const listing of loadListings()) {
+    if (listing.plant.name === plantName && listing.plant.version) owned.add(listing.plant.version);
   }
-}
 
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
+
+  let ver;
   if (free.length > 0) {
-    const ver = free[Math.floor(Math.random() * free.length)];
-    // Persist the claim immediately so the next call (same crate or concurrent user)
-    // sees this version as taken before the db is saved to disk.
-    meta.plantClaimed[plantName].push(ver);
-    saveMeta(meta);
-    return ver;
+    ver = free[Math.floor(Math.random() * free.length)];
+  } else {
+    ver = high + 1;
+    meta.plantVersions[plantName] = ver;
+    meta.totalDrops = (meta.totalDrops || 0) + 1;
   }
-  const newVer = high + 1;
-  meta.plantVersions[plantName] = newVer;
-  meta.plantClaimed[plantName].push(newVer);
-  meta.totalDrops = (meta.totalDrops || 0) + 1;
+  meta.plantClaimed[plantName].push(ver);
+  return ver;
+}
+
+function getAvailableVersion(plantName, db) {
+  const meta = loadMeta();
+  const ver  = getAvailableVersionFromMeta(plantName, db, meta);
   saveMeta(meta);
-  return newVer;
+  return ver;
 }
 
 function recordVersionHighWater(plantName, version) {
@@ -2209,15 +2201,21 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
       const addedCratePlants = [];
+      const captchaCrateMeta = loadMeta();
       for (const p of results) {
-        const ver = getAvailableVersion(p.name, db);
-        recordVersionHighWater(p.name, ver);
+        const ver = getAvailableVersionFromMeta(p.name, db, captchaCrateMeta);
+        if ((captchaCrateMeta.plantVersions[p.name] || 0) < ver) captchaCrateMeta.plantVersions[p.name] = ver;
         const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
         const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
-        user.collection.push(entry);
-        addedCratePlants.push(entry);
+        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+          user.collection.push(entry);
+          addedCratePlants.push(entry);
+        } else {
+          console.warn(`[DUPE GUARD] Blocked duplicate in captcha crate: ${entry.name} v${entry.version}`);
+        }
         db[message.author.id] = user;
       }
+      saveMeta(captchaCrateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
@@ -3485,7 +3483,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
-      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); db[message.author.id] = user; }
+      const crateMeta = loadMeta();
+      for (const p of results) {
+        const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
+        if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
+        const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+        const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
+        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+          user.collection.push(entry);
+          addedPlants.push(entry);
+        } else {
+          console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
+        }
+        db[message.author.id] = user;
+      }
+      saveMeta(crateMeta);
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
     }
