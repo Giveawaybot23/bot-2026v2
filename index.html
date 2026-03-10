@@ -511,9 +511,10 @@
  @media (max-width: 900px) {
   nav {
     padding: 0 16px;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
   }
   .nav-links { display: none; }
+  #nav-auth { display: flex !important; }
   .nav-mobile-open .nav-links {
     display: flex; flex-direction: column;
     position: fixed; top: 64px; left: 0; right: 0;
@@ -1005,7 +1006,7 @@
       </div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="notif-bell-wrap" style="position:relative;display:none">
@@ -2436,9 +2437,9 @@ async function initAuth() {
       el.innerHTML = `<div style="display:flex;align-items:center;gap:6px;min-width:0">
         <div onclick="showPage('profiles');loadProfile('${data.user.id}')" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background 0.2s;min-width:0" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
         ${avatarUrl ? `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--green);flex-shrink:0">` : ''}
-          <span style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px" id="nav-username">${data.user.username}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:54px" id="nav-username">${data.user.username}</span>
         </div>
-        <a href="/auth/logout" style="font-size:13px;font-weight:500;color:var(--ink3);text-decoration:none;padding:6px 10px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Logout</a>
+        <a href="/auth/logout" style="font-size:12px;font-weight:500;color:var(--ink3);text-decoration:none;padding:5px 8px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Out</a>
       </div>`;
       window._loggedInId = data.user.id;
       document.getElementById('notif-bell-wrap').style.display = 'block';
