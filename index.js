@@ -27,6 +27,10 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
+client.on('error', (err) => console.error('Discord client error:', err));
+client.on('shardError', (err) => console.error('Shard error:', err));
+process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PREFIX          = '!';
 const DROP_COOLDOWN   = 2 * 60 * 1000;
@@ -68,13 +72,13 @@ function loadAuctions() {
   if (!fs.existsSync(AUCTION_FILE)) fs.writeFileSync(AUCTION_FILE, '[]');
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
-function saveAuctions(a) { const tmp = AUCTION_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(a, null, 2)); fs.renameSync(tmp, AUCTION_FILE); }
+function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
 
 function loadAutosellRules() {
   if (!fs.existsSync(AUTOSELL_FILE)) fs.writeFileSync(AUTOSELL_FILE, '{}');
   return JSON.parse(fs.readFileSync(AUTOSELL_FILE));
 }
-function saveAutosellRules(r) { const tmp = AUTOSELL_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(r, null, 2)); fs.renameSync(tmp, AUTOSELL_FILE); }
+function saveAutosellRules(r) { fs.writeFileSync(AUTOSELL_FILE, JSON.stringify(r, null, 2)); }
 function getUserAutosellRules(userId) {
   return loadAutosellRules()[userId] || [];
 }
@@ -113,7 +117,7 @@ function loadTrades() {
   if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
   return JSON.parse(fs.readFileSync(TRADES_FILE));
 }
-function saveTrades(t) { const tmp = TRADES_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(t, null, 2)); fs.renameSync(tmp, TRADES_FILE); }
+function saveTrades(t) { fs.writeFileSync(TRADES_FILE, JSON.stringify(t, null, 2)); }
 let webTrades = loadTrades();
 // Clean up stale active trades on startup
 for (const [id, trade] of Object.entries(webTrades)) {
@@ -185,7 +189,7 @@ function loadSettings() {
   if (!fs.existsSync(SETTINGS_FILE)) fs.writeFileSync(SETTINGS_FILE, '{}');
   return JSON.parse(fs.readFileSync(SETTINGS_FILE));
 }
-function saveSettings(s) { const tmp = SETTINGS_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(s, null, 2)); fs.renameSync(tmp, SETTINGS_FILE); }
+function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2)); }
 ;(function initSettings() {
   const s = loadSettings();
   if (s.dropChannels)        dropChannels        = s.dropChannels;
@@ -348,7 +352,7 @@ function loadMarket() {
   if (!fs.existsSync(MARKET_FILE)) fs.writeFileSync(MARKET_FILE, '{}');
   return JSON.parse(fs.readFileSync(MARKET_FILE));
 }
-function saveMarket(m) { const tmp = MARKET_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(m, null, 2)); fs.renameSync(tmp, MARKET_FILE); }
+function saveMarket(m) { fs.writeFileSync(MARKET_FILE, JSON.stringify(m, null, 2)); }
 function recordTrade(plantName) {
   const market = loadMarket();
   if (!market[plantName]) market[plantName] = { trades: 0, lastDecay: Date.now() };
@@ -484,14 +488,14 @@ function loadDB() {
   if (!fs.existsSync(DB_FILE))  fs.writeFileSync(DB_FILE, '{}');
   return JSON.parse(fs.readFileSync(DB_FILE));
 }
-function saveDB(db) { const tmp = DB_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(db, null, 2)); fs.renameSync(tmp, DB_FILE); }
+function saveDB(db) { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
 function loadMeta() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
   return JSON.parse(fs.readFileSync(META_FILE));
 }
-function saveMeta(m) { const tmp = META_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(m, null, 2)); fs.renameSync(tmp, META_FILE); }
+function saveMeta(m) { fs.writeFileSync(META_FILE, JSON.stringify(m, null, 2)); }
 
 function loadLocks(userId) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -504,8 +508,7 @@ function saveLocks(userId, locks) {
   if (!fs.existsSync(LOCKS_FILE)) fs.writeFileSync(LOCKS_FILE, '{}');
   const all = JSON.parse(fs.readFileSync(LOCKS_FILE));
   all[userId] = locks;
-  fs.writeFileSync(LOCKS_FILE+'.tmp', JSON.stringify(all, null, 2));
-  fs.renameSync(LOCKS_FILE+'.tmp', LOCKS_FILE);
+  fs.writeFileSync(LOCKS_FILE, JSON.stringify(all, null, 2));
 }
 function isLocked(userId, plant) {
   const locks = loadLocks(userId);
@@ -523,7 +526,7 @@ function loadClaimsLB() {
   if (!fs.existsSync(CLAIMS_LB_FILE)) fs.writeFileSync(CLAIMS_LB_FILE, '[]');
   return JSON.parse(fs.readFileSync(CLAIMS_LB_FILE));
 }
-function saveClaimsLB(lb) { const tmp = CLAIMS_LB_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(lb, null, 2)); fs.renameSync(tmp, CLAIMS_LB_FILE); }
+function saveClaimsLB(lb) { fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify(lb, null, 2)); }
 
 function recordClaim(userId, username) {
   const lb  = loadClaimsLB();
@@ -692,7 +695,7 @@ function loadRaceLB() {
   if (!fs.existsSync(RACE_LB_FILE)) fs.writeFileSync(RACE_LB_FILE, '[]');
   return JSON.parse(fs.readFileSync(RACE_LB_FILE));
 }
-function saveRaceLB(lb) { const tmp = RACE_LB_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(lb, null, 2)); fs.renameSync(tmp, RACE_LB_FILE); }
+function saveRaceLB(lb) { fs.writeFileSync(RACE_LB_FILE, JSON.stringify(lb, null, 2)); }
 
 function getUser(db, userId) {
   if (!db[userId]) db[userId] = {};
@@ -714,7 +717,6 @@ function getUser(db, userId) {
   if (!u.claimStreak)    u.claimStreak    = 0;
   if (!u.lastClaimDrop)  u.lastClaimDrop  = null;
   if (!u.claimCooldowns) u.claimCooldowns = {};
-  if (!u.notifPrefs)     u.notifPrefs     = {};
   if (!u.lastActivity)   u.lastActivity   = Date.now();
   if (u.decayWarned === undefined) u.decayWarned = false;
   return u;
@@ -1022,7 +1024,7 @@ function loadPayoutState() {
     return initial;
   }
 }
-function savePayoutState(s) { const tmp = PAYOUT_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(s, null, 2)); fs.renameSync(tmp, PAYOUT_FILE); }
+function savePayoutState(s) { fs.writeFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
 
 function startPayoutLoop() {
   const DAY  = 24 * 60 * 60 * 1000;
@@ -4658,9 +4660,7 @@ function loadChats() {
   try { return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8')); } catch { return {}; }
 }
 function saveChats(chats) {
-  const tmp = CHAT_FILE+'.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(chats, null, 2));
-  fs.renameSync(tmp, CHAT_FILE);
+  fs.writeFileSync(CHAT_FILE, JSON.stringify(chats, null, 2));
 }
 
 // ── WEBSOCKET ─────────────────────────────────────────────────────────────
@@ -4786,7 +4786,7 @@ function loadListings() {
     return JSON.parse(fs.readFileSync(LISTINGS_FILE));
   } catch { return []; }
 }
-function saveListings(l) { const tmp = LISTINGS_FILE+'.tmp'; fs.writeFileSync(tmp, JSON.stringify(l, null, 2)); fs.renameSync(tmp, LISTINGS_FILE); }
+function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, null, 2)); }
 
 app.get('/api/plants', (req, res) => {
   try {
@@ -4952,38 +4952,8 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
     notifType: 'trade_received',
     message: `${req.user.username} wants to trade with you! Go to the Trade page.`
   });
-  pushToUser(targetId, {
-    type: 'trade_request',
-    senderName: req.user.username,
-    tradeId
-  });
-  try { if (canBotDM(targetId, 'trade_received')) { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } } catch {}
+  try { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } catch {}
   res.json({ tradeId });
-});
-
-// ─── Notification Preferences API ────────────────────────────────────────────
-function canBotDM(userId, notifType) {
-  const db = loadDB();
-  const user = db[userId];
-  if (!user) return true; // default allow
-  const pref = (user.notifPrefs || {})[notifType] || 'site';
-  return pref === 'bot' || pref === 'both';
-}
-
-app.get('/api/notif-prefs', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  const db = loadDB();
-  const user = getUser(db, req.user.id);
-  res.json(user.notifPrefs || {});
-});
-
-app.post('/api/notif-prefs', express.json(), (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  const db = loadDB();
-  const user = getUser(db, req.user.id);
-  user.notifPrefs = { ...(user.notifPrefs || {}), ...req.body };
-  saveDB(db);
-  res.json({ ok: true });
 });
 
 app.get('/api/trade/active/me', (req, res) => {
@@ -5043,6 +5013,8 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
     return res.status(403).json({ error: 'Not your trade' });
   const mySide = trade.sides[req.user.id];
+  if (!mySide.plants.length && mySide.coins === 0)
+    return res.status(400).json({ error: 'Add something to your offer first' });
   mySide.confirmed = true;
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
@@ -5067,21 +5039,11 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     trade.status = 'complete';
     pushToUser(trade.initiatorId, { type: 'trade_complete' });
     pushToUser(trade.targetId,    { type: 'trade_complete' });
-    try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
-    try { if (canBotDM(trade.targetId, 'trade_complete'))    { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+    try { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
+    try { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } catch {}
   }
   saveTrades(webTrades);
   res.json(trade);
-});
-
-app.post('/api/trade/:id/accept', express.json(), async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  const trade = webTrades[req.params.id];
-  if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
-  if (trade.targetId !== req.user.id) return res.status(403).json({ error: 'Only the trade target can accept' });
-  // Notify the initiator that the target accepted and is now in the trade
-  pushToUser(trade.initiatorId, { type: 'trade_accepted', tradeId: trade.id });
-  res.json({ ok: true });
 });
 
 app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
@@ -5095,6 +5057,10 @@ app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
   const otherId = trade.initiatorId === req.user.id ? trade.targetId : trade.initiatorId;
   pushToUser(otherId, { type: 'trade_declined' });
   res.json({ ok: true });
+});
+
+app.get('/api/rawdb', (req, res) => {
+  res.send(fs.readFileSync(DB_FILE, 'utf8'));
 });
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
