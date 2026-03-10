@@ -476,11 +476,8 @@ let activeDrops  = {};
 let activeRaces  = {};
 let pendingSells = {};
 let pendingWipes = {};
-let activeTrades = {};
-let userTrades   = {};
 let pendingCrates ={};
 let devRarity    = null;
-function generateTradeId() { return `t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`; }
 
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
@@ -2013,22 +2010,6 @@ function buildShopEmbed(pageIndex, user, balance) {
   return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  ${CURRENCY_EMOJI} Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages` }).setColor(0x7289DA);
 }
 
-// ─── Trade embed ──────────────────────────────────────────────────────────────
-function buildTradeEmbed(trade) {
-  const iSide = trade.sides[trade.initiatorId], tSide = trade.sides[trade.targetId];
-  const sideVal = (side) => {
-    const lines = side.plants.map(p => { const r = getRarityConfig(p.rarity); return `${r.emoji} **${p.name}** \`v${p.version || '?'}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''} *(${p.rarity})*`; });
-    if (side.coins > 0) lines.push(`${CURRENCY_EMOJI} ${side.coins.toLocaleString()}`);
-    if (!lines.length) lines.push('*Nothing yet...*');
-    if (side.confirmed) lines.push('\n✅ **Confirmed**');
-    return lines.join('\n');
-  };
-  return new EmbedBuilder().setTitle('🔄 Live Trade Session')
-    .setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}**\n\nType a plant name or coins amount to add to your side.\n\`!remove <plant>\` to remove  •  \`!confirm\` when ready  •  \`!canceltrade\` to quit\n*Expires in 3 minutes.*`)
-    .addFields({ name: `📦 ${trade.initiatorName}'s offer`, value: sideVal(iSide), inline: true }, { name: `📦 ${trade.targetName}'s offer`, value: sideVal(tSide), inline: true })
-    .setColor(0x00CED1);
-}
-
 process.on('SIGTERM', () => {
   client.destroy();
   process.exit(0);
@@ -2090,78 +2071,6 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (db[message.author.id]) {
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
-    }
-  }
-
-  // ── LIVE TRADE INPUT ──────────────────────────────────────────────────────
-  const activeTId = userTrades[message.author.id];
-  if (activeTId && activeTrades[activeTId] && !content.startsWith(PREFIX) && !lower.startsWith('claim ') && !lower.startsWith('race ')) {
-    const trade = activeTrades[activeTId], mySide = trade.sides[message.author.id];
-    if (mySide && !mySide.confirmed && message.channel.id === trade.channelId) {
-      const asCoins = parseInt(content.replace(/,/g,''));
-      if (!isNaN(asCoins) && asCoins > 0) {
-        const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-        if (asCoins > user.currency) { await message.reply(`❌ You only have ${fmt(user.currency)}.`); }
-        else { mySide.coins = asCoins; const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null; if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {}); }
-      } else {
-        const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-        // Support "Plant Name", "Plant Name all", "Plant Name v3"
-        const vTradeMatch = content.match(/^(.+?)\s+v(\d+)$/i);
-        const allTradeMatch = content.match(/^(.+?)\s+all$/i);
-        const tradePlantName = (vTradeMatch ? vTradeMatch[1] : allTradeMatch ? allTradeMatch[1] : content).trim();
-        const tradeVersion = vTradeMatch ? parseInt(vTradeMatch[2]) : null;
-        const tradeAll = !!allTradeMatch;
-
-        const allMatches = user.collection.filter(p => p.name.toLowerCase() === tradePlantName.toLowerCase());
-
-        if (!allMatches.length) {
-          // not a plant name, ignore
-        } else if (tradeAll) {
-          // Add all copies the user owns that aren't already in the offer
-          const toAdd = allMatches.filter(p => !mySide.plants.find(o => o.name === p.name && o.version === p.version));
-          if (!toAdd.length) {
-            await message.reply(`All copies of **${tradePlantName}** are already in your offer.`);
-          } else {
-            for (const p of toAdd) mySide.plants.push(p);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else if (tradeVersion !== null) {
-          // Specific version
-          const plant = allMatches.find(p => p.version === tradeVersion);
-          if (!plant) {
-            await message.reply(`You don't own **${tradePlantName}** v${tradeVersion}.`);
-          } else if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
-            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
-          } else {
-            mySide.plants.push(plant);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else if (allMatches.length === 1) {
-          // Only one copy, add it directly
-          const plant = allMatches[0];
-          if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
-            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
-          } else {
-            mySide.plants.push(plant);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else {
-          // Multiple copies, no version specified — show picker
-          const lines = allMatches.map(p => {
-            const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-            return `\`v${p.version || '?'}\`${mutStr}`;
-          }).join('  ·  ');
-          await message.reply(`You own **${allMatches.length}** copies of **${tradePlantName}**:\n${lines}\n\nUse \`${tradePlantName} v<number>\` for one or \`${tradePlantName} all\` for all.`);
-        }
-      }
-      return;
     }
   }
 
@@ -2364,7 +2273,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     try {
       fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }, null, 2));
       fs.writeFileSync(RACE_LB_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(MARKET_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify([], null, 2));
-      activeDrops = {}; activeRaces = {}; pendingSells = {}; activeTrades = {}; userTrades = {};
+      activeDrops = {}; activeRaces = {}; pendingSells = {};
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Wipe Complete').setDescription('All data has been wiped.').setColor(0x00FF00)] });
     } catch (err) { return message.reply(`❌ Wipe failed: ${err.message}`); }
   }
@@ -3752,95 +3661,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`☢️  Wipe User — ${target.username}`).setDescription(`**Cannot be undone.**\n\nTo confirm:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`).setColor(0xFF6600)] });
   }
 
-  // ── !trade / !t ───────────────────────────────────────────────────────────
-  if (cmd === 'trade' || cmd === 't') {
-    const target = await resolveTarget(message, args[1]);
-    if (!target) return message.reply('Usage: `!trade @user`');
-    if (target.id === message.author.id) return message.reply("Can't trade with yourself.");
-    if (target.bot) return message.reply("Can't trade with a bot.");
-    if (userTrades[message.author.id]) return message.reply('You already have an active trade.');
-    if (userTrades[target.id]) return message.reply(`**${target.username}** is in a trade.`);
-    const tradeId = generateTradeId();
-    const trade = { initiatorId: message.author.id, initiatorName: message.author.username, targetId: target.id, targetName: target.username, channelId: message.channel.id, sides: { [message.author.id]: { plants:[], coins:0, confirmed:false }, [target.id]: { plants:[], coins:0, confirmed:false } }, messageId: null, _timeout: null };
-    activeTrades[tradeId] = trade; userTrades[message.author.id] = tradeId; userTrades[target.id] = tradeId;
-    const msg = await message.channel.send({ embeds: [buildTradeEmbed(trade)] }); trade.messageId = msg.id;
-    trade._timeout = setTimeout(() => { if (activeTrades[tradeId]) { delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId]; msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Expired').setDescription('Trade timed out.').setColor(0x555555)] }).catch(()=>{}); } }, 3*60_000);
-    return;
-  }
 
-  // ── !remove ───────────────────────────────────────────────────────────────
-  if (cmd === 'remove') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return;
-    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
-    if (mySide.confirmed) return message.reply("Already confirmed. Use `!canceltrade` to restart.");
-    const plantName = args.slice(1).join(' ');
-    const idx = mySide.plants.findIndex(p => p.name.toLowerCase() === plantName.toLowerCase());
-    if (idx === -1) return message.reply(`**${plantName}** isn't in your offer.`);
-    mySide.plants.splice(idx, 1);
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
-    await message.react('🗑️').catch(()=>{}); return;
-  }
-
-  // ── !confirm ──────────────────────────────────────────────────────────────
-  if (cmd === 'confirm') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
-    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
-    if (!mySide.plants.length && mySide.coins === 0) return message.reply("Add something to your side first!");
-    mySide.confirmed = true;
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
-    if (!Object.values(trade.sides).every(s => s.confirmed)) { await message.reply('✅ Locked in! Waiting for the other person...'); return; }
-    clearTimeout(trade._timeout);
-    delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
-    const db = loadDB(); const iUser = getUser(db, trade.initiatorId); const tUser = getUser(db, trade.targetId);
-    const iSide = trade.sides[trade.initiatorId]; const tSide = trade.sides[trade.targetId];
-    for (const p of iSide.plants) {
-      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
-      }
-      iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
-    }
-    for (const p of tSide.plants) {
-      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
-      }
-      tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
-    }
-    if (iSide.coins > 0) {
-      if (iUser.currency < iSide.coins) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
-      }
-      iUser.currency -= iSide.coins; tUser.currency += iSide.coins;
-    }
-    if (tSide.coins > 0) {
-      if (tUser.currency < tSide.coins) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
-      }
-      tUser.currency -= tSide.coins; iUser.currency += tSide.coins;
-    }
-    touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
-    saveDB(db);
-    const iLines = iSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
-    const tLines = tSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
-    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}** traded!`).addFields({ name:`${trade.targetName} received`, value: iLines+(iSide.coins>0?`\n${CURRENCY_EMOJI} ${iSide.coins.toLocaleString()}`:''), inline:true }, { name:`${trade.initiatorName} received`, value: tLines+(tSide.coins>0?`\n${CURRENCY_EMOJI} ${tSide.coins.toLocaleString()}`:''), inline:true }).setColor(0x00FF7F)] }).catch(()=>{});
-    return;
-  }
-
-  // ── !canceltrade / !ct ────────────────────────────────────────────────────
-  if (cmd === 'canceltrade' || cmd === 'ct' || cmd === 'decline') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
-    const trade = activeTrades[tradeId];
-    clearTimeout(trade._timeout); delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Cancelled').setDescription(`**${message.author.username}** cancelled the trade.`).setColor(0xFF4444)] }).catch(()=>{});
-    return;
-  }
 
   // ── !market / !m ─────────────────────────────────────────────────────────
   if (cmd === 'market' || cmd === 'm') {
