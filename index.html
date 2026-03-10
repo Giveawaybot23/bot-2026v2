@@ -488,6 +488,22 @@
     animation: tradeWaitingFadeIn 0.25s ease forwards;
   }
 
+  /* ── TRADE TOAST SLIDE IN ── */
+  @keyframes tradeToastSlideIn {
+    from { opacity:0; transform:translateX(110%); }
+    to   { opacity:1; transform:translateX(0); }
+  }
+  @keyframes tradeToastSlideOut {
+    from { opacity:1; transform:translateX(0); }
+    to   { opacity:0; transform:translateX(110%); }
+  }
+  #trade-request-toast.toast-visible {
+    animation: tradeToastSlideIn 0.35s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  #trade-request-toast.toast-hiding {
+    animation: tradeToastSlideOut 0.25s ease-in forwards;
+  }
+
  @media (max-width: 900px) {
   nav {
     padding: 0 16px;
@@ -3524,10 +3540,21 @@ let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInter
 function showTradeRequestToast(senderName, tradeId) {
   _pendingTradeId = tradeId;
   document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
-  document.getElementById('trade-request-toast').style.display = 'block';
+  const toast = document.getElementById('trade-request-toast');
+  toast.classList.remove('toast-hiding');
+  toast.style.display = 'block';
+  // Trigger reflow so animation fires fresh every time
+  void toast.offsetWidth;
+  toast.classList.add('toast-visible');
 }
 function hideTradeRequestToast() {
-  document.getElementById('trade-request-toast').style.display = 'none';
+  const toast = document.getElementById('trade-request-toast');
+  toast.classList.remove('toast-visible');
+  toast.classList.add('toast-hiding');
+  setTimeout(() => {
+    toast.style.display = 'none';
+    toast.classList.remove('toast-hiding');
+  }, 260);
   _pendingTradeId = null;
 }
 async function acceptTradeRequest() {
@@ -3587,9 +3614,7 @@ async function loadTradePage() {
   _tradeId = trade.id;
   if (trade.initiatorId !== window._loggedInId && !_tradeAccepted) {
     const senderName = trade.initiatorName || 'Someone';
-    document.getElementById('trade-toast-msg').textContent = `${senderName} sent you a trade!`;
-    document.getElementById('trade-request-toast').style.display = 'block';
-    _pendingTradeId = trade.id;
+    showTradeRequestToast(senderName, trade.id);
   } else {
     // We are the initiator — only enter the trade panel if the waiting overlay is NOT visible
     const overlay = document.getElementById('trade-waiting-overlay');

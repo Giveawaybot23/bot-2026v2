@@ -4948,6 +4948,11 @@ app.post('/api/trade/create', express.json(), async (req, res) => {
     notifType: 'trade_received',
     message: `${req.user.username} wants to trade with you! Go to the Trade page.`
   });
+  pushToUser(targetId, {
+    type: 'trade_request',
+    senderName: req.user.username,
+    tradeId
+  });
   try { const u = await client.users.fetch(targetId); await u.send({ embeds: [new EmbedBuilder().setTitle('🔄 Trade Request!').setDescription(`**${req.user.username}** wants to trade with you! Visit the Trade page on the website.`).setColor(0x5865F2)] }); } catch {}
   res.json({ tradeId });
 });
