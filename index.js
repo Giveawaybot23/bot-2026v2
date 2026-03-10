@@ -432,7 +432,7 @@ const PLANTS = [
   { name: 'Strawberry',     file: './images/strawberry2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/strawberry2-removebg-preview.png',     rarity: 'Uncommon'  },
   { name: 'Goldenberry',    file: './images/goldenberry2-removebg-preview.png',    display: 'https://bot2026-production-06e3.up.railway.app/images/goldenberry2-removebg-preview.png',    rarity: 'Uncommon'  },
   { name: 'Bell Pepper',    file: './images/bellpepper2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/bellpepper2-removebg-preview.png',     rarity: 'Uncommon'  },
-  { name: 'Lablush Berry',  file: './images/Lablushberry2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/Lablushberry2-removebg-preview.png',   rarity: 'Uncommon'  },
+  { name: 'Lablush Berry',  file: './images/LablushBerry2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/LablushBerry2-removebg-preview.png',   rarity: 'Uncommon'  },
   { name: 'Beetroot',       file: './images/beetroot2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/beetroot2-removebg-preview.png',       rarity: 'Rare'      },
   { name: 'Tomato',         file: './images/tomato2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/tomato2-removebg-preview.png',         rarity: 'Rare'      },
   { name: 'Rose',           file: './images/rose2-removebg-preview.png',           display: 'https://bot2026-production-06e3.up.railway.app/images/rose2-removebg-preview.png',           rarity: 'Rare'      },
