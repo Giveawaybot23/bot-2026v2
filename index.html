@@ -1536,40 +1536,45 @@ async function loadLiveData() {
 window._cachedLB = lb;
 
    // Garden
+const gardenTop = lb.garden[0]?.score || 1;
 const gardenHTML = lb.garden.map((e,i) =>
-  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId)
+  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId)
 ).join('');
 document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
   const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
-  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/lb.garden[0].score*100), i, e.id||e.userId);
+  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId);
 }).join('');
-document.getElementById('lb-garden-full').innerHTML = gardenHTML;
+document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
+
     // Level
+    const levelTop = lb.level[0]?.xp || 1;
     const levelHTML = lb.level.map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/lb.level[0].xp*100), i, e.id||e.userId)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-level-mini').innerHTML = lb.level.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/lb.level[0].xp*100), i, e.id||e.userId)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId)
     ).join('');
-    document.getElementById('lb-level-full').innerHTML = levelHTML;
+    document.getElementById('lb-level-full').innerHTML = levelHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
     // Race
+    const raceTop = lb.race[0]?.bestTime || 1;
     const raceHTML = lb.race.map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/lb.race[0].bestTime)*100), i, e.id||e.userId)
+      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-race-mini').innerHTML = lb.race.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/lb.race[0].bestTime)*100), i, e.id||e.userId)
+      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId)
     ).join('');
-    document.getElementById('lb-race-full').innerHTML = raceHTML;
+    document.getElementById('lb-race-full').innerHTML = raceHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No race times yet</div>';
 
     // Claims
+    const dailyTop = lb.daily[0]?.count || 1;
     const claimsHTML = lb.daily.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/lb.daily[0].count*100), i, e.id||e.userId)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-daily-mini').innerHTML = lb.daily.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/lb.daily[0].count*100), i, e.id||e.userId)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
     ).join('');
-    document.getElementById('lb-claims-full').innerHTML = claimsHTML;
+    document.getElementById('lb-claims-full').innerHTML = claimsHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
 
     // Profiles grid
     const grid = document.getElementById('profiles-grid');
