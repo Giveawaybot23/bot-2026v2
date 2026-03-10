@@ -457,7 +457,7 @@ const PLANTS = [
   { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',                     display: 'https://bot2026-production-06e3.up.railway.app/images/dawn-blossom.png',                     rarity: 'Mythic'    },
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
-  // ── UNRELEASED — uncomment to release ──
+  // UPDATE 1.0 PLANTS
     { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
     { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
    { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
@@ -4638,6 +4638,14 @@ app.post('/api/auction/create', async (req, res) => {
   saveAuctions(auctions);
 
   setTimeout(() => endAuction(auctionId, null), h * 3600000);
+
+  const announceCh = auctionChannels[Object.keys(auctionChannels)[0]];
+  if (announceCh) {
+    const ch = client.channels.cache.get(announceCh);
+    if (ch) {
+      ch.send(`🌿 **${req.user.username}** just listed **${plant.name}** \`v${plant.version}\` for auction — [click here to view](https://sproutapp.net/#auctions)`).catch(console.error);
+    }
+  }
 
   res.json({ success: true, auctionId });
 });
