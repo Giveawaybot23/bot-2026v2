@@ -2786,19 +2786,18 @@ async function showAuctionDetail(auctionId) {
               ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:24px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
               : ''}
             <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage ? 'none' : 'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:120px">${a.plant.emoji}</div>
+            <!-- Name overlay -->
+            <div style="position:absolute;top:0;left:0;right:0;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0.6) 0%,transparent 100%);z-index:2">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#fff;letter-spacing:-0.02em;margin-bottom:2px">${a.plant.name}</div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.6)">Listed by <strong style="color:rgba(255,255,255,0.85)">${a.sellerName}</strong></div>
+              ${a.sellerId === window._loggedInId && !a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:8px;padding:6px 14px;border-radius:100px;border:none;background:#e53935;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗑 Remove</button>` : ''}
+            </div>
             <!-- Rarity badge overlay -->
             <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
               <span style="background:${color}dd;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.rarity}</span>
               ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}
               ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:${mutationColor(a.plant.mutation.name)};font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
             </div>
-          </div>
-
-          <!-- Plant name + seller -->
-          <div style="margin-bottom:20px">
-            <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.02em;margin-bottom:4px">${a.plant.name}</div>
-            <div style="font-size:13px;color:var(--ink3)">Listed by <strong style="color:var(--ink2)">${a.sellerName}</strong></div>
-            ${a.sellerId === window._loggedInId && !a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button>` : ''}
           </div>
 
           <!-- Bid box -->
