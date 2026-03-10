@@ -1163,10 +1163,13 @@ function startDecayLoop() {
             .map((p, i) => ({ p, i }))
             .filter(({ p }) => !p.version || p.version > DECAY_SAFE_VER);
 
+          const toRemoveDecay = [];
           for (let h = 0; h < hoursPassed && pool.length > 0; h++) {
             const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-            u.collection.splice(pick.i - (hoursPassed - pool.length - 1 - h), 1);
+            toRemoveDecay.push(pick.i);
           }
+          toRemoveDecay.sort((a, b) => b - a);
+          for (const idx of toRemoveDecay) u.collection.splice(idx, 1);
           u.lastDecayTick = lastDecay + hoursPassed * DECAY_INTERVAL;
           changed = true;
         }
@@ -3524,6 +3527,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.currency -= t.price; user.titles.push(itemKey); saveDB(db);
       return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
     }
+    let autoEarned = 0;
     const crateKey = Object.keys(CRATES).find(k => CRATES[k].name.split(' ')[0].toLowerCase() === itemKey || k === itemKey);
     if (!crateKey) return message.reply('Unknown item. Check `!shop`.');
     const crate = CRATES[crateKey];
@@ -4412,7 +4416,7 @@ app.get('/api/leaderboards', (req, res) => {
       .map(([id, u]) => ({ id, currency: u.currency||0 }))
       .sort((a,b) => b.currency - a.currency).slice(0,10);
 
-    const race = raceLB.filter(e => !TEST_IDS.has(e.userId)).slice(0,10);
+    const race = raceLB.slice(0,10);
 
     const daily = claimsLB
       .filter(e => !TEST_IDS.has(e.userId))
