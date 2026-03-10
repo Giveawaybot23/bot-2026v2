@@ -1370,7 +1370,10 @@
     <div style="font-size:44px;margin-bottom:18px">🔄</div>
     <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Trade Sent!</div>
     <div style="font-size:14px;color:var(--ink2);margin-bottom:24px">Waiting for <span id="trade-waiting-name" style="font-weight:600;color:var(--ink)">the other player</span> to accept<span id="trade-waiting-dots"></span></div>
-    <button onclick="cancelWaitingTrade()" style="background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.2)'" onmouseout="this.style.background='rgba(255,68,68,0.1)'">✕ Cancel Trade</button>
+    <div style="display:flex;gap:10px;justify-content:center">
+    <button onclick="minimizeTradeWaiting()" style="background:rgba(255,255,255,0.06);color:var(--ink2);border:1px solid var(--border);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s">Minimize</button>
+    <button onclick="cancelWaitingTrade()" style="background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.2)'" onmouseout="this.style.background='rgba(255,68,68,0.1)'">✕ Cancel</button>
+  </div>
   </div>
 </div>
 
@@ -2266,6 +2269,7 @@ let _marketMineOnly = false;
 let _auctionMineOnly = false;
 
 function toggleMyMarket(btn) {
+  if (!window._loggedInId) { showToast('Log in with Discord to see your listings.'); return; }
   _marketMineOnly = !_marketMineOnly;
   btn.style.background = _marketMineOnly ? 'var(--ink)' : 'var(--card)';
   btn.style.color = _marketMineOnly ? 'var(--bg)' : 'var(--ink2)';
@@ -2274,6 +2278,7 @@ function toggleMyMarket(btn) {
 }
 
 function toggleMyAuctions(btn) {
+  if (!window._loggedInId) { showToast('Log in with Discord to see your auctions.'); return; }
   _auctionMineOnly = !_auctionMineOnly;
   btn.style.background = _auctionMineOnly ? 'var(--ink)' : 'var(--card)';
   btn.style.color = _auctionMineOnly ? 'var(--bg)' : 'var(--ink2)';
@@ -2790,7 +2795,7 @@ async function showAuctionDetail(auctionId) {
             <div style="position:absolute;top:0;left:0;right:0;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,0.6) 0%,transparent 100%);z-index:2">
               <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#fff;letter-spacing:-0.02em;margin-bottom:2px">${a.plant.name}</div>
               <div style="font-size:12px;color:rgba(255,255,255,0.6)">Listed by <strong style="color:rgba(255,255,255,0.85)">${a.sellerName}</strong></div>
-              ${a.sellerId === window._loggedInId && !a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:8px;padding:6px 14px;border-radius:100px;border:none;background:#e53935;color:white;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗑 Remove</button>` : ''}
+              ${a.sellerId === window._loggedInId ? (!a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button>` : `<div style="margin-top:10px;font-size:12px;color:var(--ink3);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:inline-block">🔒 Can't remove — bids have been placed</div>`) : ''}
             </div>
             <!-- Rarity badge overlay -->
             <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
@@ -3288,7 +3293,7 @@ function openPlantDetail(idx) {
         <span style="font-size:13px;font-weight:700;color:${color}">${p.rarity}</span>
       </div>
       <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)">
-        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Owners</div>
+        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Sell Value</div>
         <div style="font-size:28px;font-weight:800;color:#fff">${p.sellPrice.toLocaleString()}</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px">base sell value</div>
       </div>
@@ -3388,6 +3393,7 @@ async function submitBuyNow(auctionId, buyoutPrice) {
     }
     showFeedback(auctionId, '✅ Purchased! Plant added to your collection.', 'success');
     pushNotification('auction_won', `You won an auction buyout!`);
+    showToast('🏆 Plant purchased and added to your collection!');
     if (btn) btn.textContent = '✅ Purchased';
     setTimeout(() => showPage('auctions'), 2000);
   } catch(err) {
@@ -3533,10 +3539,17 @@ function toggleDark() {
   document.getElementById('dark-btn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
   localStorage.setItem('dark', document.body.classList.contains('dark'));
 }
-if (localStorage.getItem('dark') === 'true') {
-  document.body.classList.add('dark');
-  document.getElementById('dark-btn').textContent = '☀️';
-}
+(async () => {
+  const savedDark = localStorage.getItem('dark');
+  if (savedDark === 'true') {
+    document.body.classList.add('dark');
+    document.getElementById('dark-btn').textContent = '☀️';
+  } else if (savedDark === null && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    document.body.classList.add('dark');
+    document.getElementById('dark-btn').textContent = '☀️';
+    localStorage.setItem('dark', 'true');
+  }
+})();
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
 const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
@@ -3726,6 +3739,7 @@ async function refreshTrade() {
       hideTradeWaitingOverlay();
       stopTradePoll();
       if (trade.status==='complete') { showTradeResultToast('complete'); setTimeout(showTradeStartPanel,3000); }
+      else if (trade.status==='expired') { showToast('⏰ Trade expired after 10 minutes.'); setTimeout(showTradeStartPanel,2000); }
       else { showTradeResultToast('declined'); setTimeout(showTradeStartPanel,2500); }
       return;
     }
@@ -3830,11 +3844,40 @@ el.innerHTML = html;
 function startTradePoll() { stopTradePoll(); _tradePollInterval = setInterval(refreshTrade, 3000); }
 function stopTradePoll() { if (_tradePollInterval) { clearInterval(_tradePollInterval); _tradePollInterval=null; } }
 
+let _coinsDebounce = null;
+
+function minimizeTradeWaiting() {
+  hideTradeWaitingOverlay();
+  // Show a small persistent pill in the corner
+  const existing = document.getElementById('trade-waiting-pill');
+  if (existing) return;
+  const pill = document.createElement('div');
+  pill.id = 'trade-waiting-pill';
+  pill.style.cssText = 'position:fixed;bottom:24px;left:24px;z-index:9997;background:var(--card);border:1.5px solid rgba(88,101,242,0.5);border-radius:100px;padding:10px 18px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(88,101,242,0.2);cursor:pointer;font-family:inherit;animation:tradeToastSlideIn 0.3s cubic-bezier(0.22,1,0.36,1) forwards';
+  pill.innerHTML = `
+    <div style="width:8px;height:8px;border-radius:50%;background:#5865F2;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0"></div>
+    <span style="font-size:13px;font-weight:600;color:var(--ink)">Waiting for <span id="trade-pill-name" style="color:#5865F2">${document.getElementById('trade-waiting-name')?.textContent||'them'}</span></span>
+    <button onclick="event.stopPropagation();cancelWaitingTrade();removeTradePill()" style="background:none;border:none;color:var(--ink3);font-size:14px;cursor:pointer;padding:0 0 0 4px;line-height:1" title="Cancel trade">✕</button>
+  `;
+  pill.addEventListener('click', () => {
+    showPage('trade');
+    showTradeWaitingOverlay(document.getElementById('trade-pill-name')?.textContent);
+    removeTradePill();
+  });
+  document.body.appendChild(pill);
+}
+
+function removeTradePill() {
+  document.getElementById('trade-waiting-pill')?.remove();
+}
 async function updateMyCoins(val) {
   if (!_tradeId) return;
   document.getElementById('trade-my-coins').dataset.edited = '1';
-  await fetch(`/api/trade/${_tradeId}/offer`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ coins:parseInt(val)||0 }) });
-  await refreshTrade();
+  clearTimeout(_coinsDebounce);
+  _coinsDebounce = setTimeout(async () => {
+    await fetch(`/api/trade/${_tradeId}/offer`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ coins:parseInt(val)||0 }) });
+    await refreshTrade();
+  }, 500);
 }
 
 async function removePlantFromTrade(name, version) {
@@ -4153,8 +4196,8 @@ function initGlobalWS() {
   pushNotification(msg.notifType, msg.message);
 }
 if (msg.type === 'trade_accepted') {
-  // The other player accepted — dismiss the waiting overlay and enter the trade
   hideTradeWaitingOverlay();
+  removeTradePill();
   if (_tradeId) { refreshTrade().then(() => { renderActiveTrade(_tradeData); }); }
 }
 if (msg.type === 'trade_request') {
@@ -4162,6 +4205,7 @@ if (msg.type === 'trade_request') {
 }
 if (msg.type === 'trade_declined') {
   stopTradePoll();
+  removeTradePill();
   if (!_selfCancelled) {
     showTradeResultToast('declined');
     setTimeout(showTradeStartPanel, 2500);
