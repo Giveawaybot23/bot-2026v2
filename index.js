@@ -5063,6 +5063,10 @@ app.get('/api/rawdb', (req, res) => {
   res.send(fs.readFileSync(DB_FILE, 'utf8'));
 });
 
+app.get('/api/rawmeta', (req, res) => {
+  res.send(fs.readFileSync(META_FILE, 'utf8'));
+});
+
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 
 client.login(TOKEN);
