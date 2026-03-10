@@ -3709,9 +3709,8 @@ async function refreshTrade() {
     const overlay = document.getElementById('trade-waiting-overlay');
     const isWaiting = overlay && overlay.style.display === 'flex';
     if (isWaiting) {
-      // Still waiting for target to accept — keep panels hidden
+      // Still waiting for target to accept — only ensure the active panel stays hidden
       document.getElementById('trade-active-panel').style.display = 'none';
-      document.getElementById('trade-start-panel').style.display = 'none';
     } else {
       renderActiveTrade(trade);
     }
