@@ -5067,6 +5067,13 @@ app.get('/api/rawmeta', (req, res) => {
   res.send(fs.readFileSync(META_FILE, 'utf8'));
 });
 
+app.get('/api/fixmeta', (req, res) => {
+  const raw = fs.readFileSync(META_FILE, 'utf8');
+  const fixed = raw.replace(/\] \} \}$/, '} }').replace(/"Bitch": 0,?\s*/g, '');
+  fs.writeFileSync(META_FILE, fixed);
+  res.json({ ok: true });
+});
+
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 
 client.login(TOKEN);
