@@ -2656,7 +2656,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!targetCh) return message.reply('❌ Channel not found.');
     payoutChannels[message.guild.id] = targetCh.id;
     const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
-    return message.reply(`✅ Payout announcements → <#${targetCh.id}>.\n\nDaily top 3 pays out every 24h, weekly top 3 every 7 days.`);
+    return message.reply(`✅ Payout announcements locked in → <#${targetCh.id}>.\n\n🏆 **PODIUM GAINS RICHES!** 🏆\n\n💰 **DAILY PAYOUTS** (every 24h)\n🥇 #1 — 250,000\n🥈 #2 — 175,000\n🥉 #3 — 100,000\n\n💎 **WEEKLY PAYOUTS** (every 7 days)\n🥇 #1 — 1,500,000\n🥈 #2 — 1,000,000\n🥉 #3 — 750,000\n\nTHE PODIUM PAYS. 📈🔥`);
   }
 
   // ── !setauction ───────────────────────────────────────────────────────────
