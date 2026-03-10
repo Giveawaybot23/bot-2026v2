@@ -5068,10 +5068,20 @@ app.get('/api/rawmeta', (req, res) => {
 });
 
 app.get('/api/fixmeta', (req, res) => {
-  const raw = fs.readFileSync(META_FILE, 'utf8');
-  const fixed = raw.replace(/\] \} \}$/, '} }').replace(/"Bitch": 0,?\s*/g, '');
-  fs.writeFileSync(META_FILE, fixed);
-  res.json({ ok: true });
+  try {
+    const correct = {
+      plantVersions: { "Tomato":53,"Strawberry":54,"Goldenberry":210,"Biohazard Melon":1262,"Banana":27,"Carrot":1312,"Corn":1252,"Bell Pepper":61,"Apple":49,"Dawn Fruit":20,"Onion":67,"Potato":30,"Birch":59,"Amberpine":58,"Dawn Blossom":37,"Lablush Berry":74,"Mango":23,"Radiant Petal":33,"Bamboo":25,"Sunpetal":1272,"Beetroot":67,"Dandelion":1336,"Orange":35,"Rose":41,"Emberwood":34,"Mushroom":59,"Cabbage":31,"Wheat":36,"Plum":44,"Octobranch":14,"Cherry":19,"Pomegranate":27,"Olive":42,"Starvine":16 },
+      totalDrops: 7778,
+      plantClaimed: JSON.parse(fs.readFileSync(META_FILE, 'utf8').replace(/,\s*}/, '}').replace(/\]\s*}\s*}\s*\]\s*}\s*}$/, '} }')).plantClaimed
+    };
+    fs.writeFileSync(META_FILE, JSON.stringify(correct, null, 2));
+    res.json({ ok: true });
+  } catch(e) {
+    // Nuclear option — just reset plantClaimed too
+    const correct = { plantVersions: { "Tomato":53,"Strawberry":54,"Goldenberry":210,"Biohazard Melon":1262,"Banana":27,"Carrot":1312,"Corn":1252,"Bell Pepper":61,"Apple":49,"Dawn Fruit":20,"Onion":67,"Potato":30,"Birch":59,"Amberpine":58,"Dawn Blossom":37,"Lablush Berry":74,"Mango":23,"Radiant Petal":33,"Bamboo":25,"Sunpetal":1272,"Beetroot":67,"Dandelion":1336,"Orange":35,"Rose":41,"Emberwood":34,"Mushroom":59,"Cabbage":31,"Wheat":36,"Plum":44,"Octobranch":14,"Cherry":19,"Pomegranate":27,"Olive":42,"Starvine":16 }, totalDrops: 7778, plantClaimed: {} };
+    fs.writeFileSync(META_FILE, JSON.stringify(correct, null, 2));
+    res.json({ ok: true, reset: true });
+  }
 });
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
