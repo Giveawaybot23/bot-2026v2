@@ -839,11 +839,23 @@ function getAvailableVersion(plantName, db) {
 
   // Build the taken set from both the live db AND the persisted claimed list
   const owned = new Set(meta.plantClaimed[plantName]);
-  for (const userData of Object.values(db)) {
-    for (const p of (userData.collection || [])) {
-      if (p.name === plantName && p.version) owned.add(p.version);
-    }
+for (const userData of Object.values(db)) {
+  for (const p of (userData.collection || [])) {
+    if (p.name === plantName && p.version) owned.add(p.version);
   }
+}
+// Reserve versions currently held in active auctions
+for (const auction of loadAuctions()) {
+  if (auction.plant.name === plantName && auction.plant.version) {
+    owned.add(auction.plant.version);
+  }
+}
+// Reserve versions currently held in active market listings
+for (const listing of loadListings()) {
+  if (listing.plant.name === plantName && listing.plant.version) {
+    owned.add(listing.plant.version);
+  }
+}
 
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
