@@ -3591,7 +3591,14 @@ async function loadTradePage() {
     document.getElementById('trade-request-toast').style.display = 'block';
     _pendingTradeId = trade.id;
   } else {
-    renderActiveTrade(trade); startTradePoll();
+    // We are the initiator — only enter the trade panel if the waiting overlay is NOT visible
+    const overlay = document.getElementById('trade-waiting-overlay');
+    const isWaiting = overlay && overlay.style.display === 'flex';
+    if (isWaiting) {
+      startTradePoll(); // keep polling but don't enter the panel yet
+    } else {
+      renderActiveTrade(trade); startTradePoll();
+    }
   }
 }
     else showTradeStartPanel();
@@ -3701,7 +3708,11 @@ async function refreshTrade() {
     // is that the overlay is only dismissed by the WebSocket trade_accepted event or manual poll below).
     const overlay = document.getElementById('trade-waiting-overlay');
     const isWaiting = overlay && overlay.style.display === 'flex';
-    if (!isWaiting) {
+    if (isWaiting) {
+      // Still waiting for target to accept — keep panels hidden
+      document.getElementById('trade-active-panel').style.display = 'none';
+      document.getElementById('trade-start-panel').style.display = 'none';
+    } else {
       renderActiveTrade(trade);
     }
   } catch(e) {}
