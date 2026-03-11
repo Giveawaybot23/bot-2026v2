@@ -1911,7 +1911,7 @@ function switchLBTab(btn, contentId) {
 // ── SCROLL REVEAL ──
 function triggerReveal() {
   setTimeout(() => {
-    document.querySelectorAll('.reveal').forEach((el, i) => {
+    document.querySelectorAll('.reveal:not(.visible)').forEach((el, i) => {
       setTimeout(() => el.classList.add('visible'), i * 60);
     });
   }, 50);
@@ -4887,7 +4887,12 @@ function renderMerchantPage() {
   if (window._merchantCountdownInterval) clearInterval(window._merchantCountdownInterval);
   window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
 
-  triggerReveal();
+  // Trigger reveal after a short delay to ensure DOM is painted
+  setTimeout(() => {
+    document.querySelectorAll('#merchant-main-grid .reveal').forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 70);
+    });
+  }, 60);
 }
 
 function updateMerchantCountdown() {
