@@ -1025,6 +1025,272 @@
 .chat-input:focus { border-color: var(--green); }
 .chat-send { padding: 9px 16px; border-radius: 100px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 600; border: none; cursor: pointer; font-family: inherit; }
 
+/* ── MERCHANT PAGE ── */
+.merchant-page { padding: 0; min-height: calc(100vh - 64px); }
+
+.merchant-hero {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #0f1a14 0%, #1a2d1f 40%, #0e1a12 100%);
+  padding: 64px 48px 56px;
+  border-bottom: 1px solid rgba(82,183,136,0.15);
+}
+.merchant-hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 70% 50%, rgba(82,183,136,0.08) 0%, transparent 70%),
+              radial-gradient(ellipse 40% 80% at 20% 50%, rgba(201,168,76,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.merchant-hero::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(82,183,136,0.4), rgba(201,168,76,0.3), transparent);
+}
+.merchant-hero-inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 32px; }
+.merchant-avatar {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: linear-gradient(135deg, #1e3d2a, #2d6a4f);
+  border: 2px solid rgba(82,183,136,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44px; flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(82,183,136,0.08), 0 0 40px rgba(82,183,136,0.2);
+  animation: merchantFloat 5s ease-in-out infinite;
+}
+@keyframes merchantFloat {
+  0%,100% { transform: translateY(0px); box-shadow: 0 0 0 4px rgba(82,183,136,0.08), 0 0 40px rgba(82,183,136,0.2); }
+  50% { transform: translateY(-6px); box-shadow: 0 8px 0 4px rgba(82,183,136,0.05), 0 0 60px rgba(82,183,136,0.3); }
+}
+.merchant-hero-text {}
+.merchant-hero-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; color: rgba(82,183,136,0.7);
+  margin-bottom: 8px;
+}
+.merchant-hero-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(28px, 4vw, 44px);
+  color: #f0ede8; letter-spacing: -0.02em; line-height: 1.1;
+  margin-bottom: 10px;
+}
+.merchant-hero-title em { font-style: italic; color: #52b788; }
+.merchant-hero-desc { font-size: 15px; color: rgba(240,237,232,0.55); line-height: 1.6; max-width: 520px; }
+.merchant-refresh-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.3);
+  color: #c9a84c; font-size: 12px; font-weight: 600;
+  padding: 6px 14px; border-radius: 100px; margin-top: 14px;
+}
+.merchant-refresh-badge::before { content: '⏱'; }
+
+.merchant-body { padding: 40px 48px; }
+
+.merchant-section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px; color: var(--ink); letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+.merchant-section-sub { font-size: 13px; color: var(--ink3); margin-bottom: 20px; }
+
+/* Featured item banner */
+.merchant-featured {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--card) 0%, rgba(201,168,76,0.06) 100%);
+  border: 1px solid rgba(201,168,76,0.35);
+  border-radius: 18px; padding: 28px;
+  margin-bottom: 40px;
+  display: flex; align-items: center; gap: 28px;
+  box-shadow: 0 0 0 1px rgba(201,168,76,0.08), 0 8px 40px rgba(201,168,76,0.06);
+}
+.merchant-featured::before {
+  content: '✦ TODAY\'S DEAL';
+  position: absolute; top: 16px; right: 20px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.18em;
+  color: #c9a84c; opacity: 0.7;
+}
+@keyframes featuredShimmer {
+  0% { transform: translateX(-100%) skewX(-20deg); }
+  100% { transform: translateX(400%) skewX(-20deg); }
+}
+.merchant-featured::after {
+  content: '';
+  position: absolute; top: 0; left: 0; width: 30%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(201,168,76,0.04), transparent);
+  animation: featuredShimmer 5s ease-in-out infinite;
+  pointer-events: none;
+}
+.merchant-featured-icon {
+  width: 88px; height: 88px; border-radius: 16px;
+  background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44px; flex-shrink: 0;
+}
+.merchant-featured-body { flex: 1; }
+.merchant-featured-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(201,168,76,0.15); border: 1px solid rgba(201,168,76,0.35);
+  color: #c9a84c; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 4px 11px; border-radius: 100px; margin-bottom: 10px;
+}
+.merchant-featured-name {
+  font-family: 'DM Serif Display', serif;
+  font-size: 24px; color: var(--ink); margin-bottom: 6px; letter-spacing: -0.01em;
+}
+.merchant-featured-desc { font-size: 14px; color: var(--ink2); line-height: 1.6; margin-bottom: 16px; max-width: 380px; }
+.merchant-featured-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.merchant-featured-price {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px; color: var(--ink); letter-spacing: -0.02em;
+}
+.merchant-featured-price small { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink3); margin-left: 3px; }
+.merchant-featured-orig {
+  font-size: 14px; color: var(--ink3); text-decoration: line-through;
+}
+.merchant-featured-discount {
+  background: #e53935; color: white;
+  font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 100px;
+}
+
+/* Item grid */
+.merchant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.merchant-item-card {
+  background: var(--card); border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 22px; transition: all 0.2s; position: relative; overflow: hidden;
+  cursor: pointer;
+}
+.merchant-item-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(14,13,11,0.08); }
+.merchant-item-card.sold-out { opacity: 0.5; pointer-events: none; }
+.merchant-item-card.sold-out::after {
+  content: 'SOLD OUT';
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg);
+  font-size: 22px; font-weight: 900; color: #e53935; letter-spacing: 0.1em;
+  opacity: 0.6; pointer-events: none;
+}
+.merchant-item-top-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.merchant-item-icon { font-size: 38px; margin-bottom: 14px; display: block; }
+.merchant-item-category {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.merchant-item-name { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.merchant-item-desc { font-size: 13px; color: var(--ink2); line-height: 1.55; margin-bottom: 16px; min-height: 40px; }
+.merchant-item-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.merchant-item-price {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px; color: var(--ink); letter-spacing: -0.02em;
+}
+.merchant-item-price small { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--ink3); margin-left: 2px; }
+.merchant-item-buy-btn {
+  padding: 8px 18px; border-radius: 100px;
+  border: none; cursor: pointer; font-family: inherit;
+  font-size: 13px; font-weight: 600; transition: all 0.15s;
+}
+.merchant-item-stock {
+  position: absolute; top: 14px; right: 14px;
+  font-size: 11px; font-weight: 600; color: var(--ink3);
+  background: var(--bg2); border: 1px solid var(--border);
+  padding: 3px 9px; border-radius: 100px;
+}
+.merchant-item-stock.low { color: #e53935; background: rgba(229,57,53,0.08); border-color: rgba(229,57,53,0.2); }
+.merchant-item-stock.medium { color: var(--gold); background: rgba(201,168,76,0.08); border-color: rgba(201,168,76,0.2); }
+
+/* Crate cards */
+.merchant-crate-card {
+  background: var(--card); border-radius: 16px; border: 1px solid var(--border);
+  padding: 24px; transition: all 0.25s; position: relative; overflow: hidden;
+  cursor: pointer;
+}
+.merchant-crate-card:hover { transform: translateY(-3px); }
+.merchant-crate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.crate-icon-wrap {
+  width: 72px; height: 72px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; margin-bottom: 16px;
+  transition: transform 0.3s;
+}
+.merchant-crate-card:hover .crate-icon-wrap { transform: scale(1.08) rotate(-3deg); }
+.crate-name { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.crate-odds-list { margin: 10px 0 14px; display: flex; flex-direction: column; gap: 4px; }
+.crate-odds-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px;
+}
+.crate-odds-rarity { font-weight: 600; }
+.crate-odds-pct { color: var(--ink3); }
+
+/* Confirm modal */
+.merchant-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(14,13,11,0.6); backdrop-filter: blur(8px);
+  z-index: 10000; display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.merchant-modal {
+  background: var(--card); border-radius: 22px; padding: 36px;
+  width: 100%; max-width: 420px;
+  border: 1px solid var(--border);
+  box-shadow: 0 32px 100px rgba(14,13,11,0.35);
+  animation: merchantModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes merchantModalIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.merchant-modal-icon { font-size: 48px; margin-bottom: 16px; text-align: center; }
+.merchant-modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--ink); text-align: center; margin-bottom: 8px; }
+.merchant-modal-desc { font-size: 14px; color: var(--ink2); text-align: center; line-height: 1.6; margin-bottom: 20px; }
+.merchant-modal-price-row {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 20px;
+}
+.merchant-modal-price-big { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--ink); letter-spacing: -0.02em; }
+.merchant-modal-balance { font-size: 13px; color: var(--ink3); text-align: center; margin-bottom: 20px; }
+.merchant-modal-btns { display: flex; gap: 10px; }
+.merchant-modal-cancel { flex: 1; padding: 13px; border-radius: 100px; border: 1.5px solid var(--border); background: transparent; font-size: 14px; font-weight: 500; color: var(--ink2); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.merchant-modal-cancel:hover { background: var(--bg2); }
+.merchant-modal-confirm { flex: 1; padding: 13px; border-radius: 100px; border: none; background: var(--green); color: white; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.merchant-modal-confirm:hover { background: var(--green-light); transform: translateY(-1px); }
+.merchant-modal-error { display: none; color: #e53935; font-size: 13px; text-align: center; margin-bottom: 12px; padding: 10px 14px; background: rgba(229,57,53,0.08); border-radius: 10px; border: 1px solid rgba(229,57,53,0.2); }
+
+/* Crate result */
+.crate-result-card {
+  background: var(--card); border-radius: 22px; padding: 40px;
+  width: 100%; max-width: 380px;
+  border: 1px solid var(--border);
+  box-shadow: 0 32px 100px rgba(14,13,11,0.35);
+  text-align: center;
+  animation: merchantModalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.crate-result-reveal { font-size: 72px; animation: crateReveal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both; }
+@keyframes crateReveal {
+  from { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.crate-result-rarity {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  margin: 14px 0 6px; padding: 4px 14px; border-radius: 100px; display: inline-block;
+}
+.crate-result-name { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--ink); margin-bottom: 6px; }
+.crate-result-sub { font-size: 13px; color: var(--ink3); margin-bottom: 24px; }
+
+@media (max-width: 768px) {
+  .merchant-body { padding: 24px 16px; }
+  .merchant-hero { padding: 40px 20px 36px; }
+  .merchant-featured { flex-direction: column; gap: 16px; }
+  .merchant-featured::before { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1041,6 +1307,7 @@
         <a onclick="showPage('market')" class="nav-dropdown-item">🛒 Market</a>
         <a onclick="showPage('auctions')" class="nav-dropdown-item">🔨 Auctions</a>
         <a onclick="showPage('trade')" class="nav-dropdown-item" id="nav-trade">🔄 Trade</a>
+        <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
   </div>
@@ -1534,6 +1801,69 @@
   </div>
 </div>
 
+<!-- ── MERCHANT PAGE ── -->
+<div class="page" id="page-merchant">
+  <div class="merchant-page">
+
+    <!-- Hero -->
+    <div class="merchant-hero">
+      <div class="merchant-hero-inner">
+        <div class="merchant-avatar">🧙</div>
+        <div class="merchant-hero-text">
+          <div class="merchant-hero-eyebrow">NPC Shop · Garden Horizons</div>
+          <h1 class="merchant-hero-title">Guildwald's <em>Emporium</em></h1>
+          <p class="merchant-hero-desc">Rare seeds, powerful boosts, and mysterious crates — all for the discerning gardener. Stock refreshes every day at midnight.</p>
+          <div class="merchant-refresh-badge">
+            Daily stock resets in: <strong id="merchant-countdown">—</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="merchant-body">
+
+      <!-- Featured Deal -->
+      <div class="merchant-featured" id="merchant-featured-card">
+        <div class="merchant-featured-icon" id="mf-icon">🌟</div>
+        <div class="merchant-featured-body">
+          <div class="merchant-featured-tag">⭐ Featured Deal</div>
+          <div class="merchant-featured-name" id="mf-name">Loading...</div>
+          <div class="merchant-featured-desc" id="mf-desc"></div>
+          <div class="merchant-featured-footer">
+            <div class="merchant-featured-price" id="mf-price"><small>coins</small></div>
+            <div class="merchant-featured-orig" id="mf-orig"></div>
+            <div class="merchant-featured-discount" id="mf-discount"></div>
+            <button class="merchant-item-buy-btn" id="mf-btn"
+              style="background:var(--gold,#c9a84c);color:white;font-size:14px;padding:11px 26px"
+              onclick="merchantBuy('featured')">Buy Now</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Consumables -->
+      <div class="merchant-section-title">⚗️ Daily Consumables</div>
+      <div class="merchant-section-sub">Boosts and power-ups that reset every 24 hours — only 3 of each available per day.</div>
+      <div class="merchant-grid" id="merchant-consumables-grid"></div>
+
+      <!-- Seed Packs -->
+      <div class="merchant-section-title">🌱 Seed Packs</div>
+      <div class="merchant-section-sub">Guaranteed plant drops sorted by rarity. Each pack gives you one plant from that tier.</div>
+      <div class="merchant-grid" id="merchant-seeds-grid"></div>
+
+      <!-- Mystery Crates -->
+      <div class="merchant-section-title">📦 Mystery Crates</div>
+      <div class="merchant-section-sub">Gamble for greatness. Higher tier crates offer better odds for rarer plants.</div>
+      <div class="merchant-crate-grid" id="merchant-crates-grid"></div>
+
+      <!-- Permanent Upgrades -->
+      <div class="merchant-section-title">⚡ Permanent Upgrades</div>
+      <div class="merchant-section-sub">One-time purchases that stay with your account forever.</div>
+      <div class="merchant-grid" id="merchant-upgrades-grid"></div>
+
+    </div>
+  </div>
+</div>
+
 
 
 <script>
@@ -1674,7 +2004,7 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'market' || name === 'auctions') loadShopData();
   if (name === 'inventory') loadInventoryPage();
   if (name === 'trade') loadTradePage();
-  if (name === 'market' || name === 'auctions' || name === 'auction-detail' || name === 'trade') {
+  if (name === 'market' || name === 'auctions' || name === 'auction-detail' || name === 'trade' || name === 'merchant') {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
@@ -1692,7 +2022,7 @@ function showPage(name, { skipHash = false } = {}) {
 // Restore page from URL hash on load or back/forward navigation
 function restorePageFromHash() {
   const hash = location.hash.replace('#', '') || 'home';
-  const valid = ['home','leaderboards','profiles','market','auctions','trade','inventory'];
+  const valid = ['home','leaderboards','profiles','market','auctions','trade','inventory','merchant'];
   const target = valid.includes(hash) ? hash : 'home';
   showPage(target, { skipHash: true });
 }
@@ -4565,6 +4895,485 @@ if (msg.type === 'leaderboard_update') {
     setTimeout(() => { if (window._loggedInId) initGlobalWS(); }, 5000);
   };
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ── MERCHANT / GUILDWALD'S EMPORIUM ──────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+
+// Deterministic daily seed so items rotate each day but stay consistent
+function dailySeed() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate();
+}
+function seededRand(seed, n) {
+  // Simple LCG
+  let s = seed ^ (n * 2654435761);
+  s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
+  s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
+  return (s ^ (s >>> 16)) / 0xFFFFFFFF;
+}
+function seededPick(arr, seed, salt) {
+  return arr[Math.floor(seededRand(seed, salt) * arr.length)];
+}
+
+// ── MERCHANT ITEM DEFINITIONS ──
+const MERCHANT_CONSUMABLES_POOL = [
+  { id:'drop_boost', icon:'⚡', name:'Drop Rate Boost', category:'Boost', categoryColor:'#52b788',
+    descs:['Doubles your plant drop rate for the next 30 minutes. Perfect for grinding rare drops during active sessions.'],
+    price:800, stock:3 },
+  { id:'coin_magnet', icon:'🧲', name:'Coin Magnet', category:'Boost', categoryColor:'#52b788',
+    descs:['Earn +50% more coins from selling plants for the next hour. Stack it with your best sells.'],
+    price:600, stock:3 },
+  { id:'lucky_clover', icon:'🍀', name:'Lucky Clover', category:'Luck', categoryColor:'#4CAF50',
+    descs:['Increases mutation chance by 3× for your next 5 plant claims. Rare mutations await the bold.'],
+    price:1200, stock:3 },
+  { id:'xp_boost', icon:'📚', name:'XP Tome', category:'XP', categoryColor:'#2196F3',
+    descs:['Grants +200% XP on all actions for 20 minutes. Level up fast.'],
+    price:500, stock:3 },
+  { id:'reroll_ticket', icon:'🎲', name:'Reroll Ticket', category:'Utility', categoryColor:'#9c27b0',
+    descs:['Re-roll your last plant drop for a fresh chance at a better rarity. One-use.'],
+    price:1500, stock:3 },
+  { id:'cooldown_skip', icon:'⏩', name:'Cooldown Skip', category:'Utility', categoryColor:'#9c27b0',
+    descs:['Instantly resets all your active claim cooldowns. Claim again right now.'],
+    price:2000, stock:3 },
+  { id:'version_charm', icon:'💎', name:'Version Charm', category:'Rare', categoryColor:'#c9a84c',
+    descs:['Your next plant drop has a 10× higher chance of being a low-version (v1–v5) copy.'],
+    price:2500, stock:3 },
+  { id:'vault_pass', icon:'🔐', name:'Vault Pass', category:'Utility', categoryColor:'#9c27b0',
+    descs:['Unlocks the ability to lock 5 extra plants in your vault this week. Protect your prized collection.'],
+    price:700, stock:3 },
+];
+
+const MERCHANT_SEEDS_POOL = [
+  { id:'seed_common',    icon:'🌾', name:'Common Seed Pack',    category:'Common',    categoryColor:'#9E9E9E', price:200,  desc:'Guarantees one Common plant drop from the pool. Good for filling collection gaps.' },
+  { id:'seed_uncommon',  icon:'🌿', name:'Uncommon Seed Pack',  category:'Uncommon',  categoryColor:'#4CAF50', price:500,  desc:'Guarantees one Uncommon plant from the game pool. Skip the wait.' },
+  { id:'seed_rare',      icon:'🌸', name:'Rare Seed Pack',      category:'Rare',      categoryColor:'#2196F3', price:1500, desc:'Guarantees one Rare plant. A solid mid-tier addition to your collection.' },
+  { id:'seed_epic',      icon:'💜', name:'Epic Seed Pack',      category:'Epic',      categoryColor:'#9c27b0', price:4000, desc:'Guarantees one Epic plant. These are hard to get naturally — here\'s your shortcut.' },
+  { id:'seed_legendary', icon:'⭐', name:'Legendary Seed Pack', category:'Legendary', categoryColor:'#FFD700', price:12000, desc:'Guarantees one Legendary plant. An exceptional treasure for serious collectors.' },
+];
+
+const MERCHANT_CRATES = [
+  {
+    id:'crate_bronze', icon:'📦', name:'Bronze Crate', color:'#CD7F32',
+    price:300,
+    desc:'A humble crate with modest odds. Great for beginners.',
+    odds:[ {rarity:'Common',pct:'60%',color:'#9E9E9E'}, {rarity:'Uncommon',pct:'30%',color:'#4CAF50'}, {rarity:'Rare',pct:'9%',color:'#2196F3'}, {rarity:'Epic',pct:'1%',color:'#9c27b0'} ]
+  },
+  {
+    id:'crate_silver', icon:'🥈', name:'Silver Crate', color:'#C0C0C0',
+    price:800,
+    desc:'Significantly better odds at mid-tier rarities.',
+    odds:[ {rarity:'Common',pct:'30%',color:'#9E9E9E'}, {rarity:'Uncommon',pct:'35%',color:'#4CAF50'}, {rarity:'Rare',pct:'25%',color:'#2196F3'}, {rarity:'Epic',pct:'9%',color:'#9c27b0'}, {rarity:'Legendary',pct:'1%',color:'#FFD700'} ]
+  },
+  {
+    id:'crate_gold', icon:'📫', name:'Gold Crate', color:'#FFD700',
+    price:2000,
+    desc:'Premium odds. Legendary drops are real here.',
+    odds:[ {rarity:'Uncommon',pct:'20%',color:'#4CAF50'}, {rarity:'Rare',pct:'35%',color:'#2196F3'}, {rarity:'Epic',pct:'30%',color:'#9c27b0'}, {rarity:'Legendary',pct:'13%',color:'#FFD700'}, {rarity:'Mythic',pct:'2%',color:'#F44336'} ]
+  },
+  {
+    id:'crate_diamond', icon:'💎', name:'Diamond Crate', color:'#B9F2FF',
+    price:5000,
+    desc:'The pinnacle of crate gambling. Mythic within reach.',
+    odds:[ {rarity:'Rare',pct:'15%',color:'#2196F3'}, {rarity:'Epic',pct:'35%',color:'#9c27b0'}, {rarity:'Legendary',pct:'30%',color:'#FFD700'}, {rarity:'Mythic',pct:'16%',color:'#F44336'}, {rarity:'Secret',pct:'4%',color:'#aa88ff'} ]
+  },
+  {
+    id:'crate_ruby', icon:'🔮', name:'Void Crate', color:'#aa88ff',
+    price:15000,
+    desc:'Sealed with dark magic. Guaranteed Epic or higher, with a whisper of the Void.',
+    odds:[ {rarity:'Epic',pct:'25%',color:'#9c27b0'}, {rarity:'Legendary',pct:'30%',color:'#FFD700'}, {rarity:'Mythic',pct:'30%',color:'#F44336'}, {rarity:'Secret',pct:'15%',color:'#aa88ff'} ]
+  },
+];
+
+const MERCHANT_UPGRADES_POOL = [
+  { id:'vault_upgrade', icon:'🏦', name:'Vault Expansion', category:'Upgrade', categoryColor:'#2196F3',
+    descs:['Permanently expands your lock vault by +5 slots. Never lose your rarest plants.'],
+    price:5000, oneTime:true },
+  { id:'autosell_slot', icon:'🤖', name:'AutoSell Slot', category:'Upgrade', categoryColor:'#2196F3',
+    descs:['Adds one more AutoSell rule slot to your account. Automate your coin farming with precision.'],
+    price:3500, oneTime:false },
+  { id:'drop_perm', icon:'🌠', name:'Permanent Drop Buff', category:'Passive', categoryColor:'#c9a84c',
+    descs:['+5% permanent drop rate boost stacked on your account. Compounds with temporary boosts.'],
+    price:8000, oneTime:false },
+  { id:'trade_shield', icon:'🛡️', name:'Trade Shield', category:'Passive', categoryColor:'#52b788',
+    descs:['Protects you from unfair trade offers — highlights if a trade is unbalanced before you confirm.'],
+    price:4000, oneTime:true },
+  { id:'coin_interest', icon:'💰', name:'Coin Interest', category:'Passive', categoryColor:'#c9a84c',
+    descs:['Earn 1% daily interest on your coin balance (up to 50,000 coins). Your idle money works for you.'],
+    price:10000, oneTime:true },
+  { id:'rainbow_tag', icon:'🌈', name:'Rainbow Nametag', category:'Cosmetic', categoryColor:'#FF6B6B',
+    descs:['Your username shimmers with a rainbow gradient in leaderboards and profiles. Pure flex.'],
+    price:6000, oneTime:true },
+];
+
+// ── STATE ──
+const _merchantPurchased = JSON.parse(localStorage.getItem('merchant_purchased') || '{}');
+const _merchantStockLeft = {};
+
+function saveMerchantState() {
+  localStorage.setItem('merchant_purchased', JSON.stringify(_merchantPurchased));
+}
+
+// ── RENDER ──
+function renderMerchantPage() {
+  const seed = dailySeed();
+
+  // Pick 4 consumables for today
+  const shuffled = [...MERCHANT_CONSUMABLES_POOL];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRand(seed, i + 99) * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const dailyConsumables = shuffled.slice(0, 4);
+
+  // Featured: pick one consumable with discount
+  const featuredItem = dailyConsumables[0];
+  const discountPct = [15, 20, 25, 30][Math.floor(seededRand(seed, 77) * 4)];
+  const featuredPrice = Math.round(featuredItem.price * (1 - discountPct/100));
+
+  // Featured card
+  document.getElementById('mf-icon').textContent = featuredItem.icon;
+  document.getElementById('mf-name').textContent = featuredItem.name;
+  document.getElementById('mf-desc').textContent = featuredItem.descs[0];
+  document.getElementById('mf-price').innerHTML = `${featuredPrice.toLocaleString()}<small>coins</small>`;
+  document.getElementById('mf-orig').textContent = featuredItem.price.toLocaleString() + ' coins';
+  document.getElementById('mf-discount').textContent = `-${discountPct}%`;
+  document.getElementById('mf-btn').dataset.itemId = featuredItem.id;
+  document.getElementById('mf-btn').dataset.price = featuredPrice;
+  document.getElementById('mf-btn').dataset.name = featuredItem.name;
+  document.getElementById('mf-btn').dataset.icon = featuredItem.icon;
+  document.getElementById('mf-btn').dataset.desc = featuredItem.descs[0];
+  document.getElementById('mf-btn').dataset.type = 'consumable';
+
+  // Stock init for featured
+  if (_merchantStockLeft[featuredItem.id + '_featured'] === undefined) {
+    _merchantStockLeft[featuredItem.id + '_featured'] = 1;
+  }
+
+  // Consumables grid
+  const cGrid = document.getElementById('merchant-consumables-grid');
+  cGrid.innerHTML = dailyConsumables.map((item, i) => {
+    const stockKey = item.id + '_' + seed;
+    if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = item.stock;
+    const left = _merchantStockLeft[stockKey];
+    const isSoldOut = left <= 0;
+    const stockClass = left === 1 ? 'low' : left === 2 ? 'medium' : '';
+    return `
+    <div class="merchant-item-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:${i*0.06}s">
+      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
+      <div class="merchant-item-stock ${stockClass}">${left} left today</div>
+      <span class="merchant-item-icon">${item.icon}</span>
+      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}</div>
+      <div class="merchant-item-name">${item.name}</div>
+      <div class="merchant-item-desc">${item.descs[0]}</div>
+      <div class="merchant-item-footer">
+        <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
+        <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg)"
+          onclick="merchantBuy('consumable','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.descs[0])}')">
+          Buy
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Seed packs grid
+  const sGrid = document.getElementById('merchant-seeds-grid');
+  sGrid.innerHTML = MERCHANT_SEEDS_POOL.map((item, i) => `
+    <div class="merchant-item-card reveal" style="animation-delay:${i*0.06}s">
+      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
+      <span class="merchant-item-icon">${item.icon}</span>
+      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}</div>
+      <div class="merchant-item-name">${item.name}</div>
+      <div class="merchant-item-desc">${item.desc}</div>
+      <div class="merchant-item-footer">
+        <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
+        <button class="merchant-item-buy-btn" style="background:${item.categoryColor};color:white"
+          onclick="merchantBuy('seed','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.desc)}')">
+          Buy
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  // Crates grid
+  const crGrid = document.getElementById('merchant-crates-grid');
+  crGrid.innerHTML = MERCHANT_CRATES.map((c, i) => `
+    <div class="merchant-crate-card reveal" style="animation-delay:${i*0.07}s;border-color:${c.color}33">
+      <div class="merchant-item-top-bar" style="background:${c.color}"></div>
+      <div class="crate-icon-wrap" style="background:${c.color}18;border:1px solid ${c.color}33">
+        <span style="font-size:36px">${c.icon}</span>
+      </div>
+      <div class="crate-name">${c.name}</div>
+      <div style="font-size:13px;color:var(--ink3);margin-bottom:8px">${c.desc}</div>
+      <div class="crate-odds-list">
+        ${c.odds.map(o => `
+          <div class="crate-odds-row">
+            <span class="crate-odds-rarity" style="color:${o.color}">${o.rarity}</span>
+            <span class="crate-odds-pct">${o.pct}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="merchant-item-footer" style="margin-top:12px">
+        <div class="merchant-item-price">${c.price.toLocaleString()}<small>coins</small></div>
+        <button class="merchant-item-buy-btn" style="background:${c.color};color:#0e0d0b;font-weight:800"
+          onclick="merchantBuyCrate('${c.id}','${encodeURIComponent(c.name)}','${c.price}','${encodeURIComponent(c.icon)}','${encodeURIComponent(JSON.stringify(c.odds))}')">
+          Open
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  // Pick 4 upgrades for today
+  const upgradePool = [...MERCHANT_UPGRADES_POOL];
+  for (let i = upgradePool.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRand(seed, i + 200) * (i + 1));
+    [upgradePool[i], upgradePool[j]] = [upgradePool[j], upgradePool[i]];
+  }
+  const dailyUpgrades = upgradePool.slice(0, 4);
+
+  const uGrid = document.getElementById('merchant-upgrades-grid');
+  uGrid.innerHTML = dailyUpgrades.map((item, i) => {
+    const alreadyOwned = item.oneTime && _merchantPurchased[item.id];
+    return `
+    <div class="merchant-item-card reveal${alreadyOwned ? ' sold-out' : ''}" style="animation-delay:${i*0.06}s">
+      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
+      ${alreadyOwned ? '' : ''}
+      <span class="merchant-item-icon">${item.icon}</span>
+      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}${item.oneTime ? ' · One-Time' : ''}</div>
+      <div class="merchant-item-name">${item.name}</div>
+      <div class="merchant-item-desc">${item.descs[0]}</div>
+      <div class="merchant-item-footer">
+        <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
+        <button class="merchant-item-buy-btn" style="background:${item.categoryColor};color:white"
+          ${alreadyOwned ? 'disabled style="background:var(--bg2);color:var(--ink3);cursor:not-allowed"' : ''}
+          onclick="merchantBuy('upgrade','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.descs[0])}')">
+          ${alreadyOwned ? 'Owned' : 'Purchase'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Countdown timer
+  updateMerchantCountdown();
+  if (!window._merchantCountdownInterval) {
+    window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
+  }
+
+  triggerReveal();
+}
+
+function updateMerchantCountdown() {
+  const el = document.getElementById('merchant-countdown');
+  if (!el) return;
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const ms = midnight - now;
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ── BUY FLOW ──
+function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc) {
+  if (type === 'featured') {
+    const btn = document.getElementById('mf-btn');
+    itemId = btn.dataset.itemId;
+    encodedName = btn.dataset.name;
+    price = btn.dataset.price;
+    encodedIcon = btn.dataset.icon;
+    encodedDesc = btn.dataset.desc;
+    type = btn.dataset.type;
+  }
+  const name = decodeURIComponent(encodedName);
+  const icon = decodeURIComponent(encodedIcon);
+  const desc = decodeURIComponent(encodedDesc);
+  const priceN = parseInt(price);
+
+  if (!window._loggedInId) {
+    showMerchantError('You need to log in with Discord to buy items.');
+    return;
+  }
+
+  openMerchantConfirm({
+    type, itemId, name, icon, desc, price: priceN,
+    onConfirm: async (modal) => {
+      const btn = modal.querySelector('.merchant-modal-confirm');
+      btn.disabled = true; btn.textContent = 'Purchasing...';
+      const errEl = modal.querySelector('.merchant-modal-error');
+      errEl.style.display = 'none';
+      try {
+        const res = await fetch('/api/merchant/buy', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, type, price: priceN, name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.style.display = 'block';
+          errEl.textContent = data.error || 'Purchase failed — not enough coins?';
+          btn.disabled = false; btn.textContent = 'Confirm Purchase';
+          return;
+        }
+        // Deduct stock
+        const seed = dailySeed();
+        const stockKey = itemId + '_' + seed;
+        if (_merchantStockLeft[stockKey] !== undefined) _merchantStockLeft[stockKey]--;
+        if (type === 'upgrade') _merchantPurchased[itemId] = true;
+        saveMerchantState();
+        // Update coin display
+        if (data.newBalance !== undefined) updateNavCoins(data.newBalance);
+        closeMerchantModal();
+        showToast(`✅ Purchased ${name}!`);
+        // Refresh the page to update stock
+        renderMerchantPage();
+      } catch(e) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Network error — try again.';
+        btn.disabled = false; btn.textContent = 'Confirm Purchase';
+      }
+    }
+  });
+}
+
+function merchantBuyCrate(crateId, encodedName, price, encodedIcon, encodedOdds) {
+  const name = decodeURIComponent(encodedName);
+  const icon = decodeURIComponent(encodedIcon);
+  const odds = JSON.parse(decodeURIComponent(encodedOdds));
+  const priceN = parseInt(price);
+
+  if (!window._loggedInId) {
+    showMerchantError('You need to log in with Discord to open crates.');
+    return;
+  }
+
+  openMerchantConfirm({
+    type: 'crate', itemId: crateId, name, icon,
+    desc: 'Opening this crate will deduct coins and grant you a random plant based on the crate\'s odds.',
+    price: priceN,
+    onConfirm: async (modal) => {
+      const btn = modal.querySelector('.merchant-modal-confirm');
+      btn.disabled = true; btn.textContent = 'Opening...';
+      const errEl = modal.querySelector('.merchant-modal-error');
+      errEl.style.display = 'none';
+      try {
+        const res = await fetch('/api/merchant/crate', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crateId, price: priceN })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.style.display = 'block';
+          errEl.textContent = data.error || 'Failed to open crate — not enough coins?';
+          btn.disabled = false; btn.textContent = 'Confirm';
+          return;
+        }
+        if (data.newBalance !== undefined) updateNavCoins(data.newBalance);
+        closeMerchantModal();
+        showCrateResult(data.plant || simulateCrateDrop(odds), name);
+      } catch(e) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Network error — try again.';
+        btn.disabled = false; btn.textContent = 'Confirm';
+      }
+    }
+  });
+}
+
+// Simulate a client-side crate drop result for graceful fallback display
+function simulateCrateDrop(odds) {
+  const roll = Math.random() * 100;
+  let cumulative = 0;
+  for (const o of odds) {
+    cumulative += parseFloat(o.pct);
+    if (roll <= cumulative) return { rarity: o.rarity, name: rarityEmoji(o.rarity) + ' ' + o.rarity + ' Plant', emoji: rarityEmoji(o.rarity), color: o.color };
+  }
+  return { rarity: odds[0].rarity, name: 'Plant', emoji: '🌱', color: '#52b788' };
+}
+
+function rarityEmoji(r) {
+  return {Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎'}[r] || '🌿';
+}
+
+function showCrateResult(plant, crateName) {
+  const overlay = document.createElement('div');
+  overlay.className = 'merchant-modal-overlay';
+  overlay.id = 'merchant-crate-result';
+  const rarityColor = {Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9c27b0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff'}[plant.rarity] || '#52b788';
+  overlay.innerHTML = `
+    <div class="crate-result-card">
+      <div style="font-size:13px;font-weight:600;color:var(--ink3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px">${crateName} · Result</div>
+      <div class="crate-result-reveal">${plant.emoji || '🌿'}</div>
+      <div class="crate-result-rarity" style="background:${rarityColor}20;color:${rarityColor};border:1px solid ${rarityColor}44">${plant.rarity}</div>
+      <div class="crate-result-name">${plant.name}</div>
+      <div class="crate-result-sub">${plant.mutation ? `✨ ${plant.mutation.name} mutation!` : 'Added to your collection'}</div>
+      <button onclick="document.getElementById('merchant-crate-result').remove()" style="width:100%;padding:13px;border-radius:100px;border:none;background:var(--ink);color:var(--bg);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='${rarityColor}'" onmouseout="this.style.background='var(--ink)'">
+        Awesome! 🎉
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function openMerchantConfirm({ type, itemId, name, icon, desc, price, onConfirm }) {
+  const existing = document.getElementById('merchant-confirm-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'merchant-modal-overlay';
+  overlay.id = 'merchant-confirm-modal';
+
+  // Get user balance display
+  const balEl = document.getElementById('coin-display');
+  const balText = balEl ? balEl.querySelector('.coin-badge-amount')?.textContent || '?' : '?';
+
+  overlay.innerHTML = `
+    <div class="merchant-modal">
+      <div class="merchant-modal-icon">${icon}</div>
+      <div class="merchant-modal-title">${name}</div>
+      <div class="merchant-modal-desc">${desc}</div>
+      <div class="merchant-modal-price-row">
+        <div style="font-size:13px;color:var(--ink3)">Cost</div>
+        <div class="merchant-modal-price-big">${price.toLocaleString()}</div>
+        <div style="font-size:13px;color:var(--ink3)">coins</div>
+      </div>
+      <div class="merchant-modal-balance">Your balance: <strong>${balText} coins</strong></div>
+      <div class="merchant-modal-error"></div>
+      <div class="merchant-modal-btns">
+        <button class="merchant-modal-cancel" onclick="closeMerchantModal()">Cancel</button>
+        <button class="merchant-modal-confirm" onclick="window._merchantConfirmCallback(this.closest('.merchant-modal'))">
+          Confirm Purchase
+        </button>
+      </div>
+    </div>`;
+
+  window._merchantConfirmCallback = onConfirm;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeMerchantModal(); });
+}
+
+function closeMerchantModal() {
+  document.getElementById('merchant-confirm-modal')?.remove();
+}
+
+function showMerchantError(msg) {
+  showToast(msg, true);
+}
+
+// Patch showPage to render merchant on navigation
+const _origShowPage = showPage;
+function showPage(name, opts) {
+  _origShowPage(name, opts);
+  if (name === 'merchant') renderMerchantPage();
+  if (name === 'merchant') {
+    document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
+  }
+}
+
 
 </script>
 </body>

@@ -5215,6 +5215,106 @@ app.get('/api/fixmeta', (req, res) => {
   }
 });
 
+// ── MERCHANT API ─────────────────────────────────────────────────────────────
+
+const MERCHANT_ITEM_PRICES = {
+  drop_boost: 800, coin_magnet: 600, lucky_clover: 1200, xp_boost: 500,
+  reroll_ticket: 1500, cooldown_skip: 2000, version_charm: 2500, vault_pass: 700,
+  seed_common: 200, seed_uncommon: 500, seed_rare: 1500, seed_epic: 4000, seed_legendary: 12000,
+  crate_bronze: 300, crate_silver: 800, crate_gold: 2000, crate_diamond: 5000, crate_ruby: 15000,
+  vault_upgrade: 5000, autosell_slot: 3500, drop_perm: 8000,
+  trade_shield: 4000, coin_interest: 10000, rainbow_tag: 6000,
+};
+
+const MERCHANT_CRATE_POOLS = {
+  crate_bronze:  [ {rarity:'Common',w:60},{rarity:'Uncommon',w:30},{rarity:'Rare',w:9},{rarity:'Epic',w:1} ],
+  crate_silver:  [ {rarity:'Common',w:30},{rarity:'Uncommon',w:35},{rarity:'Rare',w:25},{rarity:'Epic',w:9},{rarity:'Legendary',w:1} ],
+  crate_gold:    [ {rarity:'Uncommon',w:20},{rarity:'Rare',w:35},{rarity:'Epic',w:30},{rarity:'Legendary',w:13},{rarity:'Mythic',w:2} ],
+  crate_diamond: [ {rarity:'Rare',w:15},{rarity:'Epic',w:35},{rarity:'Legendary',w:30},{rarity:'Mythic',w:16},{rarity:'Secret',w:4} ],
+  crate_ruby:    [ {rarity:'Epic',w:25},{rarity:'Legendary',w:30},{rarity:'Mythic',w:30},{rarity:'Secret',w:15} ],
+};
+
+function merchantWeightedPick(pool) {
+  const total = pool.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const item of pool) { r -= item.w; if (r <= 0) return item.rarity; }
+  return pool[pool.length-1].rarity;
+}
+
+function getMerchantPlantByRarity(rarity) {
+  const meta = JSON.parse(fs.existsSync(META_FILE) ? fs.readFileSync(META_FILE) : '{}');
+  const allPlants = Object.entries(meta.plantVersions || {}).map(([name, maxV]) => ({ name, maxV }));
+  if (!allPlants.length) return null;
+  const picked = allPlants[Math.floor(Math.random() * allPlants.length)];
+  const version = Math.max(1, Math.ceil(Math.random() * Math.min(picked.maxV, 50)));
+  const rarityEmojis = { Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎' };
+  return {
+    name: picked.name, rarity, version,
+    emoji: rarityEmojis[rarity] || '🌿',
+    claimedAt: new Date().toISOString(),
+    source: 'merchant',
+    sellValue: getRarityConfig(rarity).sellPrice,
+  };
+}
+
+app.post('/api/merchant/buy', express.json(), (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { itemId, type, price, name } = req.body;
+  if (!itemId || !type || price === undefined) return res.status(400).json({ error: 'Missing fields' });
+  const basePrice = MERCHANT_ITEM_PRICES[itemId];
+  if (basePrice === undefined) return res.status(400).json({ error: 'Unknown item' });
+  const minAllowed = Math.floor(basePrice * 0.65);
+  if (price < minAllowed || price > basePrice * 1.05) return res.status(400).json({ error: 'Invalid price' });
+
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
+  user.currency -= price;
+
+  if (type === 'seed') {
+    const rarityMap = { seed_common:'Common', seed_uncommon:'Uncommon', seed_rare:'Rare', seed_epic:'Epic', seed_legendary:'Legendary' };
+    const rarity = rarityMap[itemId];
+    if (rarity) {
+      const plant = getMerchantPlantByRarity(rarity);
+      if (plant) { user.collection = user.collection || []; user.collection.push(plant); }
+    }
+  } else if (type === 'upgrade') {
+    user.merchantUpgrades = user.merchantUpgrades || {};
+    user.merchantUpgrades[itemId] = (user.merchantUpgrades[itemId] || 0) + 1;
+  } else {
+    user.merchantConsumables = user.merchantConsumables || [];
+    user.merchantConsumables.push({ itemId, name, purchasedAt: Date.now(), used: false });
+  }
+
+  saveDB(db);
+  pushCoinUpdate(req.user.id, user.currency);
+  if (type === 'seed') pushCollectionUpdate(req.user.id);
+  res.json({ ok: true, newBalance: user.currency });
+});
+
+app.post('/api/merchant/crate', express.json(), (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { crateId, price } = req.body;
+  const pool = MERCHANT_CRATE_POOLS[crateId];
+  if (!pool) return res.status(400).json({ error: 'Unknown crate' });
+  const basePrice = MERCHANT_ITEM_PRICES[crateId];
+  if (!basePrice || price < basePrice * 0.95 || price > basePrice * 1.05) return res.status(400).json({ error: 'Invalid price' });
+
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
+  user.currency -= price;
+
+  const rarity = merchantWeightedPick(pool);
+  const plant = getMerchantPlantByRarity(rarity);
+  if (plant) { user.collection = user.collection || []; user.collection.push(plant); }
+
+  saveDB(db);
+  pushCoinUpdate(req.user.id, user.currency);
+  pushCollectionUpdate(req.user.id);
+  res.json({ ok: true, newBalance: user.currency, plant: plant || null });
+});
+
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 
 client.login(TOKEN);
