@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
@@ -3108,7 +3108,50 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     });
     const tierHex = '#' + gardenTier.color.toString(16).padStart(6, '0');
     const statsLine = `**${target.username}** · ${user.collection.length} plants · ${gardenTier.emoji} **${gardenTier.name}** · Score: **${gardenScore.toLocaleString()}**`;
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🎒 Inventory — Page ${page}/${totalPages}${filterStr}`).setDescription(statsLine + '\n\u200b\n' + lines.join('\n')).setColor(topRarity.color).setFooter({ text: `Showing ${filtered.length} plants  ·  !inv [page] [-r rarity] [-m mutation] [-version op#]` })] });
+
+    function buildInvEmbed(p) {
+      const sl = filtered.slice((p - 1) * PER_PAGE, p * PER_PAGE);
+      const tR = getRarityConfig(sl[0].rarity);
+      const ls = sl.map((plant, i) => {
+        const rCfg = getRarityConfig(plant.rarity), mutBadge = plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : '', verStr = plant.version === 1 ? '`v1` 🔖' : `\`v${plant.version || '?'}\``;
+        const num = (p - 1) * PER_PAGE + i + 1;
+        const sellVal = plant.sellValue || rCfg.sellPrice;
+        const lockBadge = isLocked(message.author.id, plant) ? ' `[L]`' : '';
+        return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${sellVal.toLocaleString()}`;
+      });
+      return new EmbedBuilder()
+        .setTitle(`🎒 Inventory — Page ${p}/${totalPages}${filterStr}`)
+        .setDescription(statsLine + '\n\u200b\n' + ls.join('\n'))
+        .setColor(tR.color)
+        .setFooter({ text: `Showing ${filtered.length} plants  ·  !inv [page] [-r rarity] [-m mutation] [-version op#]` });
+    }
+
+    function buildInvRow(p) {
+      return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('inv_prev').setLabel('◀ Previous').setStyle(ButtonStyle.Secondary).setDisabled(p <= 1),
+        new ButtonBuilder().setCustomId('inv_next').setLabel('Next ▶').setStyle(ButtonStyle.Secondary).setDisabled(p >= totalPages)
+      );
+    }
+
+    if (totalPages <= 1) {
+      return message.channel.send({ embeds: [buildInvEmbed(page)] });
+    }
+
+    const invMsg = await message.channel.send({ embeds: [buildInvEmbed(page)], components: [buildInvRow(page)] });
+    let currentInvPage = page;
+    const invCollector = invMsg.createMessageComponentCollector({ time: 120_000 });
+    invCollector.on('collect', async interaction => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({ content: '❌ Only the person who ran this command can flip pages.', ephemeral: true });
+      }
+      if (interaction.customId === 'inv_prev') currentInvPage = Math.max(1, currentInvPage - 1);
+      if (interaction.customId === 'inv_next') currentInvPage = Math.min(totalPages, currentInvPage + 1);
+      await interaction.update({ embeds: [buildInvEmbed(currentInvPage)], components: [buildInvRow(currentInvPage)] });
+    });
+    invCollector.on('end', () => {
+      invMsg.edit({ components: [] }).catch(() => {});
+    });
+    return;
   }
 
   // ── !view <plant> [-v <version>] ─────────────────────────────────────────
@@ -3514,7 +3557,36 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-    return message.channel.send({ embeds: [buildShopEmbed(page, user, user.currency)] });
+
+    const totalShopPages = SHOP_PAGES.length;
+
+    function buildShopRow(p) {
+      return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('shop_prev').setLabel('◀ Previous').setStyle(ButtonStyle.Secondary).setDisabled(p <= 0),
+        new ButtonBuilder().setCustomId('shop_next').setLabel('Next ▶').setStyle(ButtonStyle.Secondary).setDisabled(p >= totalShopPages - 1)
+      );
+    }
+
+    if (totalShopPages <= 1) {
+      return message.channel.send({ embeds: [buildShopEmbed(page, user, user.currency)] });
+    }
+
+    const shopMsg = await message.channel.send({ embeds: [buildShopEmbed(page, user, user.currency)], components: [buildShopRow(page)] });
+    let currentShopPage = page;
+    const shopCollector = shopMsg.createMessageComponentCollector({ time: 120_000 });
+    shopCollector.on('collect', async interaction => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({ content: '❌ Only the person who ran this command can flip pages.', ephemeral: true });
+      }
+      if (interaction.customId === 'shop_prev') currentShopPage = Math.max(0, currentShopPage - 1);
+      if (interaction.customId === 'shop_next') currentShopPage = Math.min(totalShopPages - 1, currentShopPage + 1);
+      const freshDb = loadDB(); const freshUser = getUser(freshDb, message.author.id);
+      await interaction.update({ embeds: [buildShopEmbed(currentShopPage, freshUser, freshUser.currency)], components: [buildShopRow(currentShopPage)] });
+    });
+    shopCollector.on('end', () => {
+      shopMsg.edit({ components: [] }).catch(() => {});
+    });
+    return;
   }
 
   // ── !buy / !b ─────────────────────────────────────────────────────────────────
