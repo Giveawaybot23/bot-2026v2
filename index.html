@@ -1073,7 +1073,6 @@
   margin-bottom: 10px;
 }
 .merchant-hero-title em { font-style: italic; color: #52b788; }
-.merchant-hero-desc { font-size: 15px; color: rgba(240,237,232,0.55); line-height: 1.6; max-width: 520px; }
 .merchant-refresh-badge {
   display: inline-flex; align-items: center; gap: 7px;
   background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.3);
@@ -1083,72 +1082,6 @@
 .merchant-refresh-badge::before { content: '⏱'; }
 
 .merchant-body { padding: 40px 48px; }
-
-.merchant-section-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: 22px; color: var(--ink); letter-spacing: -0.01em;
-  margin-bottom: 6px;
-}
-.merchant-section-sub { font-size: 13px; color: var(--ink3); margin-bottom: 20px; }
-
-/* Featured item banner */
-.merchant-featured {
-  position: relative; overflow: hidden;
-  background: linear-gradient(135deg, var(--card) 0%, rgba(201,168,76,0.06) 100%);
-  border: 1px solid rgba(201,168,76,0.35);
-  border-radius: 18px; padding: 28px;
-  margin-bottom: 40px;
-  display: flex; align-items: center; gap: 28px;
-  box-shadow: 0 0 0 1px rgba(201,168,76,0.08), 0 8px 40px rgba(201,168,76,0.06);
-}
-.merchant-featured::before {
-  content: '✦ TODAY\'S DEAL';
-  position: absolute; top: 16px; right: 20px;
-  font-size: 10px; font-weight: 800; letter-spacing: 0.18em;
-  color: #c9a84c; opacity: 0.7;
-}
-@keyframes featuredShimmer {
-  0% { transform: translateX(-100%) skewX(-20deg); }
-  100% { transform: translateX(400%) skewX(-20deg); }
-}
-.merchant-featured::after {
-  content: '';
-  position: absolute; top: 0; left: 0; width: 30%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(201,168,76,0.04), transparent);
-  animation: featuredShimmer 5s ease-in-out infinite;
-  pointer-events: none;
-}
-.merchant-featured-icon {
-  width: 88px; height: 88px; border-radius: 16px;
-  background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 44px; flex-shrink: 0;
-}
-.merchant-featured-body { flex: 1; }
-.merchant-featured-tag {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(201,168,76,0.15); border: 1px solid rgba(201,168,76,0.35);
-  color: #c9a84c; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  text-transform: uppercase; padding: 4px 11px; border-radius: 100px; margin-bottom: 10px;
-}
-.merchant-featured-name {
-  font-family: 'DM Serif Display', serif;
-  font-size: 24px; color: var(--ink); margin-bottom: 6px; letter-spacing: -0.01em;
-}
-.merchant-featured-desc { font-size: 14px; color: var(--ink2); line-height: 1.6; margin-bottom: 16px; max-width: 380px; }
-.merchant-featured-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.merchant-featured-price {
-  font-family: 'DM Serif Display', serif;
-  font-size: 28px; color: var(--ink); letter-spacing: -0.02em;
-}
-.merchant-featured-price small { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink3); margin-left: 3px; }
-.merchant-featured-orig {
-  font-size: 14px; color: var(--ink3); text-decoration: line-through;
-}
-.merchant-featured-discount {
-  background: #e53935; color: white;
-  font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 100px;
-}
 
 /* Item grid */
 .merchant-grid {
@@ -1206,35 +1139,6 @@
 }
 .merchant-item-stock.low { color: #e53935; background: rgba(229,57,53,0.08); border-color: rgba(229,57,53,0.2); }
 .merchant-item-stock.medium { color: var(--gold); background: rgba(201,168,76,0.08); border-color: rgba(201,168,76,0.2); }
-
-/* Crate cards */
-.merchant-crate-card {
-  background: var(--card); border-radius: 16px; border: 1px solid var(--border);
-  padding: 24px; transition: all 0.25s; position: relative; overflow: hidden;
-  cursor: pointer;
-}
-.merchant-crate-card:hover { transform: translateY(-3px); }
-.merchant-crate-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 48px;
-}
-.crate-icon-wrap {
-  width: 72px; height: 72px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 36px; margin-bottom: 16px;
-  transition: transform 0.3s;
-}
-.merchant-crate-card:hover .crate-icon-wrap { transform: scale(1.08) rotate(-3deg); }
-.crate-name { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
-.crate-odds-list { margin: 10px 0 14px; display: flex; flex-direction: column; gap: 4px; }
-.crate-odds-row {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px;
-}
-.crate-odds-rarity { font-weight: 600; }
-.crate-odds-pct { color: var(--ink3); }
 
 /* Confirm modal */
 .merchant-modal-overlay {
@@ -1295,8 +1199,6 @@
 @media (max-width: 768px) {
   .merchant-body { padding: 24px 16px; }
   .merchant-hero { padding: 40px 20px 36px; }
-  .merchant-featured { flex-direction: column; gap: 16px; }
-  .merchant-featured::before { display: none; }
 }
 </style>
 </head>
@@ -1812,62 +1714,23 @@
 <div class="page" id="page-merchant">
   <div class="merchant-page">
 
-    <!-- Hero -->
     <div class="merchant-hero">
       <div class="merchant-hero-inner">
         <div class="merchant-avatar">🧙</div>
         <div class="merchant-hero-text">
           <div class="merchant-hero-eyebrow">NPC Shop · Garden Horizons</div>
           <h1 class="merchant-hero-title">Guildwald's <em>Emporium</em></h1>
-          <p class="merchant-hero-desc">Rare seeds, powerful boosts, and mysterious crates — all for the discerning gardener. Stock refreshes every day at midnight.</p>
           <div class="merchant-refresh-badge">
-            Daily stock resets in: <strong id="merchant-countdown">—</strong>
+            New stock in: <strong id="merchant-countdown">—</strong>
           </div>
         </div>
       </div>
     </div>
 
     <div class="merchant-body">
-
-      <!-- Featured Deal -->
-      <div class="merchant-featured" id="merchant-featured-card">
-        <div class="merchant-featured-icon" id="mf-icon">🌟</div>
-        <div class="merchant-featured-body">
-          <div class="merchant-featured-tag">⭐ Featured Deal</div>
-          <div class="merchant-featured-name" id="mf-name">Loading...</div>
-          <div class="merchant-featured-desc" id="mf-desc"></div>
-          <div class="merchant-featured-footer">
-            <div class="merchant-featured-price" id="mf-price"><small>coins</small></div>
-            <div class="merchant-featured-orig" id="mf-orig"></div>
-            <div class="merchant-featured-discount" id="mf-discount"></div>
-            <button class="merchant-item-buy-btn" id="mf-btn"
-              style="background:var(--gold,#c9a84c);color:white;font-size:14px;padding:11px 26px"
-              onclick="merchantBuy('featured')">Buy Now</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Daily Consumables -->
-      <div class="merchant-section-title">⚗️ Daily Consumables</div>
-      <div class="merchant-section-sub">Boosts and power-ups that reset every 24 hours — only 3 of each available per day.</div>
-      <div class="merchant-grid" id="merchant-consumables-grid"></div>
-
-      <!-- Seed Packs -->
-      <div class="merchant-section-title">🌱 Seed Packs</div>
-      <div class="merchant-section-sub">Guaranteed plant drops sorted by rarity. Each pack gives you one plant from that tier.</div>
-      <div class="merchant-grid" id="merchant-seeds-grid"></div>
-
-      <!-- Mystery Crates -->
-      <div class="merchant-section-title">📦 Mystery Crates</div>
-      <div class="merchant-section-sub">Gamble for greatness. Higher tier crates offer better odds for rarer plants.</div>
-      <div class="merchant-crate-grid" id="merchant-crates-grid"></div>
-
-      <!-- Permanent Upgrades -->
-      <div class="merchant-section-title">⚡ Permanent Upgrades</div>
-      <div class="merchant-section-sub">One-time purchases that stay with your account forever.</div>
-      <div class="merchant-grid" id="merchant-upgrades-grid"></div>
-
+      <div class="merchant-grid" id="merchant-main-grid"></div>
     </div>
+
   </div>
 </div>
 
@@ -4908,107 +4771,59 @@ if (msg.type === 'leaderboard_update') {
 // ── MERCHANT / GUILDWALD'S EMPORIUM ──────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 
-// Deterministic daily seed so items rotate each day but stay consistent
+// Seed based on 30-minute windows
 function dailySeed() {
   const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate();
+  // Each 30-min block gets a unique seed: date * 100 + half-hour index
+  const halfHour = Math.floor(d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0));
+  return (d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate()) * 100 + halfHour;
 }
 function seededRand(seed, n) {
-  // Simple LCG
   let s = seed ^ (n * 2654435761);
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
   return (s ^ (s >>> 16)) / 0xFFFFFFFF;
 }
 
-// ── MERCHANT ITEM DEFINITIONS ──
-const MERCHANT_CONSUMABLES_POOL = [
-  { id:'drop_boost', icon:'⚡', name:'Drop Rate Boost', category:'Boost', categoryColor:'#52b788',
-    descs:['Doubles your plant drop rate for the next 30 minutes. Perfect for grinding rare drops during active sessions.'],
-    price:800, stock:3 },
-  { id:'coin_magnet', icon:'🧲', name:'Coin Magnet', category:'Boost', categoryColor:'#52b788',
-    descs:['Earn +50% more coins from selling plants for the next hour. Stack it with your best sells.'],
-    price:600, stock:3 },
-  { id:'lucky_clover', icon:'🍀', name:'Lucky Clover', category:'Luck', categoryColor:'#4CAF50',
-    descs:['Increases mutation chance by 3× for your next 5 plant claims. Rare mutations await the bold.'],
-    price:1200, stock:3 },
-  { id:'xp_boost', icon:'📚', name:'XP Tome', category:'XP', categoryColor:'#2196F3',
-    descs:['Grants +200% XP on all actions for 20 minutes. Level up fast.'],
-    price:500, stock:3 },
-  { id:'reroll_ticket', icon:'🎲', name:'Reroll Ticket', category:'Utility', categoryColor:'#9c27b0',
-    descs:['Re-roll your last plant drop for a fresh chance at a better rarity. One-use.'],
-    price:1500, stock:3 },
-  { id:'cooldown_skip', icon:'⏩', name:'Cooldown Skip', category:'Utility', categoryColor:'#9c27b0',
-    descs:['Instantly resets all your active claim cooldowns. Claim again right now.'],
-    price:2000, stock:3 },
-  { id:'version_charm', icon:'💎', name:'Version Charm', category:'Rare', categoryColor:'#c9a84c',
-    descs:['Your next plant drop has a 10× higher chance of being a low-version (v1–v5) copy.'],
-    price:2500, stock:3 },
-  { id:'vault_pass', icon:'🔐', name:'Vault Pass', category:'Utility', categoryColor:'#9c27b0',
-    descs:['Unlocks the ability to lock 5 extra plants in your vault this week. Protect your prized collection.'],
-    price:700, stock:3 },
-];
+// ── ITEM POOL ──
+// All possible items Guildwald can offer. 4 are picked per 30-minute window.
+// Add new items here as the game grows — they'll automatically rotate in.
+const MERCHANT_POOL = [
+  // ── Active items ──
+  { id:'drop_boost',    icon:'⚡', name:'Drop Rate Boost',     tag:'Boost',   tagColor:'#52b788', price:800,
+    desc:'Doubles your plant drop rate for the next 30 minutes.' },
+  { id:'coin_magnet',   icon:'🧲', name:'Coin Magnet',          tag:'Boost',   tagColor:'#52b788', price:600,
+    desc:'Earn +50% more coins from selling plants for the next hour.' },
+  { id:'lucky_clover',  icon:'🍀', name:'Lucky Clover',         tag:'Luck',    tagColor:'#4CAF50', price:1200,
+    desc:'3× mutation chance on your next 5 plant claims.' },
+  { id:'xp_boost',      icon:'📚', name:'XP Tome',              tag:'XP',      tagColor:'#2196F3', price:500,
+    desc:'+200% XP on all actions for 20 minutes.' },
+  { id:'reroll_ticket', icon:'🎲', name:'Reroll Ticket',        tag:'Utility', tagColor:'#9c27b0', price:1500,
+    desc:'Re-roll your last plant drop for a fresh shot at a better rarity.' },
+  { id:'cooldown_skip', icon:'⏩', name:'Cooldown Skip',        tag:'Utility', tagColor:'#9c27b0', price:2000,
+    desc:'Instantly resets all your active claim cooldowns.' },
+  { id:'version_charm', icon:'💎', name:'Version Charm',        tag:'Rare',    tagColor:'#c9a84c', price:2500,
+    desc:'10× higher chance of a low-version (v1–v5) on your next drop.' },
+  { id:'vault_pass',    icon:'🔐', name:'Vault Pass',           tag:'Utility', tagColor:'#9c27b0', price:700,
+    desc:'Unlocks 5 extra vault lock slots for the week.' },
 
-const MERCHANT_SEEDS_POOL = [
-  { id:'seed_common',    icon:'🌾', name:'Common Seed Pack',    category:'Common',    categoryColor:'#9E9E9E', price:200,  desc:'Guarantees one Common plant drop from the pool. Good for filling collection gaps.' },
-  { id:'seed_uncommon',  icon:'🌿', name:'Uncommon Seed Pack',  category:'Uncommon',  categoryColor:'#4CAF50', price:500,  desc:'Guarantees one Uncommon plant from the game pool. Skip the wait.' },
-  { id:'seed_rare',      icon:'🌸', name:'Rare Seed Pack',      category:'Rare',      categoryColor:'#2196F3', price:1500, desc:'Guarantees one Rare plant. A solid mid-tier addition to your collection.' },
-  { id:'seed_epic',      icon:'💜', name:'Epic Seed Pack',      category:'Epic',      categoryColor:'#9c27b0', price:4000, desc:'Guarantees one Epic plant. These are hard to get naturally — here\'s your shortcut.' },
-  { id:'seed_legendary', icon:'⭐', name:'Legendary Seed Pack', category:'Legendary', categoryColor:'#FFD700', price:12000, desc:'Guarantees one Legendary plant. An exceptional treasure for serious collectors.' },
-];
-
-const MERCHANT_CRATES = [
-  {
-    id:'crate_bronze', icon:'📦', name:'Bronze Crate', color:'#CD7F32',
-    price:300,
-    desc:'A humble crate with modest odds. Great for beginners.',
-    odds:[ {rarity:'Common',pct:'60%',color:'#9E9E9E'}, {rarity:'Uncommon',pct:'30%',color:'#4CAF50'}, {rarity:'Rare',pct:'9%',color:'#2196F3'}, {rarity:'Epic',pct:'1%',color:'#9c27b0'} ]
-  },
-  {
-    id:'crate_silver', icon:'🥈', name:'Silver Crate', color:'#C0C0C0',
-    price:800,
-    desc:'Significantly better odds at mid-tier rarities.',
-    odds:[ {rarity:'Common',pct:'30%',color:'#9E9E9E'}, {rarity:'Uncommon',pct:'35%',color:'#4CAF50'}, {rarity:'Rare',pct:'25%',color:'#2196F3'}, {rarity:'Epic',pct:'9%',color:'#9c27b0'}, {rarity:'Legendary',pct:'1%',color:'#FFD700'} ]
-  },
-  {
-    id:'crate_gold', icon:'📫', name:'Gold Crate', color:'#FFD700',
-    price:2000,
-    desc:'Premium odds. Legendary drops are real here.',
-    odds:[ {rarity:'Uncommon',pct:'20%',color:'#4CAF50'}, {rarity:'Rare',pct:'35%',color:'#2196F3'}, {rarity:'Epic',pct:'30%',color:'#9c27b0'}, {rarity:'Legendary',pct:'13%',color:'#FFD700'}, {rarity:'Mythic',pct:'2%',color:'#F44336'} ]
-  },
-  {
-    id:'crate_diamond', icon:'💎', name:'Diamond Crate', color:'#B9F2FF',
-    price:5000,
-    desc:'The pinnacle of crate gambling. Mythic within reach.',
-    odds:[ {rarity:'Rare',pct:'15%',color:'#2196F3'}, {rarity:'Epic',pct:'35%',color:'#9c27b0'}, {rarity:'Legendary',pct:'30%',color:'#FFD700'}, {rarity:'Mythic',pct:'16%',color:'#F44336'}, {rarity:'Secret',pct:'4%',color:'#aa88ff'} ]
-  },
-  {
-    id:'crate_ruby', icon:'🔮', name:'Void Crate', color:'#aa88ff',
-    price:15000,
-    desc:'Sealed with dark magic. Guaranteed Epic or higher, with a whisper of the Void.',
-    odds:[ {rarity:'Epic',pct:'25%',color:'#9c27b0'}, {rarity:'Legendary',pct:'30%',color:'#FFD700'}, {rarity:'Mythic',pct:'30%',color:'#F44336'}, {rarity:'Secret',pct:'15%',color:'#aa88ff'} ]
-  },
-];
-
-const MERCHANT_UPGRADES_POOL = [
-  { id:'vault_upgrade', icon:'🏦', name:'Vault Expansion', category:'Upgrade', categoryColor:'#2196F3',
-    descs:['Permanently expands your lock vault by +5 slots. Never lose your rarest plants.'],
-    price:5000, oneTime:true },
-  { id:'autosell_slot', icon:'🤖', name:'AutoSell Slot', category:'Upgrade', categoryColor:'#2196F3',
-    descs:['Adds one more AutoSell rule slot to your account. Automate your coin farming with precision.'],
-    price:3500, oneTime:false },
-  { id:'drop_perm', icon:'🌠', name:'Permanent Drop Buff', category:'Passive', categoryColor:'#c9a84c',
-    descs:['+5% permanent drop rate boost stacked on your account. Compounds with temporary boosts.'],
-    price:8000, oneTime:false },
-  { id:'trade_shield', icon:'🛡️', name:'Trade Shield', category:'Passive', categoryColor:'#52b788',
-    descs:['Protects you from unfair trade offers — highlights if a trade is unbalanced before you confirm.'],
-    price:4000, oneTime:true },
-  { id:'coin_interest', icon:'💰', name:'Coin Interest', category:'Passive', categoryColor:'#c9a84c',
-    descs:['Earn 1% daily interest on your coin balance (up to 50,000 coins). Your idle money works for you.'],
-    price:10000, oneTime:true },
-  { id:'rainbow_tag', icon:'🌈', name:'Rainbow Nametag', category:'Cosmetic', categoryColor:'#FF6B6B',
-    descs:['Your username shimmers with a rainbow gradient in leaderboards and profiles. Pure flex.'],
-    price:6000, oneTime:true },
+  // ── Placeholder ideas (not yet implemented — uncomment & flesh out when ready) ──
+  // { id:'rename_token',    icon:'✏️', name:'Rename Token',        tag:'Cosmetic', tagColor:'#FF6B6B', price:3000,
+  //   desc:'Lets you rename one plant in your collection once.' },
+  // { id:'seed_rare',       icon:'🌸', name:'Rare Seed Pack',      tag:'Rare',     tagColor:'#2196F3', price:1500,
+  //   desc:'Guaranteed Rare plant drop from the game pool.' },
+  // { id:'mystery_box',     icon:'📦', name:'Mystery Box',         tag:'Gamble',   tagColor:'#FFD700', price:1000,
+  //   desc:'Could be anything. Could be great. Could be a Common.' },
+  // { id:'plant_dye',       icon:'🎨', name:'Plant Dye',           tag:'Cosmetic', tagColor:'#FF6B6B', price:2000,
+  //   desc:'Change the display colour tag on any one plant you own.' },
+  // { id:'trade_shield',    icon:'🛡️', name:'Trade Shield',        tag:'Passive',  tagColor:'#52b788', price:4000,
+  //   desc:'Flags unbalanced trade offers before you confirm.' },
+  // { id:'coin_interest',   icon:'💰', name:'Coin Interest',       tag:'Passive',  tagColor:'#c9a84c', price:10000,
+  //   desc:'Earn 1% daily interest on your balance (cap: 50k coins). One-time.' },
+  // { id:'rainbow_tag',     icon:'🌈', name:'Rainbow Nametag',     tag:'Cosmetic', tagColor:'#FF6B6B', price:6000,
+  //   desc:'Your username shimmers with a rainbow gradient. Pure flex. One-time.' },
+  // { id:'drop_perm',       icon:'🌠', name:'Permanent Drop Buff', tag:'Passive',  tagColor:'#c9a84c', price:8000,
+  //   desc:'+5% permanent drop rate stacked on your account.' },
 ];
 
 // ── STATE ──
@@ -5017,7 +4832,6 @@ const _merchantPurchased = JSON.parse(localStorage.getItem('merchant_purchased')
 function _loadMerchantStock() {
   try {
     const saved = JSON.parse(localStorage.getItem('merchant_stock') || '{}');
-    // Invalidate if saved for a different day
     const today = String(dailySeed());
     if (saved._day !== today) return { _day: today };
     return saved;
@@ -5035,161 +4849,43 @@ function saveMerchantState() {
 function renderMerchantPage() {
   const seed = dailySeed();
 
-  // Pick 4 consumables for today
-  const shuffled = [...MERCHANT_CONSUMABLES_POOL];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(seededRand(seed, i + 99) * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  // Shuffle pool and pick 4 for this 30-min window
+  const pool = [...MERCHANT_POOL];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRand(seed, i + 7) * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  const dailyConsumables = shuffled.slice(0, 4);
+  const slots = pool.slice(0, 4);
 
-  // Featured: pick one consumable with discount
-  const featuredItem = dailyConsumables[0];
-  const discountPct = [15, 20, 25, 30][Math.floor(seededRand(seed, 77) * 4)];
-  const featuredPrice = Math.round(featuredItem.price * (1 - discountPct/100));
-
-  // Featured card
-  document.getElementById('mf-icon').textContent = featuredItem.icon;
-  document.getElementById('mf-name').textContent = featuredItem.name;
-  document.getElementById('mf-desc').textContent = featuredItem.descs[0];
-  document.getElementById('mf-price').innerHTML = `${featuredPrice.toLocaleString()}<small>coins</small>`;
-  document.getElementById('mf-orig').textContent = featuredItem.price.toLocaleString() + ' coins';
-  document.getElementById('mf-discount').textContent = `-${discountPct}%`;
-  document.getElementById('mf-btn').dataset.itemId = featuredItem.id;
-  document.getElementById('mf-btn').dataset.price = featuredPrice;
-  document.getElementById('mf-btn').dataset.name = featuredItem.name;
-  document.getElementById('mf-btn').dataset.icon = featuredItem.icon;
-  document.getElementById('mf-btn').dataset.desc = featuredItem.descs[0];
-  document.getElementById('mf-btn').dataset.type = 'consumable';
-
-  // Stock init for featured — uses same seed-based key as consumables so buy() deducts correctly
-  const featuredStockKey = featuredItem.id + '_' + seed;
-  if (_merchantStockLeft[featuredStockKey] === undefined) {
-    _merchantStockLeft[featuredStockKey] = 1;
-  }
-  const featuredSoldOut = _merchantStockLeft[featuredStockKey] <= 0;
-  const mfBtn = document.getElementById('mf-btn');
-  if (featuredSoldOut) {
-    mfBtn.disabled = true;
-    mfBtn.textContent = 'Sold Out';
-    mfBtn.style.opacity = '0.5';
-    mfBtn.style.cursor = 'not-allowed';
-  } else {
-    mfBtn.disabled = false;
-    mfBtn.textContent = 'Buy Now';
-    mfBtn.style.opacity = '1';
-    mfBtn.style.cursor = 'pointer';
-  }
-
-  // Consumables grid
-  const cGrid = document.getElementById('merchant-consumables-grid');
-  cGrid.innerHTML = dailyConsumables.map((item, i) => {
+  const grid = document.getElementById('merchant-main-grid');
+  grid.innerHTML = slots.map((item, i) => {
     const stockKey = item.id + '_' + seed;
-    if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = item.stock;
+    if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = 3;
     const left = _merchantStockLeft[stockKey];
     const isSoldOut = left <= 0;
     const stockClass = left === 1 ? 'low' : left === 2 ? 'medium' : '';
     return `
-    <div class="merchant-item-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:${i*0.06}s">
-      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
-      <div class="merchant-item-stock ${stockClass}">${left} left today</div>
+    <div class="merchant-item-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:${i*0.07}s">
+      <div class="merchant-item-top-bar" style="background:${item.tagColor}"></div>
+      <div class="merchant-item-stock ${stockClass}">${left} left</div>
       <span class="merchant-item-icon">${item.icon}</span>
-      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}</div>
-      <div class="merchant-item-name">${item.name}</div>
-      <div class="merchant-item-desc">${item.descs[0]}</div>
-      <div class="merchant-item-footer">
-        <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg)"
-          onclick="merchantBuy('consumable','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.descs[0])}')">
-          Buy
-        </button>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Seed packs grid
-  const sGrid = document.getElementById('merchant-seeds-grid');
-  sGrid.innerHTML = MERCHANT_SEEDS_POOL.map((item, i) => `
-    <div class="merchant-item-card reveal" style="animation-delay:${i*0.06}s">
-      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
-      <span class="merchant-item-icon">${item.icon}</span>
-      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}</div>
+      <div class="merchant-item-category" style="color:${item.tagColor}">${item.tag}</div>
       <div class="merchant-item-name">${item.name}</div>
       <div class="merchant-item-desc">${item.desc}</div>
       <div class="merchant-item-footer">
         <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn" style="background:${item.categoryColor};color:white"
-          onclick="merchantBuy('seed','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.desc)}')">
+        <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg)"
+          ${isSoldOut ? 'disabled' : ''}
+          onclick="merchantBuy('consumable','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.desc)}')">
           Buy
-        </button>
-      </div>
-    </div>
-  `).join('');
-
-  // Crates grid
-  const crGrid = document.getElementById('merchant-crates-grid');
-  crGrid.innerHTML = MERCHANT_CRATES.map((c, i) => `
-    <div class="merchant-crate-card reveal" style="animation-delay:${i*0.07}s;border-color:${c.color}33">
-      <div class="merchant-item-top-bar" style="background:${c.color}"></div>
-      <div class="crate-icon-wrap" style="background:${c.color}18;border:1px solid ${c.color}33">
-        <span style="font-size:36px">${c.icon}</span>
-      </div>
-      <div class="crate-name">${c.name}</div>
-      <div style="font-size:13px;color:var(--ink3);margin-bottom:8px">${c.desc}</div>
-      <div class="crate-odds-list">
-        ${c.odds.map(o => `
-          <div class="crate-odds-row">
-            <span class="crate-odds-rarity" style="color:${o.color}">${o.rarity}</span>
-            <span class="crate-odds-pct">${o.pct}</span>
-          </div>
-        `).join('')}
-      </div>
-      <div class="merchant-item-footer" style="margin-top:12px">
-        <div class="merchant-item-price">${c.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn" style="background:${c.color};color:#0e0d0b;font-weight:800"
-          onclick="merchantBuyCrate('${c.id}','${encodeURIComponent(c.name)}','${c.price}','${encodeURIComponent(c.icon)}','${encodeURIComponent(JSON.stringify(c.odds))}')">
-          Open
-        </button>
-      </div>
-    </div>
-  `).join('');
-
-  // Pick 4 upgrades for today
-  const upgradePool = [...MERCHANT_UPGRADES_POOL];
-  for (let i = upgradePool.length - 1; i > 0; i--) {
-    const j = Math.floor(seededRand(seed, i + 200) * (i + 1));
-    [upgradePool[i], upgradePool[j]] = [upgradePool[j], upgradePool[i]];
-  }
-  const dailyUpgrades = upgradePool.slice(0, 4);
-
-  const uGrid = document.getElementById('merchant-upgrades-grid');
-  uGrid.innerHTML = dailyUpgrades.map((item, i) => {
-    const alreadyOwned = item.oneTime && _merchantPurchased[item.id];
-    return `
-    <div class="merchant-item-card reveal${alreadyOwned ? ' owned-out' : ''}" style="animation-delay:${i*0.06}s">
-      <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
-      ${alreadyOwned ? '' : ''}
-      <span class="merchant-item-icon">${item.icon}</span>
-      <div class="merchant-item-category" style="color:${item.categoryColor}">${item.category}${item.oneTime ? ' · One-Time' : ''}</div>
-      <div class="merchant-item-name">${item.name}</div>
-      <div class="merchant-item-desc">${item.descs[0]}</div>
-      <div class="merchant-item-footer">
-        <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn"
-          style="${alreadyOwned ? 'background:var(--bg2);color:var(--ink3);cursor:not-allowed' : `background:${item.categoryColor};color:white`}"
-          ${alreadyOwned ? 'disabled' : ''}
-          onclick="merchantBuy('upgrade','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.descs[0])}')">
-          ${alreadyOwned ? 'Owned' : 'Purchase'}
         </button>
       </div>
     </div>`;
   }).join('');
 
-  // Countdown timer
   updateMerchantCountdown();
-  if (!window._merchantCountdownInterval) {
-    window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
-  }
+  if (window._merchantCountdownInterval) clearInterval(window._merchantCountdownInterval);
+  window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
 
   triggerReveal();
 }
@@ -5198,26 +4894,21 @@ function updateMerchantCountdown() {
   const el = document.getElementById('merchant-countdown');
   if (!el) return;
   const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const ms = midnight - now;
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  // Time until the next 30-min boundary
+  const minsLeft = 29 - (now.getMinutes() % 30);
+  const secsLeft = 59 - now.getSeconds();
+  el.textContent = `${String(minsLeft).padStart(2,'0')}:${String(secsLeft).padStart(2,'0')}`;
+
+  // When the window flips, re-render
+  if (minsLeft === 0 && secsLeft === 0) {
+    clearInterval(window._merchantCountdownInterval);
+    window._merchantCountdownInterval = null;
+    setTimeout(renderMerchantPage, 1000);
+  }
 }
 
 // ── BUY FLOW ──
 function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc) {
-  if (type === 'featured') {
-    const btn = document.getElementById('mf-btn');
-    itemId = btn.dataset.itemId;
-    encodedName = btn.dataset.name;
-    price = btn.dataset.price;
-    encodedIcon = btn.dataset.icon;
-    encodedDesc = btn.dataset.desc;
-    type = btn.dataset.type;
-  }
   const name = decodeURIComponent(encodedName);
   const icon = decodeURIComponent(encodedIcon);
   const desc = decodeURIComponent(encodedDesc);
@@ -5270,86 +4961,8 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
   });
 }
 
-function merchantBuyCrate(crateId, encodedName, price, encodedIcon, encodedOdds) {
-  const name = decodeURIComponent(encodedName);
-  const icon = decodeURIComponent(encodedIcon);
-  const odds = JSON.parse(decodeURIComponent(encodedOdds));
-  const priceN = parseInt(price);
 
-  if (!window._loggedInId) {
-    showMerchantError('You need to log in with Discord to open crates.');
-    return;
-  }
 
-  openMerchantConfirm({
-    type: 'crate', itemId: crateId, name, icon,
-    desc: 'Opening this crate will deduct coins and grant you a random plant based on the crate\'s odds.',
-    price: priceN,
-    onConfirm: async (modal) => {
-      const btn = modal.querySelector('.merchant-modal-confirm');
-      btn.disabled = true; btn.textContent = 'Opening...';
-      const errEl = modal.querySelector('.merchant-modal-error');
-      errEl.style.display = 'none';
-      try {
-        const res = await fetch('/api/merchant/crate', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ crateId, price: priceN })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          errEl.style.display = 'block';
-          errEl.textContent = data.error || 'Failed to open crate — not enough coins?';
-          btn.disabled = false; btn.textContent = 'Confirm';
-          return;
-        }
-        if (data.newBalance !== undefined) updateNavCoins(data.newBalance);
-        closeMerchantModal();
-        showCrateResult(data.plant || simulateCrateDrop(odds), name);
-      } catch(e) {
-        errEl.style.display = 'block';
-        errEl.textContent = 'Network error — try again.';
-        btn.disabled = false; btn.textContent = 'Confirm';
-      }
-    }
-  });
-}
-
-// Simulate a client-side crate drop result for graceful fallback display
-const _merchantRarityEmoji = {Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎'};
-function simulateCrateDrop(odds) {
-  const roll = Math.random() * 100;
-  let cumulative = 0;
-  for (const o of odds) {
-    cumulative += parseFloat(o.pct);
-    if (roll <= cumulative) {
-      const em = _merchantRarityEmoji[o.rarity] || '🌿';
-      return { rarity: o.rarity, name: em + ' ' + o.rarity + ' Plant', emoji: em, color: o.color };
-    }
-  }
-  return { rarity: odds[0].rarity, name: 'Plant', emoji: '🌱', color: '#52b788' };
-}
-
-function showCrateResult(plant, crateName) {
-  const overlay = document.createElement('div');
-  overlay.className = 'merchant-modal-overlay';
-  overlay.id = 'merchant-crate-result';
-  const rarityColor = {Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9c27b0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff'}[plant.rarity] || '#52b788';
-  overlay.innerHTML = `
-    <div class="crate-result-card">
-      <div style="font-size:13px;font-weight:600;color:var(--ink3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px">${crateName} · Result</div>
-      <div class="crate-result-reveal">${plant.emoji || '🌿'}</div>
-      <div class="crate-result-rarity" style="background:${rarityColor}20;color:${rarityColor};border:1px solid ${rarityColor}44">${plant.rarity}</div>
-      <div class="crate-result-name">${plant.name}</div>
-      <div class="crate-result-sub">${plant.mutation ? `✨ ${plant.mutation.name} mutation!` : 'Added to your collection'}</div>
-      <button onclick="document.getElementById('merchant-crate-result').remove()" style="width:100%;padding:13px;border-radius:100px;border:none;background:var(--ink);color:var(--bg);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s" onmouseover="this.style.background='${rarityColor}'" onmouseout="this.style.background='var(--ink)'">
-        Awesome! 🎉
-      </button>
-    </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-}
 
 function openMerchantConfirm({ type, itemId, name, icon, desc, price, onConfirm }) {
   const existing = document.getElementById('merchant-confirm-modal');

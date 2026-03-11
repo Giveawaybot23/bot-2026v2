@@ -5217,13 +5217,20 @@ app.get('/api/fixmeta', (req, res) => {
 
 // ── MERCHANT API ─────────────────────────────────────────────────────────────
 
+// Active item prices — mirrors MERCHANT_POOL in index.html.
+// Add new item IDs here when you add them to the pool.
+// Placeholder IDs are commented out until implemented.
 const MERCHANT_ITEM_PRICES = {
   drop_boost: 800, coin_magnet: 600, lucky_clover: 1200, xp_boost: 500,
   reroll_ticket: 1500, cooldown_skip: 2000, version_charm: 2500, vault_pass: 700,
-  seed_common: 200, seed_uncommon: 500, seed_rare: 1500, seed_epic: 4000, seed_legendary: 12000,
-  crate_bronze: 300, crate_silver: 800, crate_gold: 2000, crate_diamond: 5000, crate_ruby: 15000,
-  vault_upgrade: 5000, autosell_slot: 3500, drop_perm: 8000,
-  trade_shield: 4000, coin_interest: 10000, rainbow_tag: 6000,
+  // rename_token: 3000,
+  // seed_rare: 1500,
+  // mystery_box: 1000,
+  // plant_dye: 2000,
+  // trade_shield: 4000,
+  // coin_interest: 10000,
+  // rainbow_tag: 6000,
+  // drop_perm: 8000,
 };
 
 const MERCHANT_CRATE_POOLS = {
