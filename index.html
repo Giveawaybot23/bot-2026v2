@@ -69,7 +69,11 @@
 
   /* ── PAGES ── */
   .page { display: none; min-height: 100vh; padding-top: 64px; }
-  .page.active { display: block; }
+  .page.active { display: block; animation: pageIn 0.18s ease both; }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   /* ── HERO ── */
   .hero {
@@ -545,12 +549,15 @@
   .auction-detail { padding: 16px 16px 60px; }
   .auction-detail-grid { grid-template-columns: 1fr !important; }
   .auction-plant-card { position: static !important; }
+  #trade-grid { grid-template-columns: 1fr !important; }
+  #trade-grid > div:nth-child(2) { display: none; }
   .lb-tabs { flex-wrap: wrap; }
   .shop-filters, [style*="display:flex;gap:12px;flex-wrap:wrap"] { gap: 8px; }
 }
 
 @media (max-width: 480px) {
   .profiles-grid { grid-template-columns: 1fr; }
+  #auction-detail-grid { grid-template-columns: 1fr !important; }
   .hero-title { font-size: 38px; }
   .stat-num { font-size: 36px; }
   .stat-item { padding: 28px 20px; }
@@ -796,9 +803,69 @@
 }
 
 /* ── AUCTION DETAIL PAGE ── */
-.auction-detail { padding: 32px 48px 80px; max-width: 1100px; margin: 0 auto; }
+.auction-detail { padding: 32px 48px 80px; max-width: 1060px; margin: 0 auto; }
 .auction-detail-grid {
-  display: grid; grid-template-columns: 340px 1fr; gap: 32px; margin-top: 32px;
+  display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-top: 24px; align-items: start;
+}
+@media (max-width: 768px) {
+  .auction-detail-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── AUCTION DETAIL GLOW SYSTEM ── */
+@keyframes _adV1Pulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(201,168,76,0.5), 0 0 24px rgba(201,168,76,0.15), 0 4px 32px rgba(14,13,11,0.08); }
+  50%      { box-shadow: 0 0 0 1px rgba(201,168,76,0.9), 0 0 48px rgba(201,168,76,0.35), 0 4px 32px rgba(14,13,11,0.08); }
+}
+@keyframes _adV1Sweep {
+  0%        { transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  8%        { opacity: 0.5; }
+  55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
+}
+@keyframes _adSecretPulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(160,100,255,0.4), 0 0 28px rgba(140,80,255,0.12), 0 4px 32px rgba(14,13,11,0.08); }
+  50%     { box-shadow: 0 0 0 1px rgba(190,130,255,0.85), 0 0 55px rgba(160,100,255,0.32), 0 4px 32px rgba(14,13,11,0.08); }
+}
+@keyframes _adSecretSweep {
+  0%        { transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  8%        { opacity: 0.35; }
+  55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
+}
+
+.ad-glow-v1 {
+  border-color: rgba(201,168,76,0.55) !important;
+  background: linear-gradient(160deg, var(--card) 50%, rgba(201,168,76,0.06) 100%) !important;
+  animation: _adV1Pulse 2.8s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-v1::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 45%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,215,80,0.07), transparent);
+  animation: _adV1Sweep 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.ad-glow-secret {
+  border-color: rgba(160,100,255,0.45) !important;
+  background: linear-gradient(160deg, var(--card) 50%, rgba(130,70,255,0.05) 100%) !important;
+  animation: _adSecretPulse 3s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-secret::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 45%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(180,120,255,0.07), transparent);
+  animation: _adSecretSweep 5s ease-in-out 0.8s infinite;
+  pointer-events: none;
+}
+.ad-glow-secret-v1 {
+  border-color: rgba(180,120,255,0.65) !important;
+  background: linear-gradient(160deg, var(--card) 40%, rgba(140,70,255,0.09) 100%) !important;
+  animation: _adSecretPulse 2.4s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-secret-v1::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(200,150,255,0.11), rgba(255,200,255,0.05), transparent);
+  animation: _adSecretSweep 3.8s ease-in-out infinite;
+  pointer-events: none;
 }
 .auction-plant-card {
   background: var(--card); border-radius: 20px;
@@ -1296,7 +1363,7 @@
         </div>
 
         <!-- Two grids side by side -->
-        <div style="display:grid;grid-template-columns:1fr 48px 1fr;gap:10px;align-items:start">
+        <div style="display:grid;grid-template-columns:1fr 48px 1fr;gap:10px;align-items:start" id="trade-grid">
 
           <!-- YOUR side -->
           <div>
@@ -1370,7 +1437,10 @@
     <div style="font-size:44px;margin-bottom:18px">🔄</div>
     <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Trade Sent!</div>
     <div style="font-size:14px;color:var(--ink2);margin-bottom:24px">Waiting for <span id="trade-waiting-name" style="font-weight:600;color:var(--ink)">the other player</span> to accept<span id="trade-waiting-dots"></span></div>
-    <button onclick="cancelWaitingTrade()" style="background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.2)'" onmouseout="this.style.background='rgba(255,68,68,0.1)'">✕ Cancel Trade</button>
+    <div style="display:flex;gap:10px;justify-content:center">
+    <button onclick="minimizeTradeWaiting()" style="background:rgba(255,255,255,0.06);color:var(--ink2);border:1px solid var(--border);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s">Minimize</button>
+    <button onclick="cancelWaitingTrade()" style="background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);border-radius:100px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.2)'" onmouseout="this.style.background='rgba(255,68,68,0.1)'">✕ Cancel</button>
+  </div>
   </div>
 </div>
 
@@ -1854,8 +1924,8 @@ ${isPodium ? `
 
 ._sec{font-family:'DM Serif Display',serif;font-size:14px;color:${ink};letter-spacing:-.01em;margin-bottom:10px}
 
-@media(max-width:920px){
-  ._pcols{grid-template-columns:1fr 1fr!important;grid-template-areas:"center right" "left right"!important}
+@media(max-width:960px){
+  ._pcols{grid-template-columns:1fr!important;grid-template-areas:"center" "right" "left"!important}
   ._pcol-left{grid-area:left}
   ._pcol-center{grid-area:center}
   ._pcol-right{grid-area:right}
@@ -1903,7 +1973,7 @@ ${isPodium ? `
       <div style="display:flex;align-items:center;justify-content:center;animation:_pReveal .75s cubic-bezier(.16,1,.3,1) both">
         <div style="display:flex;align-items:flex-start;line-height:1;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">
           <span style="font-family:'DM Serif Display',serif;font-size:clamp(38px,6.5vw,68px);color:${pk.s};opacity:.62;margin-top:.1em;margin-right:2px;text-shadow:0 0 26px ${pk.g}.3)">#</span>
-          <span style="font-family:'DM Serif Display',serif;font-size:${pk.rSz};font-weight:900;letter-spacing:-.05em;color:${pk.p};line-height:.88;animation:_pRkGlow 3s ease-in-out infinite;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">${globalRank}</span>
+          <span style="font-family:'DM Serif Display',serif;font-size:clamp(64px,12vw,${pk.rSz});font-weight:900;letter-spacing:-.05em;color:${pk.p};line-height:.88;animation:_pRkGlow 3s ease-in-out infinite;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">${globalRank}</span>
           <span style="font-family:'DM Sans',sans-serif;font-size:clamp(13px,2.2vw,26px);font-weight:800;color:${pk.s};margin-top:.2em;margin-left:3px;animation:_pOrdGlw 3s ease-in-out infinite;text-shadow:0 0 12px ${pk.g}.48)">${pk.suf}</span>
         </div>
         <div style="width:1px;height:clamp(48px,7vw,84px);background:linear-gradient(180deg,transparent,${pk.div},transparent);margin:0 22px;flex-shrink:0"></div>
@@ -2266,6 +2336,7 @@ let _marketMineOnly = false;
 let _auctionMineOnly = false;
 
 function toggleMyMarket(btn) {
+  if (!window._loggedInId) { showToast('Log in with Discord to see your listings.'); return; }
   _marketMineOnly = !_marketMineOnly;
   btn.style.background = _marketMineOnly ? 'var(--ink)' : 'var(--card)';
   btn.style.color = _marketMineOnly ? 'var(--bg)' : 'var(--ink2)';
@@ -2274,6 +2345,7 @@ function toggleMyMarket(btn) {
 }
 
 function toggleMyAuctions(btn) {
+  if (!window._loggedInId) { showToast('Log in with Discord to see your auctions.'); return; }
   _auctionMineOnly = !_auctionMineOnly;
   btn.style.background = _auctionMineOnly ? 'var(--ink)' : 'var(--card)';
   btn.style.color = _auctionMineOnly ? 'var(--bg)' : 'var(--ink2)';
@@ -2321,7 +2393,7 @@ function renderMarket() {
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
     return `<div class="market-card" data-rarity="${item.rarity}">
-      <div class="market-card-rarity-bar" style="background:${color}"></div>
+      <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
         ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
         : `<span class="market-card-emoji">${item.emoji || '🌿'}</span>`}
@@ -2382,7 +2454,7 @@ async function initAuth() {
   } catch(err) { console.error('Auth error:', err); }
 }
 
-async function loadNavCoins(userId) {
+async function loadNavCoins(userId, forceRefresh = false) {
   try {
     const [profileRes, lbRes] = await Promise.all([
       fetch(`/api/profile/${userId}`),
@@ -2525,15 +2597,19 @@ async function loadAuctionData() {
     }).join('');
 
     // Start countdown timers
+    if (!window._auctionEndTimes) window._auctionEndTimes = {};
     auctions.forEach(a => {
+      window._auctionEndTimes[a.id] = a.endsAt;
       const tick = () => {
         const el = document.getElementById(`timer-${a.id}`);
         if (!el) return;
-        const ms = Math.max(0, a.endsAt - Date.now());
+        const endsAt = (window._auctionEndTimes || {})[a.id] || a.endsAt;
+        const ms  = Math.max(0, endsAt - Date.now());
         const h  = Math.floor(ms / 3600000);
         const m  = Math.floor((ms % 3600000) / 60000);
         const s  = Math.floor((ms % 60000) / 1000);
         el.textContent = ms === 0 ? 'Ended' : `⏱ ${h}h ${m}m ${s}s`;
+        if (ms <= 30000 && ms > 0) el.style.color = 'var(--red, #e53935)'; else el.style.color = '';
         if (ms === 0) clearInterval(timer);
       };
       tick();
@@ -2727,14 +2803,19 @@ async function showAuctionDetail(auctionId) {
     const a        = auctions.find(x => x.id === auctionId);
     if (!a) { content.innerHTML = '<p style="padding:40px;color:var(--ink3)">Auction not found or has ended.</p>'; return; }
 
+    const isV1     = a.plant.version === 1;
+    const isSecret = a.plant.rarity === 'Secret';
+    const glowClass = isSecret && isV1 ? 'ad-glow-secret-v1'
+                    : isV1            ? 'ad-glow-v1'
+                    : isSecret        ? 'ad-glow-secret'
+                    : '';
+
     const color  = '#' + a.plant.color.toString(16).padStart(6,'0');
     const minBid = Math.max(a.currentBid + 1, Math.ceil(a.currentBid * 1.05));
 
-    // Seed chat if empty
     if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
     connectAuctionWS(auctionId);
 
-    // load avatars for bids
     const bidAvatarMap = {};
     a.bids.forEach(b => {
       if (_avatarCache[b.userId]) bidAvatarMap[b.userId] = _avatarCache[b.userId];
@@ -2748,7 +2829,7 @@ async function showAuctionDetail(auctionId) {
       });
     });
 
-    const bidsHtmlFull = a.bids.length ? a.bids.map((b, i) => `
+    const bidsHtml = a.bids.length ? a.bids.map((b, i) => `
       <div class="bid-entry${i === 0 ? ' top-bid' : ''}">
         <div class="bid-entry-avatar" id="bid-av-${b.userId}" style="overflow:hidden;padding:0">
           ${bidAvatarMap[b.userId]
@@ -2761,77 +2842,79 @@ async function showAuctionDetail(auctionId) {
         </div>
         <div class="bid-entry-amount">${b.amount.toLocaleString()} coins</div>
       </div>`).join('')
-    : '<div style="padding:20px;color:var(--ink3);font-size:14px;text-align:center">No bids yet — be the first!</div>';
+    : '<div style="padding:20px;color:var(--ink3);font-size:13px;text-align:center">No bids yet — be the first!</div>';
 
-    if (!_auctionChats[auctionId]) _auctionChats[auctionId] = [];
+    // Secret v1 gets an extra crown badge above the name overlay
+    const secretV1Crown = (isSecret && isV1)
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(180,120,255,0.18);border:1px solid rgba(180,120,255,0.45);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#c89fff;backdrop-filter:blur(8px);box-shadow:0 0 16px rgba(160,100,255,0.3)">💎 Secret · v1</div>`
+      : isV1
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.45);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#e8c96a;backdrop-filter:blur(8px);box-shadow:0 0 14px rgba(201,168,76,0.28)">👑 v1 · First Copy</div>`
+      : isSecret
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(160,100,255,0.15);border:1px solid rgba(160,100,255,0.38);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#b880ff;backdrop-filter:blur(8px)">💎 Secret</div>`
+      : '';
 
     content.innerHTML = `
-      <div style="display:grid;grid-template-columns:300px 1fr 300px;gap:24px;align-items:start">
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start" id="auction-detail-grid">
 
-        <!-- LEFT: bid history -->
-        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
-          <div class="auction-panel">
-            <div class="auction-panel-header">
-              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+        <!-- LEFT: plant hero + bid controls -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Hero image card -->
+          <div class="${glowClass}" style="border-radius:18px;border:1px solid var(--border);overflow:hidden;position:relative;background:var(--card)">
+            ${secretV1Crown}
+            <!-- Image zone -->
+            <div style="position:relative;width:100%;aspect-ratio:4/3;max-height:420px;overflow:hidden;background:var(--bg2)">
+              <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};z-index:3"></div>
+              ${a.plant.localImage
+                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:32px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+                : ''}
+              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:110px">${a.plant.emoji}</div>
+              <!-- Bottom gradient overlay: name + seller + badges -->
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 20px 18px;background:linear-gradient(0deg,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.28) 60%,transparent 100%);z-index:3">
+                <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px">${a.plant.name}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:9px">Listed by <strong style="color:rgba(255,255,255,0.82)">${a.sellerName}</strong></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span style="background:${color}cc;color:#fff;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
+                  ${a.plant.version === 1
+                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
+                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:11px;font-weight:600;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
+                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+                </div>
+              </div>
             </div>
-            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtmlFull}</div>
-          </div>
-        </div>
-
-        <!-- MIDDLE: big image + info -->
-        <div>
-          <!-- Hero image -->
-          <div style="width:100%;aspect-ratio:1/1;max-height:480px;border-radius:20px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);position:relative;margin-bottom:20px">
-            <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${color};z-index:2"></div>
-            ${a.plant.localImage
-              ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:24px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+            <!-- Remove button (seller, no bids) -->
+            ${a.sellerId === window._loggedInId
+              ? (!a.bids.length
+                ? `<div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg2)"><button onclick="confirmRemoveAuction('${a.id}')" style="width:100%;padding:9px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button></div>`
+                : `<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--ink3);text-align:center;background:var(--bg2)">🔒 Can't remove — bids have been placed</div>`)
               : ''}
-            <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage ? 'none' : 'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:120px">${a.plant.emoji}</div>
-            <!-- Rarity badge overlay -->
-            <div style="position:absolute;bottom:16px;left:16px;display:flex;gap:8px;z-index:2">
-              <span style="background:${color}dd;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${a.plant.rarity}</span>
-              ${a.plant.version === 1 ? `<span style="background:rgba(201,168,76,0.25);color:#c9a84c;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px);box-shadow:0 0 10px rgba(201,168,76,0.5)">👑 v1</span>` : `<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">v${a.plant.version || '?'}</span>`}
-              ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.6);color:${mutationColor(a.plant.mutation.name)};font-size:12px;font-weight:700;padding:5px 12px;border-radius:100px;backdrop-filter:blur(8px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+          </div>
+
+          <!-- Stat tiles row: timer + current bid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Time Remaining</div>
+              <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1">--</div>
+            </div>
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Current Bid</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1" id="detail-current-bid-${auctionId}">${a.currentBid.toLocaleString()}<span style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--ink3);margin-left:4px">coins</span></div>
             </div>
           </div>
 
-          <!-- Plant name + seller -->
-          <div style="margin-bottom:20px">
-            <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.02em;margin-bottom:4px">${a.plant.name}</div>
-            <div style="font-size:13px;color:var(--ink3)">Listed by <strong style="color:var(--ink2)">${a.sellerName}</strong></div>
-            ${a.sellerId === window._loggedInId && !a.bids.length ? `<button onclick="confirmRemoveAuction('${a.id}')" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button>` : ''}
-          </div>
-
-          <!-- Bid box -->
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px">
-            <!-- Timer + current bid row -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-              <div style="background:var(--bg2);border-radius:10px;padding:14px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:6px">Time Remaining</div>
-                <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);letter-spacing:-0.02em">--</div>
-              </div>
-              <div style="background:var(--bg2);border-radius:10px;padding:14px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:6px">Current Bid</div>
-                <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);letter-spacing:-0.02em">${a.currentBid.toLocaleString()} coins</div>
-              </div>
-            </div>
-
-            <!-- Buy now -->
+          <!-- Bid / buy card -->
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
             ${a.buyoutPrice ? `
-            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:16px">
+            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:14px">
               ⚡ Buy Now — ${a.buyoutPrice.toLocaleString()} coins
             </button>` : ''}
 
-            <!-- Feedback -->
             <div id="bid-feedback-${auctionId}" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:12px;text-align:center"></div>
 
-            <!-- Balance row -->
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:8px;font-weight:500">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:7px;font-weight:500">
               <span>Place your bid</span>
               <span id="bid-balance-${auctionId}" style="color:var(--ink2)"></span>
             </div>
-
-            <!-- Input -->
             <div class="auction-bid-input-wrap">
               <input class="auction-bid-input" type="number" id="bid-input-${auctionId}"
                 placeholder="Min: ${minBid.toLocaleString()}"
@@ -2839,13 +2922,21 @@ async function showAuctionDetail(auctionId) {
                 oninput="validateBidInput('${auctionId}', ${a.currentBid}, this.value)">
               <button class="auction-bid-btn" id="bid-btn-${auctionId}" onclick="submitWebBid('${auctionId}', ${a.currentBid})" disabled style="opacity:0.5">Bid</button>
             </div>
-
-            <div style="font-size:11px;color:var(--ink3);margin-top:10px">Min increment: +5% · next min bid is <strong>${minBid.toLocaleString()} coins</strong></div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:9px">Min increment +5% · next min: <strong style="color:var(--ink2)">${minBid.toLocaleString()} coins</strong></div>
           </div>
-        </div>
 
-        <!-- RIGHT: chat only -->
-        <div style="display:flex;flex-direction:column;gap:20px;position:sticky;top:84px">
+        </div><!-- /left -->
+
+        <!-- RIGHT sidebar: bid history + chat -->
+        <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:84px">
+
+          <!-- Bid history -->
+          <div class="auction-panel">
+            <div class="auction-panel-header">
+              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+            </div>
+            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtml}</div>
+          </div>
 
           <!-- Live chat -->
           <div class="auction-panel">
@@ -2853,8 +2944,8 @@ async function showAuctionDetail(auctionId) {
               💬 Live Chat <span>auction room</span>
             </div>
             <div class="chat-messages" id="chat-msgs-${auctionId}">
-              ${(_auctionChats[auctionId] || []).map(m => renderChatMsg(m)).join('')}
-              ${!(_auctionChats[auctionId] || []).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
+              ${(_auctionChats[auctionId]||[]).map(m => renderChatMsg(m)).join('')}
+              ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
             </div>
             <div class="chat-input-wrap">
               <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
@@ -2863,23 +2954,27 @@ async function showAuctionDetail(auctionId) {
             </div>
           </div>
 
-        </div>
+        </div><!-- /right -->
       </div>`;
 
-    // Countdown
+    // Countdown timer — uses _auctionEndTimes so bid extensions update it live
+    if (!window._auctionEndTimes) window._auctionEndTimes = {};
+    window._auctionEndTimes[auctionId] = a.endsAt;
     const detailTick = () => {
       const el = document.getElementById(`detail-timer-${auctionId}`);
       if (!el) { clearInterval(detailTimer); return; }
-      const ms = Math.max(0, a.endsAt - Date.now());
+      const endsAt = (window._auctionEndTimes || {})[auctionId] || a.endsAt;
+      const ms = Math.max(0, endsAt - Date.now());
       const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), s = Math.floor((ms % 60000) / 1000);
       el.textContent = ms === 0 ? 'Ended' : `${h > 0 ? h+'h ' : ''}${m}m ${s}s`;
+      if (ms <= 30000 && ms > 0) el.style.color = 'var(--red, #e53935)'; else el.style.color = '';
       if (ms === 0) clearInterval(detailTimer);
     };
     detailTick();
     const detailTimer = setInterval(detailTick, 1000);
     _auctionTimers.push(detailTimer);
 
-    // Balance + auth check
+    // Balance
     if (window._loggedInId) {
       try {
         const pRes  = await fetch(`/api/profile/${window._loggedInId}`);
@@ -3240,8 +3335,8 @@ function renderInventoryPage() {
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
     return `
-      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer">
-        <div class="market-card-rarity-bar" style="background:${color}"></div>
+      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer;${p.rarity==='Secret'?'background:#0a0a0a;border-color:rgba(156,95,255,0.3)':''}">
+        <div class="market-card-rarity-bar" style="background:${color};${p.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
         <img src="${p.image}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
         <div class="market-card-name">${p.name}</div>
         <div class="market-card-meta" style="margin-top:6px">
@@ -3290,7 +3385,7 @@ function openPlantDetail(idx) {
         <span style="font-size:13px;font-weight:700;color:${color}">${p.rarity}</span>
       </div>
       <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)">
-        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Owners</div>
+        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Sell Value</div>
         <div style="font-size:28px;font-weight:800;color:#fff">${p.sellPrice.toLocaleString()}</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px">base sell value</div>
       </div>
@@ -3348,6 +3443,7 @@ async function submitMarketBuy(listingId) {
     }
     document.getElementById('market-buy-overlay').remove();
     await loadMarketData();
+    loadNavCoins(window._loggedInId, true);
     showToast('Successfully purchased market listing!');
     pushNotification('plant_bought', `You bought a plant from the market.`);
   } catch {
@@ -3390,6 +3486,8 @@ async function submitBuyNow(auctionId, buyoutPrice) {
     }
     showFeedback(auctionId, '✅ Purchased! Plant added to your collection.', 'success');
     pushNotification('auction_won', `You won an auction buyout!`);
+    showToast('🏆 Plant purchased and added to your collection!');
+    loadNavCoins(window._loggedInId, true);
     if (btn) btn.textContent = '✅ Purchased';
     setTimeout(() => showPage('auctions'), 2000);
   } catch(err) {
@@ -3535,10 +3633,17 @@ function toggleDark() {
   document.getElementById('dark-btn').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
   localStorage.setItem('dark', document.body.classList.contains('dark'));
 }
-if (localStorage.getItem('dark') === 'true') {
-  document.body.classList.add('dark');
-  document.getElementById('dark-btn').textContent = '☀️';
-}
+(async () => {
+  const savedDark = localStorage.getItem('dark');
+  if (savedDark === 'true') {
+    document.body.classList.add('dark');
+    document.getElementById('dark-btn').textContent = '☀️';
+  } else if (savedDark === null && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+    document.body.classList.add('dark');
+    document.getElementById('dark-btn').textContent = '☀️';
+    localStorage.setItem('dark', 'true');
+  }
+})();
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
 const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
@@ -3728,6 +3833,7 @@ async function refreshTrade() {
       hideTradeWaitingOverlay();
       stopTradePoll();
       if (trade.status==='complete') { showTradeResultToast('complete'); setTimeout(showTradeStartPanel,3000); }
+      else if (trade.status==='expired') { showToast('⏰ Trade expired after 10 minutes.'); setTimeout(showTradeStartPanel,2000); }
       else { showTradeResultToast('declined'); setTimeout(showTradeStartPanel,2500); }
       return;
     }
@@ -3832,11 +3938,40 @@ el.innerHTML = html;
 function startTradePoll() { stopTradePoll(); _tradePollInterval = setInterval(refreshTrade, 3000); }
 function stopTradePoll() { if (_tradePollInterval) { clearInterval(_tradePollInterval); _tradePollInterval=null; } }
 
+let _coinsDebounce = null;
+
+function minimizeTradeWaiting() {
+  hideTradeWaitingOverlay();
+  // Show a small persistent pill in the corner
+  const existing = document.getElementById('trade-waiting-pill');
+  if (existing) return;
+  const pill = document.createElement('div');
+  pill.id = 'trade-waiting-pill';
+  pill.style.cssText = 'position:fixed;bottom:24px;left:24px;z-index:9997;background:var(--card);border:1.5px solid rgba(88,101,242,0.5);border-radius:100px;padding:10px 18px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(88,101,242,0.2);cursor:pointer;font-family:inherit;animation:tradeToastSlideIn 0.3s cubic-bezier(0.22,1,0.36,1) forwards';
+  pill.innerHTML = `
+    <div style="width:8px;height:8px;border-radius:50%;background:#5865F2;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0"></div>
+    <span style="font-size:13px;font-weight:600;color:var(--ink)">Waiting for <span id="trade-pill-name" style="color:#5865F2">${document.getElementById('trade-waiting-name')?.textContent||'them'}</span></span>
+    <button onclick="event.stopPropagation();cancelWaitingTrade();removeTradePill()" style="background:none;border:none;color:var(--ink3);font-size:14px;cursor:pointer;padding:0 0 0 4px;line-height:1" title="Cancel trade">✕</button>
+  `;
+  pill.addEventListener('click', () => {
+    showPage('trade');
+    showTradeWaitingOverlay(document.getElementById('trade-pill-name')?.textContent);
+    removeTradePill();
+  });
+  document.body.appendChild(pill);
+}
+
+function removeTradePill() {
+  document.getElementById('trade-waiting-pill')?.remove();
+}
 async function updateMyCoins(val) {
   if (!_tradeId) return;
   document.getElementById('trade-my-coins').dataset.edited = '1';
-  await fetch(`/api/trade/${_tradeId}/offer`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ coins:parseInt(val)||0 }) });
-  await refreshTrade();
+  clearTimeout(_coinsDebounce);
+  _coinsDebounce = setTimeout(async () => {
+    await fetch(`/api/trade/${_tradeId}/offer`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ coins:parseInt(val)||0 }) });
+    await refreshTrade();
+  }, 500);
 }
 
 async function removePlantFromTrade(name, version) {
@@ -4235,8 +4370,8 @@ if (msg.type === 'auction_bid_grid') {
   }
 }
 if (msg.type === 'trade_accepted') {
-  // The other player accepted — dismiss the waiting overlay and enter the trade
   hideTradeWaitingOverlay();
+  removeTradePill();
   if (_tradeId) { refreshTrade().then(() => { renderActiveTrade(_tradeData); }); }
 }
 if (msg.type === 'trade_request') {
@@ -4244,6 +4379,7 @@ if (msg.type === 'trade_request') {
 }
 if (msg.type === 'trade_declined') {
   stopTradePoll();
+  removeTradePill();
   if (!_selfCancelled) {
     showTradeResultToast('declined');
     setTimeout(showTradeStartPanel, 2500);
@@ -4252,8 +4388,35 @@ if (msg.type === 'trade_declined') {
 }
 if (msg.type === 'trade_complete') {
   stopTradePoll();
+  removeTradePill();
   showTradeResultToast('complete');
+  loadNavCoins(window._loggedInId, true);
   setTimeout(showTradeStartPanel, 3000);
+}
+if (msg.type === 'collection_update') {
+  // Live-refresh the inventory page if it's currently visible
+  const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+  _invPageCollection = msg.collection.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
+  const invCount = document.getElementById('inv-page-count');
+  if (invCount) invCount.textContent = `${_invPageCollection.length} plants in the game.`;
+  const invPage = document.getElementById('page-inventory');
+  if (invPage && invPage.classList.contains('active')) renderInventoryPage();
+  // Flash the nav coin count badge if visible (collection change may affect garden score)
+  const coinEl = document.getElementById('coin-display');
+  if (coinEl) {
+    coinEl.style.transition = 'opacity 0.3s';
+    coinEl.style.opacity = '0.6';
+    setTimeout(() => { coinEl.style.opacity = '1'; }, 350);
+  }
+}
+if (msg.type === 'leaderboard_update') {
+  // Silently refresh leaderboard data in background so it's ready next time user opens it
+  fetch('/api/leaderboards').then(r => r.json()).then(lb => {
+    window._cachedLB = lb;
+    // If leaderboard page is open, re-render it live
+    const lbPage = document.getElementById('page-leaderboards');
+    if (lbPage && lbPage.classList.contains('active')) loadLiveData();
+  }).catch(() => {});
 }
     } catch {}
   };

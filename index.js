@@ -432,7 +432,7 @@ const PLANTS = [
   { name: 'Strawberry',     file: './images/strawberry2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/strawberry2-removebg-preview.png',     rarity: 'Uncommon'  },
   { name: 'Goldenberry',    file: './images/goldenberry2-removebg-preview.png',    display: 'https://bot2026-production-06e3.up.railway.app/images/goldenberry2-removebg-preview.png',    rarity: 'Uncommon'  },
   { name: 'Bell Pepper',    file: './images/bellpepper2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/bellpepper2-removebg-preview.png',     rarity: 'Uncommon'  },
-  { name: 'Lablush Berry',  file: './images/Lablushberry2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/Lablushberry2-removebg-preview.png',   rarity: 'Uncommon'  },
+  { name: 'Lablush Berry',  file: './images/LablushBerry2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/LablushBerry2-removebg-preview.png',   rarity: 'Uncommon'  },
   { name: 'Beetroot',       file: './images/beetroot2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/beetroot2-removebg-preview.png',       rarity: 'Rare'      },
   { name: 'Tomato',         file: './images/tomato2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/tomato2-removebg-preview.png',         rarity: 'Rare'      },
   { name: 'Rose',           file: './images/rose2-removebg-preview.png',           display: 'https://bot2026-production-06e3.up.railway.app/images/rose2-removebg-preview.png',           rarity: 'Rare'      },
@@ -457,15 +457,15 @@ const PLANTS = [
   { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',                     display: 'https://bot2026-production-06e3.up.railway.app/images/dawn-blossom.png',                     rarity: 'Mythic'    },
   { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
 
-  // ── UNRELEASED — uncomment to release ──
-   // { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
-   // { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
-  // { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
-   // { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
-   // { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
-   // { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
-   //{ name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
-  //  { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
+  // UPDATE 1.0 PLANTS
+    { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
+    { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
+   { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
+    { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
+    { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
+    { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
+  { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
+    { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
 ];
 
 
@@ -476,11 +476,8 @@ let activeDrops  = {};
 let activeRaces  = {};
 let pendingSells = {};
 let pendingWipes = {};
-let activeTrades = {};
-let userTrades   = {};
 let pendingCrates ={};
 let devRarity    = null;
-function generateTradeId() { return `t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`; }
 
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
@@ -828,42 +825,46 @@ function getActiveTitle(user) {
 }
 
 // ─── Version system ───────────────────────────────────────────────────────────
-function getAvailableVersion(plantName, db) {
-  const meta = loadMeta();
+function getAvailableVersionFromMeta(plantName, db, meta) {
   if (!meta.plantVersions) meta.plantVersions = {};
-  // plantClaimed tracks every version ever issued so concurrent/rapid calls
-  // (e.g. 10 plants from one crate) can't hand out the same version twice.
-  // Math.max(high, ver) in the old recycled branch was always equal to `high`
-  // (since ver <= high), so it never actually recorded the reservation — fixed here.
-  if (!meta.plantClaimed) meta.plantClaimed = {};
+  if (!meta.plantClaimed)  meta.plantClaimed  = {};
   if (!meta.plantClaimed[plantName]) meta.plantClaimed[plantName] = [];
 
   const high = meta.plantVersions[plantName] || 0;
 
-  // Build the taken set from both the live db AND the persisted claimed list
   const owned = new Set(meta.plantClaimed[plantName]);
   for (const userData of Object.values(db)) {
     for (const p of (userData.collection || [])) {
       if (p.name === plantName && p.version) owned.add(p.version);
     }
   }
+  for (const auction of loadAuctions()) {
+    if (auction.plant.name === plantName && auction.plant.version) owned.add(auction.plant.version);
+  }
+  for (const listing of loadListings()) {
+    if (listing.plant.name === plantName && listing.plant.version) owned.add(listing.plant.version);
+  }
 
   const free = [];
   for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
+
+  let ver;
   if (free.length > 0) {
-    const ver = free[Math.floor(Math.random() * free.length)];
-    // Persist the claim immediately so the next call (same crate or concurrent user)
-    // sees this version as taken before the db is saved to disk.
-    meta.plantClaimed[plantName].push(ver);
-    saveMeta(meta);
-    return ver;
+    ver = free[Math.floor(Math.random() * free.length)];
+  } else {
+    ver = high + 1;
+    meta.plantVersions[plantName] = ver;
+    meta.totalDrops = (meta.totalDrops || 0) + 1;
   }
-  const newVer = high + 1;
-  meta.plantVersions[plantName] = newVer;
-  meta.plantClaimed[plantName].push(newVer);
-  meta.totalDrops = (meta.totalDrops || 0) + 1;
+  meta.plantClaimed[plantName].push(ver);
+  return ver;
+}
+
+function getAvailableVersion(plantName, db) {
+  const meta = loadMeta();
+  const ver  = getAvailableVersionFromMeta(plantName, db, meta);
   saveMeta(meta);
-  return newVer;
+  return ver;
 }
 
 function recordVersionHighWater(plantName, version) {
@@ -1026,18 +1027,86 @@ function loadPayoutState() {
 }
 function savePayoutState(s) { fs.writeFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
 
+// ─── Payout Channel Config ────────────────────────────────────────────────────
+const PAYOUT_CHANNEL_FILE = `${DATA_DIR}/payout-channels.json`;
+function loadPayoutChannels() {
+  try {
+    if (!fs.existsSync(PAYOUT_CHANNEL_FILE)) return {};
+    return JSON.parse(fs.readFileSync(PAYOUT_CHANNEL_FILE));
+  } catch { return {}; }
+}
+function savePayoutChannels(data) { fs.writeFileSync(PAYOUT_CHANNEL_FILE, JSON.stringify(data, null, 2)); }
+
 function startPayoutLoop() {
   const DAY  = 24 * 60 * 60 * 1000;
   const WEEK = 7  * 24 * 60 * 60 * 1000;
 
+  async function buildStatusEmbed(state) {
+    const lb = loadClaimsLB();
+    const dailyTop = lb
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, DAY) }))
+      .filter(e => e.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+    const weeklyTop = lb
+      .filter(e => !TEST_IDS.has(e.userId))
+      .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
+      .filter(e => e.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+    const medals = ['🥇', '🥈', '🥉'];
+    const dailyTs  = Math.floor(state.dailyEndsAt  / 1000);
+    const weeklyTs = Math.floor(state.weeklyEndsAt / 1000);
+    const dailyLines = dailyTop.length
+      ? dailyTop.map((e, i) => `${medals[i]} <@${e.userId}> — **${e.count} claims** · +${CURRENCY_EMOJI} **${DAILY_PAYOUTS[i].toLocaleString()}**`).join('\n')
+      : '*No claims yet — be the first!*';
+    const weeklyLines = weeklyTop.length
+      ? weeklyTop.map((e, i) => `${medals[i]} <@${e.userId}> — **${e.count} claims** · +${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[i].toLocaleString()}**`).join('\n')
+      : '*No claims yet — be the first!*';
+    return new EmbedBuilder()
+      .setTitle('🏆 Claims Leaderboard')
+      .addFields(
+        { name: `🌱 Daily — resets <t:${dailyTs}:R>`, value: dailyLines },
+        { name: `🌿 167h — resets <t:${weeklyTs}:R>`, value: weeklyLines },
+        { name: '💰 Payouts', value: '**Daily:** 🥇 250,000 · 🥈 175,000 · 🥉 100,000\n**167h:** 🥇 1,500,000 · 🥈 1,000,000 · 🥉 750,000' }
+      )
+      .setColor(0x00C853)
+      .setFooter({ text: 'Claim plants to climb the leaderboard! · Updates every 5 minutes' })
+      .setTimestamp();
+  }
+
+  async function refreshStatusMessage(chId, state) {
+    const ch = client.channels.cache.get(chId);
+    if (!ch) return;
+    if (statusMessages[chId]) {
+      const old = await ch.messages.fetch(statusMessages[chId]).catch(() => null);
+      if (old) await old.delete().catch(() => {});
+    }
+    const embed = await buildStatusEmbed(state);
+    const msg = await ch.send({ embeds: [embed] }).catch(console.error);
+    if (msg) statusMessages[chId] = msg.id;
+  }
+
+  // Post initial status messages when bot starts
+  client.once('ready', async () => {
+    await new Promise(r => setTimeout(r, 5000)); // wait 5s for cache
+    let state = loadPayoutState();
+    if (!state.dailyEndsAt)  { state.dailyEndsAt  = Date.now() + DAY;  savePayoutState(state); }
+    if (!state.weeklyEndsAt) { state.weeklyEndsAt = Date.now() + WEEK; savePayoutState(state); }
+    for (const chId of Object.values(payoutChannels)) {
+      await refreshStatusMessage(chId, state).catch(console.error);
+    }
+  });
+
+  let tickCount = 0;
+
   setInterval(async () => {
     const state = loadPayoutState();
     const now   = Date.now();
+    let didPayout = false;
 
-    // ── Daily payout ────────────────────────────────────────────────────────
-    if (now - state.lastDaily >= DAY) {
-      state.lastDaily = now;
+    // ── Daily payout ──────────────────────────────────────────────────────
+    if (now >= state.dailyEndsAt) {
+      state.dailyEndsAt += DAY;
       savePayoutState(state);
+      didPayout = true;
 
       const lb = loadClaimsLB();
       const top = lb
@@ -1046,8 +1115,6 @@ function startPayoutLoop() {
         .filter(e => e.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
-
-      if (!top.length) return;
 
       const db = loadDB();
       const medals = ['🥇', '🥈', '🥉'];
@@ -1058,37 +1125,41 @@ function startPayoutLoop() {
         const payout = DAILY_PAYOUTS[i];
         const user   = getUser(db, entry.userId);
         user.currency += payout;
-        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
       }
-      saveDB(db);
+      if (top.length) saveDB(db);
 
       for (const [guildId, chId] of Object.entries(payoutChannels)) {
         const ch = client.channels.cache.get(chId);
         if (!ch) continue;
+
+        // Post winner announcement
         await ch.send({ embeds: [new EmbedBuilder()
-          .setTitle('🌱 Daily Claims Payout!')
-          .setDescription(`The **24-hour claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setTitle('🌱 Daily Cycle Complete!')
+          .setDescription(
+            top.length
+              ? `The **24-hour cycle** has ended. Rewards paid out:\n\n${lines.join('\n')}`
+              : `The **24-hour cycle** ended with no claims.`
+          )
           .setColor(0x00C853)
-          .setFooter({ text: 'Next payout in 24 hours · Keep claiming to stay on top!' })
           .setTimestamp()
         ]}).catch(console.error);
       }
     }
 
-    // ── Weekly payout ───────────────────────────────────────────────────────
-    if (now - state.lastWeekly >= WEEK) {
-      state.lastWeekly = now;
+    // ── Weekly payout ─────────────────────────────────────────────────────
+    if (now >= state.weeklyEndsAt) {
+      state.weeklyEndsAt += WEEK;
       savePayoutState(state);
+      didPayout = true;
 
       const lb = loadClaimsLB();
       const top = lb
         .filter(e => !TEST_IDS.has(e.userId))
-        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, 7 * 24 * 60 * 60 * 1000) }))
+        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
         .filter(e => e.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
-
-      if (!top.length) return;
 
       const db = loadDB();
       const medals = ['🥇', '🥈', '🥉'];
@@ -1099,24 +1170,37 @@ function startPayoutLoop() {
         const payout = WEEKLY_PAYOUTS[i];
         const user   = getUser(db, entry.userId);
         user.currency += payout;
-        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** → +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
+        lines.push(`${medals[i]} <@${entry.userId}> — **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`);
       }
-      saveDB(db);
+      if (top.length) saveDB(db);
 
       for (const [guildId, chId] of Object.entries(payoutChannels)) {
         const ch = client.channels.cache.get(chId);
         if (!ch) continue;
+
         await ch.send({ embeds: [new EmbedBuilder()
-          .setTitle('🌿 Weekly Claims Payout!')
-          .setDescription(`The **weekly claim cycle** has ended. Here are your rewards:\n\n${lines.join('\n')}`)
+          .setTitle('🌿 Weekly Cycle Complete!')
+          .setDescription(
+            top.length
+              ? `The **7-day cycle** has ended. Rewards paid out:\n\n${lines.join('\n')}`
+              : `The **7-day cycle** ended with no claims.`
+          )
           .setColor(0x4CAF50)
-          .setFooter({ text: 'Next payout in 7 days · Keep claiming to stay on top!' })
           .setTimestamp()
         ]}).catch(console.error);
       }
     }
 
-  }, 60 * 1000); // check every minute
+    // ── Refresh status message every 5 minutes or after a payout ─────────
+    tickCount++;
+    if (didPayout || tickCount % 5 === 0) {
+      const freshState = loadPayoutState();
+      for (const chId of Object.values(payoutChannels)) {
+        await refreshStatusMessage(chId, freshState).catch(console.error);
+      }
+    }
+
+  }, 60 * 1000);
 }
 
 // ─── Decay Loop ───────────────────────────────────────────────────────────────
@@ -1163,10 +1247,13 @@ function startDecayLoop() {
             .map((p, i) => ({ p, i }))
             .filter(({ p }) => !p.version || p.version > DECAY_SAFE_VER);
 
+          const toRemoveDecay = [];
           for (let h = 0; h < hoursPassed && pool.length > 0; h++) {
             const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-            u.collection.splice(pick.i - (hoursPassed - pool.length - 1 - h), 1);
+            toRemoveDecay.push(pick.i);
           }
+          toRemoveDecay.sort((a, b) => b - a);
+          for (const idx of toRemoveDecay) u.collection.splice(idx, 1);
           u.lastDecayTick = lastDecay + hoursPassed * DECAY_INTERVAL;
           changed = true;
         }
@@ -2010,22 +2097,6 @@ function buildShopEmbed(pageIndex, user, balance) {
   return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  ${CURRENCY_EMOJI} Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages` }).setColor(0x7289DA);
 }
 
-// ─── Trade embed ──────────────────────────────────────────────────────────────
-function buildTradeEmbed(trade) {
-  const iSide = trade.sides[trade.initiatorId], tSide = trade.sides[trade.targetId];
-  const sideVal = (side) => {
-    const lines = side.plants.map(p => { const r = getRarityConfig(p.rarity); return `${r.emoji} **${p.name}** \`v${p.version || '?'}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''} *(${p.rarity})*`; });
-    if (side.coins > 0) lines.push(`${CURRENCY_EMOJI} ${side.coins.toLocaleString()}`);
-    if (!lines.length) lines.push('*Nothing yet...*');
-    if (side.confirmed) lines.push('\n✅ **Confirmed**');
-    return lines.join('\n');
-  };
-  return new EmbedBuilder().setTitle('🔄 Live Trade Session')
-    .setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}**\n\nType a plant name or coins amount to add to your side.\n\`!remove <plant>\` to remove  •  \`!confirm\` when ready  •  \`!canceltrade\` to quit\n*Expires in 3 minutes.*`)
-    .addFields({ name: `📦 ${trade.initiatorName}'s offer`, value: sideVal(iSide), inline: true }, { name: `📦 ${trade.targetName}'s offer`, value: sideVal(tSide), inline: true })
-    .setColor(0x00CED1);
-}
-
 process.on('SIGTERM', () => {
   client.destroy();
   process.exit(0);
@@ -2087,78 +2158,6 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (db[message.author.id]) {
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
-    }
-  }
-
-  // ── LIVE TRADE INPUT ──────────────────────────────────────────────────────
-  const activeTId = userTrades[message.author.id];
-  if (activeTId && activeTrades[activeTId] && !content.startsWith(PREFIX) && !lower.startsWith('claim ') && !lower.startsWith('race ')) {
-    const trade = activeTrades[activeTId], mySide = trade.sides[message.author.id];
-    if (mySide && !mySide.confirmed && message.channel.id === trade.channelId) {
-      const asCoins = parseInt(content.replace(/,/g,''));
-      if (!isNaN(asCoins) && asCoins > 0) {
-        const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-        if (asCoins > user.currency) { await message.reply(`❌ You only have ${fmt(user.currency)}.`); }
-        else { mySide.coins = asCoins; const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null; if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {}); }
-      } else {
-        const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-        // Support "Plant Name", "Plant Name all", "Plant Name v3"
-        const vTradeMatch = content.match(/^(.+?)\s+v(\d+)$/i);
-        const allTradeMatch = content.match(/^(.+?)\s+all$/i);
-        const tradePlantName = (vTradeMatch ? vTradeMatch[1] : allTradeMatch ? allTradeMatch[1] : content).trim();
-        const tradeVersion = vTradeMatch ? parseInt(vTradeMatch[2]) : null;
-        const tradeAll = !!allTradeMatch;
-
-        const allMatches = user.collection.filter(p => p.name.toLowerCase() === tradePlantName.toLowerCase());
-
-        if (!allMatches.length) {
-          // not a plant name, ignore
-        } else if (tradeAll) {
-          // Add all copies the user owns that aren't already in the offer
-          const toAdd = allMatches.filter(p => !mySide.plants.find(o => o.name === p.name && o.version === p.version));
-          if (!toAdd.length) {
-            await message.reply(`All copies of **${tradePlantName}** are already in your offer.`);
-          } else {
-            for (const p of toAdd) mySide.plants.push(p);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else if (tradeVersion !== null) {
-          // Specific version
-          const plant = allMatches.find(p => p.version === tradeVersion);
-          if (!plant) {
-            await message.reply(`You don't own **${tradePlantName}** v${tradeVersion}.`);
-          } else if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
-            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
-          } else {
-            mySide.plants.push(plant);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else if (allMatches.length === 1) {
-          // Only one copy, add it directly
-          const plant = allMatches[0];
-          if (mySide.plants.find(p => p.name === plant.name && p.version === plant.version)) {
-            await message.reply(`**${plant.name}** \`v${plant.version}\` is already in your offer.`);
-          } else {
-            mySide.plants.push(plant);
-            const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(() => null) : null;
-            if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(() => {}); await message.react('✅').catch(() => {});
-          }
-        } else {
-          // Multiple copies, no version specified — show picker
-          const lines = allMatches.map(p => {
-            const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-            return `\`v${p.version || '?'}\`${mutStr}`;
-          }).join('  ·  ');
-          await message.reply(`You own **${allMatches.length}** copies of **${tradePlantName}**:\n${lines}\n\nUse \`${tradePlantName} v<number>\` for one or \`${tradePlantName} all\` for all.`);
-        }
-      }
-      return;
     }
   }
 
@@ -2275,15 +2274,21 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
       const addedCratePlants = [];
+      const captchaCrateMeta = loadMeta();
       for (const p of results) {
-        const ver = getAvailableVersion(p.name, db);
-        recordVersionHighWater(p.name, ver);
+        const ver = getAvailableVersionFromMeta(p.name, db, captchaCrateMeta);
+        if ((captchaCrateMeta.plantVersions[p.name] || 0) < ver) captchaCrateMeta.plantVersions[p.name] = ver;
         const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
         const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
-        user.collection.push(entry);
-        addedCratePlants.push(entry);
+        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+          user.collection.push(entry);
+          addedCratePlants.push(entry);
+        } else {
+          console.warn(`[DUPE GUARD] Blocked duplicate in captcha crate: ${entry.name} v${entry.version}`);
+        }
         db[message.author.id] = user;
       }
+      saveMeta(captchaCrateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
@@ -2361,7 +2366,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     try {
       fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }, null, 2));
       fs.writeFileSync(RACE_LB_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(MARKET_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify([], null, 2));
-      activeDrops = {}; activeRaces = {}; pendingSells = {}; activeTrades = {}; userTrades = {};
+      activeDrops = {}; activeRaces = {}; pendingSells = {};
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Wipe Complete').setDescription('All data has been wiped.').setColor(0x00FF00)] });
     } catch (err) { return message.reply(`❌ Wipe failed: ${err.message}`); }
   }
@@ -2653,7 +2658,12 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!targetCh) return message.reply('❌ Channel not found.');
     payoutChannels[message.guild.id] = targetCh.id;
     const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
-    return message.reply(`✅ Payout announcements → <#${targetCh.id}>.\n\nDaily top 3 pays out every 24h, weekly top 3 every 7 days.`);
+    message.reply(`✅ Payout announcements locked in → <#${targetCh.id}>.`);
+const state = loadPayoutState();
+if (!state.dailyEndsAt)  { state.dailyEndsAt  = Date.now() + DAY;  savePayoutState(state); }
+if (!state.weeklyEndsAt) { state.weeklyEndsAt = Date.now() + WEEK; savePayoutState(state); }
+await refreshStatusMessage(targetCh.id, state);
+return;
   }
 
   // ── !setauction ───────────────────────────────────────────────────────────
@@ -2684,6 +2694,11 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     message.delete().catch(() => {});
     return;
   }
+
+  // ── !web ──────────────────────────────────────────────────────────────────
+if (cmd === 'web') {
+  return message.reply('🌿 **Sprout** — https://sproutapp.net/#');
+}
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
   if (cmd === 'setdrop') {
@@ -3524,6 +3539,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       user.currency -= t.price; user.titles.push(itemKey); saveDB(db);
       return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
     }
+    let autoEarned = 0;
     const crateKey = Object.keys(CRATES).find(k => CRATES[k].name.split(' ')[0].toLowerCase() === itemKey || k === itemKey);
     if (!crateKey) return message.reply('Unknown item. Check `!shop`.');
     const crate = CRATES[crateKey];
@@ -3545,7 +3561,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
       user.crateCooldowns[crateKey] = Date.now();
-      for (const p of results) { const ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver); const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() }; user.collection.push(entry); addedPlants.push(entry); db[message.author.id] = user; }
+      const crateMeta = loadMeta();
+      for (const p of results) {
+        const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
+        if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
+        const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+        const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
+        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+          user.collection.push(entry);
+          addedPlants.push(entry);
+        } else {
+          console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
+        }
+        db[message.author.id] = user;
+      }
+      saveMeta(crateMeta);
       user.cratesOpened = (user.cratesOpened||0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
     }
@@ -3748,95 +3778,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`☢️  Wipe User — ${target.username}`).setDescription(`**Cannot be undone.**\n\nTo confirm:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`).setColor(0xFF6600)] });
   }
 
-  // ── !trade / !t ───────────────────────────────────────────────────────────
-  if (cmd === 'trade' || cmd === 't') {
-    const target = await resolveTarget(message, args[1]);
-    if (!target) return message.reply('Usage: `!trade @user`');
-    if (target.id === message.author.id) return message.reply("Can't trade with yourself.");
-    if (target.bot) return message.reply("Can't trade with a bot.");
-    if (userTrades[message.author.id]) return message.reply('You already have an active trade.');
-    if (userTrades[target.id]) return message.reply(`**${target.username}** is in a trade.`);
-    const tradeId = generateTradeId();
-    const trade = { initiatorId: message.author.id, initiatorName: message.author.username, targetId: target.id, targetName: target.username, channelId: message.channel.id, sides: { [message.author.id]: { plants:[], coins:0, confirmed:false }, [target.id]: { plants:[], coins:0, confirmed:false } }, messageId: null, _timeout: null };
-    activeTrades[tradeId] = trade; userTrades[message.author.id] = tradeId; userTrades[target.id] = tradeId;
-    const msg = await message.channel.send({ embeds: [buildTradeEmbed(trade)] }); trade.messageId = msg.id;
-    trade._timeout = setTimeout(() => { if (activeTrades[tradeId]) { delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId]; msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Expired').setDescription('Trade timed out.').setColor(0x555555)] }).catch(()=>{}); } }, 3*60_000);
-    return;
-  }
 
-  // ── !remove ───────────────────────────────────────────────────────────────
-  if (cmd === 'remove') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return;
-    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
-    if (mySide.confirmed) return message.reply("Already confirmed. Use `!canceltrade` to restart.");
-    const plantName = args.slice(1).join(' ');
-    const idx = mySide.plants.findIndex(p => p.name.toLowerCase() === plantName.toLowerCase());
-    if (idx === -1) return message.reply(`**${plantName}** isn't in your offer.`);
-    mySide.plants.splice(idx, 1);
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
-    await message.react('🗑️').catch(()=>{}); return;
-  }
-
-  // ── !confirm ──────────────────────────────────────────────────────────────
-  if (cmd === 'confirm') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
-    const trade = activeTrades[tradeId]; const mySide = trade.sides[message.author.id];
-    if (!mySide.plants.length && mySide.coins === 0) return message.reply("Add something to your side first!");
-    mySide.confirmed = true;
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [buildTradeEmbed(trade)] }).catch(()=>{});
-    if (!Object.values(trade.sides).every(s => s.confirmed)) { await message.reply('✅ Locked in! Waiting for the other person...'); return; }
-    clearTimeout(trade._timeout);
-    delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
-    const db = loadDB(); const iUser = getUser(db, trade.initiatorId); const tUser = getUser(db, trade.targetId);
-    const iSide = trade.sides[trade.initiatorId]; const tSide = trade.sides[trade.targetId];
-    for (const p of iSide.plants) {
-      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
-      }
-      iUser.collection.splice(idx, 1); tUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
-    }
-    for (const p of tSide.plants) {
-      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has **${p.name}** \`v${p.version}\` in their collection.`).setColor(0xFF4444)] });
-      }
-      tUser.collection.splice(idx, 1); iUser.collection.push({...p, claimedAt: new Date().toISOString()}); recordTrade(p.name);
-    }
-    if (iSide.coins > 0) {
-      if (iUser.currency < iSide.coins) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.initiatorName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
-      }
-      iUser.currency -= iSide.coins; tUser.currency += iSide.coins;
-    }
-    if (tSide.coins > 0) {
-      if (tUser.currency < tSide.coins) {
-        return message.channel.send({ embeds: [new EmbedBuilder().setTitle('❌ Trade Failed').setDescription(`**${trade.targetName}** no longer has enough coins to complete this trade.`).setColor(0xFF4444)] });
-      }
-      tUser.currency -= tSide.coins; iUser.currency += tSide.coins;
-    }
-    touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
-    saveDB(db);
-    const iLines = iSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
-    const tLines = tSide.plants.map(p=>`${getRarityConfig(p.rarity).emoji} **${p.name}**`).join('\n') || ' — ';
-    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`**${trade.initiatorName}** ↔ **${trade.targetName}** traded!`).addFields({ name:`${trade.targetName} received`, value: iLines+(iSide.coins>0?`\n${CURRENCY_EMOJI} ${iSide.coins.toLocaleString()}`:''), inline:true }, { name:`${trade.initiatorName} received`, value: tLines+(tSide.coins>0?`\n${CURRENCY_EMOJI} ${tSide.coins.toLocaleString()}`:''), inline:true }).setColor(0x00FF7F)] }).catch(()=>{});
-    return;
-  }
-
-  // ── !canceltrade / !ct ────────────────────────────────────────────────────
-  if (cmd === 'canceltrade' || cmd === 'ct' || cmd === 'decline') {
-    const tradeId = userTrades[message.author.id];
-    if (!tradeId || !activeTrades[tradeId]) return message.reply('No active trade.');
-    const trade = activeTrades[tradeId];
-    clearTimeout(trade._timeout); delete activeTrades[tradeId]; delete userTrades[trade.initiatorId]; delete userTrades[trade.targetId];
-    const ch = client.channels.cache.get(trade.channelId); const msg = ch ? await ch.messages.fetch(trade.messageId).catch(()=>null) : null;
-    if (msg) await msg.edit({ embeds: [new EmbedBuilder().setTitle('❌ Trade Cancelled').setDescription(`**${message.author.username}** cancelled the trade.`).setColor(0xFF4444)] }).catch(()=>{});
-    return;
-  }
 
   // ── !market / !m ─────────────────────────────────────────────────────────
   if (cmd === 'market' || cmd === 'm') {
@@ -4307,6 +4249,8 @@ async function endAuction(auctionId, fallbackChannel) {
   broadcastAll({ type: 'auction_ended', auctionId });
   pushCoinUpdate(winner.userId, buyer.currency);
   pushCoinUpdate(auction.sellerId, seller.currency);
+  pushCollectionUpdate(winner.userId);
+  broadcastLeaderboardUpdate();
 
   const embed = new EmbedBuilder()
     .setTitle('🔨 Auction Complete!')
@@ -4416,7 +4360,7 @@ app.get('/api/leaderboards', (req, res) => {
       .map(([id, u]) => ({ id, currency: u.currency||0 }))
       .sort((a,b) => b.currency - a.currency).slice(0,10);
 
-    const race = raceLB.filter(e => !TEST_IDS.has(e.userId)).slice(0,10);
+    const race = raceLB.slice(0,10);
 
     const daily = claimsLB
       .filter(e => !TEST_IDS.has(e.userId))
@@ -4523,6 +4467,8 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
       pushCoinUpdate(req.user.id, buyer.currency);
       pushCoinUpdate(auction.sellerId, seller.currency);
+      pushCollectionUpdate(req.user.id);
+      broadcastLeaderboardUpdate();
       return res.json({ success: true, buyout: true });
     }
 
@@ -4674,6 +4620,33 @@ function pushCoinUpdate(userId, newBalance) {
   pushToUser(userId, { type: 'coin_update', balance: newBalance });
 }
 
+// Push a user's full collection to them live (for inventory sync)
+function pushCollectionUpdate(userId) {
+  try {
+    const db   = loadDB();
+    const user = db[userId];
+    if (!user) return;
+    const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
+    const collection = (user.collection || []).map(p => {
+      const base = PLANTS.find(b => b.name === p.name) || DROP_ONLY_PLANTS.find(b => b.name === p.name) || {};
+      return {
+        name:      p.name,
+        rarity:    p.rarity,
+        version:   p.version,
+        mutation:  p.mutation || null,
+        image:     base.display || '',
+        sellPrice: Math.round((base.baseValue || 10) * (p.version || 1) * (p.mutation ? 1.5 : 1)),
+      };
+    });
+    pushToUser(userId, { type: 'collection_update', collection });
+  } catch {}
+}
+
+// Broadcast a leaderboard refresh signal to all connected clients
+function broadcastLeaderboardUpdate() {
+  broadcastAll({ type: 'leaderboard_update' });
+}
+
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
 const CHAT_FILE = `${DATA_DIR}/auction_chats.json`;
 function loadChats() {
@@ -4755,6 +4728,7 @@ app.delete('/api/auction/:id', async (req, res) => {
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
   broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true });
 });
 
@@ -4797,6 +4771,7 @@ app.post('/api/auction/create', async (req, res) => {
   setTimeout(() => endAuction(auctionId, null), h * 3600000);
 
   broadcastAll({ type: 'auction_new' });
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true, auctionId });
 });
 
@@ -4887,6 +4862,7 @@ if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error
 
   broadcastAll({ type: 'market_update' });
   pushCoinUpdate(req.user.id, getUser(loadDB(), req.user.id).currency);
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true, listingId });
 });
 
@@ -4903,6 +4879,7 @@ app.delete('/api/market/:id', async (req, res) => {
   saveListings(listings.filter(l => l.id !== req.params.id));
   broadcastAll({ type: 'market_update' });
   pushCoinUpdate(req.user.id, getUser(db, req.user.id).currency);
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true });
 });
 
@@ -4932,6 +4909,8 @@ app.post('/api/market/buy/:id', async (req, res) => {
   broadcastAll({ type: 'market_update' });
   pushCoinUpdate(req.user.id, buyer.currency);
   pushCoinUpdate(listing.sellerId, seller.currency);
+  pushCollectionUpdate(req.user.id);
+  broadcastLeaderboardUpdate();
   res.json({ success: true });
 });
 
@@ -5069,6 +5048,11 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     trade.status = 'complete';
     pushToUser(trade.initiatorId, { type: 'trade_complete' });
     pushToUser(trade.targetId,    { type: 'trade_complete' });
+    pushCoinUpdate(trade.initiatorId, iUser.currency);
+    pushCoinUpdate(trade.targetId,    tUser.currency);
+    pushCollectionUpdate(trade.initiatorId);
+    pushCollectionUpdate(trade.targetId);
+    broadcastLeaderboardUpdate();
     try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
     try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
   }
