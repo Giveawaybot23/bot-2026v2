@@ -2598,15 +2598,19 @@ async function loadAuctionData() {
     }).join('');
 
     // Start countdown timers
+    if (!window._auctionEndTimes) window._auctionEndTimes = {};
     auctions.forEach(a => {
+      window._auctionEndTimes[a.id] = a.endsAt;
       const tick = () => {
         const el = document.getElementById(`timer-${a.id}`);
         if (!el) return;
-        const ms = Math.max(0, a.endsAt - Date.now());
+        const endsAt = (window._auctionEndTimes || {})[a.id] || a.endsAt;
+        const ms  = Math.max(0, endsAt - Date.now());
         const h  = Math.floor(ms / 3600000);
         const m  = Math.floor((ms % 3600000) / 60000);
         const s  = Math.floor((ms % 60000) / 1000);
         el.textContent = ms === 0 ? 'Ended' : `⏱ ${h}h ${m}m ${s}s`;
+        if (ms <= 30000 && ms > 0) el.style.color = 'var(--red, #e53935)'; else el.style.color = '';
         if (ms === 0) clearInterval(timer);
       };
       tick();
@@ -2711,6 +2715,15 @@ function connectAuctionWS(auctionId) {
   _ws = new WebSocket(`${proto}://${location.host}`);
 
   _ws.onopen = () => {
+    // Register this socket in userSockets so pushToUser/pushCoinUpdate still works
+    if (window._loggedInId) {
+      _ws.send(JSON.stringify({
+        type: 'auth',
+        userId: window._loggedInId,
+        username: window._loggedInUsername,
+        avatarUrl: window._loggedInAvatarUrl || null
+      }));
+    }
     _ws.send(JSON.stringify({
       type: 'join',
       auctionId,
@@ -2739,9 +2752,10 @@ function connectAuctionWS(auctionId) {
           container.scrollTop = container.scrollHeight;
         }
       } else if (msg.type === 'bid') {
-        // Live bid update
+        // Live bid update — msg has: bids[], currentBid, endsAt
+        const topBid = msg.bids && msg.bids[0];
         const bidHistory = document.getElementById(`bid-history-${auctionId}`);
-        if (bidHistory) {
+        if (bidHistory && topBid) {
           const existing = bidHistory.querySelector('.bid-entry.top-bid');
           if (existing) existing.classList.remove('top-bid');
           const newEntry = document.createElement('div');
@@ -2749,31 +2763,29 @@ function connectAuctionWS(auctionId) {
           newEntry.style.background = 'rgba(45,106,79,0.04)';
           newEntry.innerHTML = `
             <div class="bid-entry-avatar" style="overflow:hidden;padding:0;background:var(--green-pale)">
-              ${msg.avatarUrl
-                ? `<img src="${msg.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
-                : `<span style="font-size:12px;font-weight:700;color:var(--green)">${msg.username[0].toUpperCase()}</span>`}
+              <span style="font-size:12px;font-weight:700;color:var(--green)">${topBid.username[0].toUpperCase()}</span>
             </div>
             <div class="bid-entry-user">
-              <div class="bid-entry-name">${msg.username} 👑</div>
+              <div class="bid-entry-name">${topBid.username} 👑</div>
               <div class="bid-entry-time">just now</div>
             </div>
-            <div class="bid-entry-amount" style="color:var(--green)">${msg.amount.toLocaleString()} coins</div>`;
+            <div class="bid-entry-amount" style="color:var(--green)">${topBid.amount.toLocaleString()} coins</div>`;
           bidHistory.insertBefore(newEntry, bidHistory.firstChild);
         }
 
-        // Update current bid display
-        const bidBox = document.querySelector(`#bid-history-${auctionId}`)?.closest('.auction-panel')?.previousElementSibling;
-        const currentBidEl = document.querySelector(`[id="bid-history-${auctionId}"]`)?.closest('.auction-right')?.previousElementSibling?.querySelector('div[style*="Current Bid"] + div');
-        // Update the current bid number in the timer grid
+        // Update current bid display in the stats grid
         document.querySelectorAll(`#auction-detail-content [style*="Current Bid"]`).forEach(label => {
           const valEl = label.nextElementSibling;
-          if (valEl) valEl.textContent = msg.amount.toLocaleString() + ' coins';
+          if (valEl) valEl.textContent = msg.currentBid.toLocaleString() + ' coins';
         });
 
-        // Update min bid hint
-        const newMin = Math.ceil(msg.amount * 1.05);
+        // Update min bid hint and input placeholder
+        const newMin = Math.ceil(msg.currentBid * 1.05);
         const inputEl = document.getElementById(`bid-input-${auctionId}`);
         if (inputEl) inputEl.placeholder = `Min: ${newMin.toLocaleString()}`;
+
+        // Update endsAt timer if auction was extended
+        if (msg.endsAt && window._auctionEndTimes) window._auctionEndTimes[auctionId] = msg.endsAt;
 
         // Flash effect on bid history panel
         const panel = document.getElementById(`bid-history-${auctionId}`)?.closest('.auction-panel');
@@ -2783,13 +2795,14 @@ function connectAuctionWS(auctionId) {
           setTimeout(() => panel.style.boxShadow = '', 800);
         }
 
-        pushNotification('outbid', `${msg.username} placed a bid of ${msg.amount.toLocaleString()} coins.`);
+        if (topBid) pushNotification('outbid', `${topBid.username} placed a bid of ${topBid.amount.toLocaleString()} coins.`);
       }
     } catch {}
   };
 }
 
 async function showAuctionDetail(auctionId) {
+  window._currentAuctionDetailId = auctionId;
   showPage('auction-detail');
   const content = document.getElementById('auction-detail-content');
   content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:60vh;font-size:32px;opacity:0.3">🔨</div>`;
@@ -2953,13 +2966,17 @@ async function showAuctionDetail(auctionId) {
         </div><!-- /right -->
       </div>`;
 
-    // Countdown timer
+    // Countdown timer — uses _auctionEndTimes so bid extensions update it live
+    if (!window._auctionEndTimes) window._auctionEndTimes = {};
+    window._auctionEndTimes[auctionId] = a.endsAt;
     const detailTick = () => {
       const el = document.getElementById(`detail-timer-${auctionId}`);
       if (!el) { clearInterval(detailTimer); return; }
-      const ms = Math.max(0, a.endsAt - Date.now());
+      const endsAt = (window._auctionEndTimes || {})[auctionId] || a.endsAt;
+      const ms = Math.max(0, endsAt - Date.now());
       const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), s = Math.floor((ms % 60000) / 1000);
       el.textContent = ms === 0 ? 'Ended' : `${h > 0 ? h+'h ' : ''}${m}m ${s}s`;
+      if (ms <= 30000 && ms > 0) el.style.color = 'var(--red, #e53935)'; else el.style.color = '';
       if (ms === 0) clearInterval(detailTimer);
     };
     detailTick();
@@ -4258,6 +4275,60 @@ async function checkPendingTradeNotif() {
   } catch(e) {}
 }
 
+// ── LIVE UPDATE HELPERS ──
+function updateNavCoins(newBalance) {
+  const el = document.getElementById('coin-display');
+  if (!el) return;
+  const amountEl = el.querySelector('.coin-badge-amount');
+  if (!amountEl) return;
+
+  const c = newBalance;
+  const amount = c >= 1000000 ? (c/1000000).toFixed(1)+'M' : c >= 1000 ? (c/1000).toFixed(1)+'k' : c.toLocaleString();
+
+  // Flash animation
+  amountEl.style.transition = 'color 0.15s, transform 0.15s';
+  amountEl.style.color = '#52b788';
+  amountEl.style.transform = 'scale(1.15)';
+  amountEl.textContent = amount;
+  setTimeout(() => {
+    amountEl.style.color = 'var(--ink)';
+    amountEl.style.transform = 'scale(1)';
+  }, 600);
+}
+
+function handleAuctionEnded(auctionId) {
+  // Remove from grid if showing
+  const card = document.getElementById(`ac-${auctionId}`);
+  if (card) {
+    card.style.transition = 'opacity 0.4s, transform 0.4s';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+      card.remove();
+      const grid = document.getElementById('auction-grid');
+      if (grid && !grid.querySelector('.auction-card')) {
+        grid.innerHTML = `<div class="auction-slot"><div class="auction-slot-icon">🔨</div>No active auctions right now.<br>Use <code>!auction</code> in Discord to list one.</div>`;
+      }
+    }, 400);
+  }
+  // If we're in the detail view of this auction, go back
+  if (window._currentAuctionDetailId === auctionId) {
+    showAuctionEndedBanner();
+  }
+}
+
+function showAuctionEndedBanner() {
+  const detail = document.getElementById('auction-detail-view');
+  if (!detail) return;
+  const existing = detail.querySelector('.auction-ended-banner');
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.className = 'auction-ended-banner';
+  banner.style.cssText = 'position:sticky;top:64px;z-index:10;background:#e53935;color:white;text-align:center;padding:12px;font-weight:600;font-size:14px;border-radius:8px;margin-bottom:16px';
+  banner.textContent = '🔨 This auction has ended.';
+  detail.prepend(banner);
+}
+
 // ── GLOBAL WEBSOCKET ──
 let _globalWS = null;
 
@@ -4280,6 +4351,32 @@ function initGlobalWS() {
       const msg = JSON.parse(event.data);
       if (msg.type === 'notification') {
   pushNotification(msg.notifType, msg.message);
+}
+if (msg.type === 'coin_update') {
+  updateNavCoins(msg.balance);
+}
+if (msg.type === 'market_update') {
+  loadMarketData();
+}
+if (msg.type === 'auction_ended') {
+  handleAuctionEnded(msg.auctionId);
+}
+if (msg.type === 'auction_new') {
+  loadAuctionData();
+}
+if (msg.type === 'auction_bid_grid') {
+  const card = document.getElementById(`ac-${msg.auctionId}`);
+  if (card) {
+    const bidEl = card.querySelector('.auction-card-bid');
+    if (bidEl) {
+      bidEl.innerHTML = `Current bid: <strong>${msg.currentBid.toLocaleString()} coins</strong>${msg.topBidder ? ` · ${msg.topBidder}` : ''}`;
+      bidEl.style.transition = 'color 0.3s';
+      bidEl.style.color = 'var(--green)';
+      setTimeout(() => { bidEl.style.color = ''; }, 1000);
+    }
+    // Update stored endsAt for the timer
+    if (window._auctionEndTimes) window._auctionEndTimes[msg.auctionId] = msg.endsAt;
+  }
 }
 if (msg.type === 'trade_accepted') {
   hideTradeWaitingOverlay();
@@ -4304,6 +4401,31 @@ if (msg.type === 'trade_complete') {
   showTradeResultToast('complete');
   loadNavCoins(window._loggedInId, true);
   setTimeout(showTradeStartPanel, 3000);
+}
+if (msg.type === 'collection_update') {
+  // Live-refresh the inventory page if it's currently visible
+  const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+  _invPageCollection = msg.collection.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
+  const invCount = document.getElementById('inv-page-count');
+  if (invCount) invCount.textContent = `${_invPageCollection.length} plants in the game.`;
+  const invPage = document.getElementById('page-inventory');
+  if (invPage && invPage.classList.contains('active')) renderInventoryPage();
+  // Flash the nav coin count badge if visible (collection change may affect garden score)
+  const coinEl = document.getElementById('coin-display');
+  if (coinEl) {
+    coinEl.style.transition = 'opacity 0.3s';
+    coinEl.style.opacity = '0.6';
+    setTimeout(() => { coinEl.style.opacity = '1'; }, 350);
+  }
+}
+if (msg.type === 'leaderboard_update') {
+  // Silently refresh leaderboard data in background so it's ready next time user opens it
+  fetch('/api/leaderboards').then(r => r.json()).then(lb => {
+    window._cachedLB = lb;
+    // If leaderboard page is open, re-render it live
+    const lbPage = document.getElementById('page-leaderboards');
+    if (lbPage && lbPage.classList.contains('active')) loadLiveData();
+  }).catch(() => {});
 }
     } catch {}
   };

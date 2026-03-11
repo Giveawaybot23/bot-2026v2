@@ -3623,7 +3623,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
   if (cmd === 'addplant') {
@@ -3708,7 +3708,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!removecurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Removed ${fmt(amount)} from **${target.username}**.`);
   }
   if (cmd === 'removeplant') {
@@ -4256,6 +4256,12 @@ async function endAuction(auctionId, fallbackChannel) {
   buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
+  broadcastAll({ type: 'auction_ended', auctionId });
+  pushCoinUpdate(winner.userId, buyer.currency);
+  pushCoinUpdate(auction.sellerId, seller.currency);
+  pushCollectionUpdate(winner.userId);
+  broadcastLeaderboardUpdate();
+
   const embed = new EmbedBuilder()
     .setTitle('🔨 Auction Complete!')
     .setDescription(`${rCfg.emoji} **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
@@ -4468,6 +4474,11 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       saveDB(db);
       auctions.splice(idx, 1);
       saveAuctions(auctions);
+      broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
+      pushCoinUpdate(req.user.id, buyer.currency);
+      pushCoinUpdate(auction.sellerId, seller.currency);
+      pushCollectionUpdate(req.user.id);
+      broadcastLeaderboardUpdate();
       return res.json({ success: true, buyout: true });
     }
 
@@ -4509,9 +4520,9 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     touchActivity(db, req.user.id);
     saveDB(db);
 
-    // Broadcast live bid_update to WebSocket clients in this auction room
+    // Broadcast live bid update to WebSocket clients in this auction room
     const bidPayload = JSON.stringify({
-      type: 'bid_update',
+      type: 'bid',
       auctionId: req.params.id,
       bids: auction.bids.slice(-10).reverse().map(b => ({
         userId: b.userId,
@@ -4525,6 +4536,8 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     (auctionRooms[req.params.id] || []).forEach(client => {
       if (client.readyState === 1) client.send(bidPayload);
     });
+    // Also broadcast a lightweight grid update to all users
+    broadcastAll({ type: 'auction_bid_grid', auctionId: req.params.id, currentBid: bidAmount, topBidder: req.user.username, endsAt: auction.endsAt });
 
     res.json({
       success: true,
@@ -4604,6 +4617,44 @@ const userSockets = {};
 function pushToUser(userId, payload) {
   const ws = userSockets[userId];
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
+}
+
+function broadcastAll(payload) {
+  const data = JSON.stringify(payload);
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(data);
+  });
+}
+
+function pushCoinUpdate(userId, newBalance) {
+  pushToUser(userId, { type: 'coin_update', balance: newBalance });
+}
+
+// Push a user's full collection to them live (for inventory sync)
+function pushCollectionUpdate(userId) {
+  try {
+    const db   = loadDB();
+    const user = db[userId];
+    if (!user) return;
+    const meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8'));
+    const collection = (user.collection || []).map(p => {
+      const base = PLANTS.find(b => b.name === p.name) || DROP_ONLY_PLANTS.find(b => b.name === p.name) || {};
+      return {
+        name:      p.name,
+        rarity:    p.rarity,
+        version:   p.version,
+        mutation:  p.mutation || null,
+        image:     base.display || '',
+        sellPrice: Math.round((base.baseValue || 10) * (p.version || 1) * (p.mutation ? 1.5 : 1)),
+      };
+    });
+    pushToUser(userId, { type: 'collection_update', collection });
+  } catch {}
+}
+
+// Broadcast a leaderboard refresh signal to all connected clients
+function broadcastLeaderboardUpdate() {
+  broadcastAll({ type: 'leaderboard_update' });
 }
 
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
@@ -4686,6 +4737,8 @@ app.delete('/api/auction/:id', async (req, res) => {
   user.collection.push({ ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
+  broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true });
 });
 
@@ -4727,29 +4780,8 @@ app.post('/api/auction/create', async (req, res) => {
 
   setTimeout(() => endAuction(auctionId, null), h * 3600000);
 
-  const announceCh = auctionChannels[Object.keys(auctionChannels)[0]];
-  if (announceCh) {
-    const ch = client.channels.cache.get(announceCh);
-    if (ch) {
-      const rCfg = getRarityConfig(plant.rarity);
-ch.send({ embeds: [new EmbedBuilder()
-  .setTitle('🔨 New Auction Listed!')
-  .setDescription(`<@${req.user.id}> just put up **${plant.name}** for auction!`)
-  .addFields(
-    { name: 'Rarity', value: `${rCfg.emoji} ${plant.rarity}`, inline: true },
-    { name: 'Version', value: `\`v${plant.version}\``, inline: true },
-    { name: 'Mutation', value: plant.mutation ? `${plant.mutation.emoji} ${plant.mutation.name}` : 'None', inline: true },
-    { name: 'Starting Bid', value: `${CURRENCY_EMOJI} **${start.toLocaleString()}**`, inline: true },
-    { name: 'Buyout', value: buyout ? `${CURRENCY_EMOJI} **${buyout.toLocaleString()}**` : 'None', inline: true },
-    { name: 'View Auction', value: `[Click here to bid](https://sproutapp.net/#auctions)`, inline: true },
-  )
-  .setThumbnail(plant.image)
-  .setColor(rCfg.color)
-  .setTimestamp()
-]}).catch(console.error); 
-    }
-  }
-
+  broadcastAll({ type: 'auction_new' });
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true, auctionId });
 });
 
@@ -4838,6 +4870,9 @@ if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error
   listings.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
   saveListings(listings);
 
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, getUser(loadDB(), req.user.id).currency);
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true, listingId });
 });
 
@@ -4852,6 +4887,9 @@ app.delete('/api/market/:id', async (req, res) => {
   user.collection.push({ ...listing.plant });
   saveDB(db);
   saveListings(listings.filter(l => l.id !== req.params.id));
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, getUser(db, req.user.id).currency);
+  pushCollectionUpdate(req.user.id);
   res.json({ success: true });
 });
 
@@ -4878,9 +4916,15 @@ app.post('/api/market/buy/:id', async (req, res) => {
   // DM seller
   try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** \`v${listing.plant.version||'?'}\` was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
 
+  broadcastAll({ type: 'market_update' });
+  pushCoinUpdate(req.user.id, buyer.currency);
+  pushCoinUpdate(listing.sellerId, seller.currency);
+  pushCollectionUpdate(req.user.id);
+  broadcastLeaderboardUpdate();
   res.json({ success: true });
 });
-  app.get('/api/auction/:auctionId/chats', (req, res) => {
+
+app.get('/api/auction/:auctionId/chats', (req, res) => {
   const chats = loadChats();
   res.json(chats[req.params.auctionId] || []);
 });
@@ -5014,6 +5058,11 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     trade.status = 'complete';
     pushToUser(trade.initiatorId, { type: 'trade_complete' });
     pushToUser(trade.targetId,    { type: 'trade_complete' });
+    pushCoinUpdate(trade.initiatorId, iUser.currency);
+    pushCoinUpdate(trade.targetId,    tUser.currency);
+    pushCollectionUpdate(trade.initiatorId);
+    pushCollectionUpdate(trade.targetId);
+    broadcastLeaderboardUpdate();
     try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
     try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
   }
