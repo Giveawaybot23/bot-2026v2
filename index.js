@@ -1077,9 +1077,10 @@ function startPayoutLoop() {
 
     // ── Daily payout ──────────────────────────────────────────────────────
     if (now >= state.dailyEndsAt) {
-      // Advance to next Stockholm midnight (handles catch-up if bot was offline)
-      state.dailyEndsAt = getNextMidnight();
-      savePayoutState(state);
+  state.dailyEndsAt = state.dailyEndsAt + 24 * 60 * 60 * 1000;
+  // If still in the past (bot was offline a long time), fast-forward
+  while (state.dailyEndsAt <= now) state.dailyEndsAt += 24 * 60 * 60 * 1000;
+  savePayoutState(state);
 
       const lb = loadClaimsLB();
       const top = lb
