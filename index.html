@@ -1172,6 +1172,13 @@
   font-size: 22px; font-weight: 900; color: #e53935; letter-spacing: 0.1em;
   opacity: 0.6; pointer-events: none;
 }
+.merchant-item-card.owned-out { opacity: 0.6; pointer-events: none; }
+.merchant-item-card.owned-out::after {
+  content: 'OWNED';
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg);
+  font-size: 22px; font-weight: 900; color: var(--green); letter-spacing: 0.1em;
+  opacity: 0.5; pointer-events: none;
+}
 .merchant-item-top-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .merchant-item-icon { font-size: 38px; margin-bottom: 14px; display: block; }
 .merchant-item-category {
@@ -4913,9 +4920,6 @@ function seededRand(seed, n) {
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
   return (s ^ (s >>> 16)) / 0xFFFFFFFF;
 }
-function seededPick(arr, seed, salt) {
-  return arr[Math.floor(seededRand(seed, salt) * arr.length)];
-}
 
 // ── MERCHANT ITEM DEFINITIONS ──
 const MERCHANT_CONSUMABLES_POOL = [
@@ -5009,10 +5013,22 @@ const MERCHANT_UPGRADES_POOL = [
 
 // ── STATE ──
 const _merchantPurchased = JSON.parse(localStorage.getItem('merchant_purchased') || '{}');
-const _merchantStockLeft = {};
+
+function _loadMerchantStock() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('merchant_stock') || '{}');
+    // Invalidate if saved for a different day
+    const today = String(dailySeed());
+    if (saved._day !== today) return { _day: today };
+    return saved;
+  } catch { return { _day: String(dailySeed()) }; }
+}
+const _merchantStockLeft = _loadMerchantStock();
 
 function saveMerchantState() {
   localStorage.setItem('merchant_purchased', JSON.stringify(_merchantPurchased));
+  _merchantStockLeft._day = String(dailySeed());
+  localStorage.setItem('merchant_stock', JSON.stringify(_merchantStockLeft));
 }
 
 // ── RENDER ──
@@ -5046,9 +5062,23 @@ function renderMerchantPage() {
   document.getElementById('mf-btn').dataset.desc = featuredItem.descs[0];
   document.getElementById('mf-btn').dataset.type = 'consumable';
 
-  // Stock init for featured
-  if (_merchantStockLeft[featuredItem.id + '_featured'] === undefined) {
-    _merchantStockLeft[featuredItem.id + '_featured'] = 1;
+  // Stock init for featured — uses same seed-based key as consumables so buy() deducts correctly
+  const featuredStockKey = featuredItem.id + '_' + seed;
+  if (_merchantStockLeft[featuredStockKey] === undefined) {
+    _merchantStockLeft[featuredStockKey] = 1;
+  }
+  const featuredSoldOut = _merchantStockLeft[featuredStockKey] <= 0;
+  const mfBtn = document.getElementById('mf-btn');
+  if (featuredSoldOut) {
+    mfBtn.disabled = true;
+    mfBtn.textContent = 'Sold Out';
+    mfBtn.style.opacity = '0.5';
+    mfBtn.style.cursor = 'not-allowed';
+  } else {
+    mfBtn.disabled = false;
+    mfBtn.textContent = 'Buy Now';
+    mfBtn.style.opacity = '1';
+    mfBtn.style.cursor = 'pointer';
   }
 
   // Consumables grid
@@ -5136,7 +5166,7 @@ function renderMerchantPage() {
   uGrid.innerHTML = dailyUpgrades.map((item, i) => {
     const alreadyOwned = item.oneTime && _merchantPurchased[item.id];
     return `
-    <div class="merchant-item-card reveal${alreadyOwned ? ' sold-out' : ''}" style="animation-delay:${i*0.06}s">
+    <div class="merchant-item-card reveal${alreadyOwned ? ' owned-out' : ''}" style="animation-delay:${i*0.06}s">
       <div class="merchant-item-top-bar" style="background:${item.categoryColor}"></div>
       ${alreadyOwned ? '' : ''}
       <span class="merchant-item-icon">${item.icon}</span>
@@ -5145,8 +5175,9 @@ function renderMerchantPage() {
       <div class="merchant-item-desc">${item.descs[0]}</div>
       <div class="merchant-item-footer">
         <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn" style="background:${item.categoryColor};color:white"
-          ${alreadyOwned ? 'disabled style="background:var(--bg2);color:var(--ink3);cursor:not-allowed"' : ''}
+        <button class="merchant-item-buy-btn"
+          style="${alreadyOwned ? 'background:var(--bg2);color:var(--ink3);cursor:not-allowed' : `background:${item.categoryColor};color:white`}"
+          ${alreadyOwned ? 'disabled' : ''}
           onclick="merchantBuy('upgrade','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.descs[0])}')">
           ${alreadyOwned ? 'Owned' : 'Purchase'}
         </button>
