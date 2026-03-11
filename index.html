@@ -479,6 +479,44 @@
   }
   .pd-best-tile.v1-tile .pd-best-num::after { content: ' 👑'; }
 
+  /* ── CLAIMS SUB-TABS ── */
+.lb-subtabs {
+  display: flex; gap: 3px; background: var(--bg2);
+  padding: 3px; border-radius: 9px; width: fit-content;
+  margin: 12px 16px 0;
+}
+.lb-subtab {
+  padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  color: var(--ink2); cursor: pointer; transition: all 0.2s; border: none;
+  background: transparent; font-family: inherit;
+}
+.lb-subtab.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(14,13,11,0.08); }
+.lb-subcontent { display: none; }
+.lb-subcontent.active { display: block; animation: lbSubIn 0.22s ease both; }
+@keyframes lbSubIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── HIGHLIGHT CARDS ── */
+.highlight-card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border); border-top-width: 3px; overflow: hidden;
+  transition: all 0.25s; display: flex; align-items: center; gap: 20px; padding: 20px 24px;
+}
+.highlight-card:hover { transform: translateY(-2px); box-shadow: 0 10px 36px rgba(14,13,11,0.07); }
+.highlight-card-visual {
+  width: 76px; height: 76px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.highlight-card-visual img { width: 62px; height: 62px; object-fit: contain; }
+.highlight-card-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; }
+.highlight-card-name { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.highlight-skeleton { height: 116px; background: var(--bg2); border-radius: var(--radius); border: 1px solid var(--border); animation: skeletonPulse 1.6s ease-in-out infinite; }
+@keyframes skeletonPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+@media(max-width:700px) { #market-highlights-grid { grid-template-columns: 1fr !important; } }
+
   /* ── SCROLL REVEAL ── */
   .reveal { opacity: 0; transform: translateY(20px); transition: all 0.6s ease; }
   .reveal.visible { opacity: 1; transform: translateY(0); }
@@ -1092,10 +1130,7 @@
     </div>
   </div>
 
-  <section class="section">
-    <div class="section-eyebrow">How it works</div>
-    <h2 class="section-title">A living, breathing<br>plant economy.</h2>
-    <p class="section-sub">Every plant has a version number. Lower versions are rarer, worth more, and never come back once claimed.</p>
+  <section class="section" style="padding-top:56px">
 
     <div class="feature-grid">
       <div class="feature-card reveal">
@@ -1231,9 +1266,14 @@
       <div class="lb-card reveal" style="max-width:600px">
         <div class="lb-card-header">
           <div class="lb-card-title">🌱 Claims Leaderboard</div>
-          <div class="lb-card-badge">24 hrs</div>
+          <div class="lb-card-badge" id="claims-badge">24 hrs</div>
         </div>
-        <div id="lb-claims-full"></div>
+        <div class="lb-subtabs">
+          <button class="lb-subtab active" onclick="switchClaimsTab(this,'lb-claims-daily')">Daily</button>
+          <button class="lb-subtab" onclick="switchClaimsTab(this,'lb-claims-weekly')">Weekly</button>
+        </div>
+        <div class="lb-subcontent active" id="lb-claims-daily"></div>
+        <div class="lb-subcontent" id="lb-claims-weekly"></div>
       </div>
     </div>
 
@@ -1498,6 +1538,86 @@
 
 <script>
 
+  function switchClaimsTab(btn, id) {
+  document.querySelectorAll('.lb-subtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.lb-subcontent').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(id).classList.add('active');
+  const badge = document.getElementById('claims-badge');
+  if (badge) badge.textContent = id.includes('weekly') ? '7 days' : '24 hrs';
+}
+
+function rarityAccent(rarity) {
+  return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' }[rarity] || '#999';
+}
+
+async function loadMarketHighlights() {
+  const grid = document.getElementById('market-highlights-grid');
+  if (!grid) return;
+  try {
+    const market = await fetch('/api/market').then(r => r.json());
+    if (!market.length) { grid.style.display = 'none'; return; }
+    const rarityRank = { Secret:0,Mythic:1,Legendary:2,Epic:3,Rare:4,Uncommon:5,Common:6 };
+    const topListed  = [...market].sort((a,b) => b.price - a.price)[0];
+    const topMutated = [...market].filter(m => m.mutation).sort((a,b) => b.price - a.price)[0];
+    const topRare    = [...market].sort((a,b) => rarityRank[a.rarity] - rarityRank[b.rarity])[0];
+    const topVer     = [...market].filter(m => (m.version||99) <= 5).sort((a,b) => (a.version||99)-(b.version||99))[0];
+    const candidates = [
+      topListed  ? { label:'Highest Listed Price', item:topListed,  accent:'#c9a84c' } : null,
+      topMutated ? { label:'Top Mutated Listing',   item:topMutated, accent:'#9c27b0' } : null,
+      topRare    ? { label:'Rarest on the Market',  item:topRare,    accent:rarityAccent(topRare.rarity) } : null,
+      topVer     ? { label:'Lowest Version Listed', item:topVer,     accent:'#2196f3' } : null,
+    ].filter(Boolean);
+    const seen = new Set();
+    const highlights = candidates.filter(h => { if (seen.has(h.item.id)) return false; seen.add(h.item.id); return true; }).slice(0,4);
+    if (!highlights.length) { grid.style.display = 'none'; return; }
+    grid.innerHTML = highlights.map((h,i) => {
+      const item = h.item;
+      const rColor = rarityAccent(item.rarity);
+      const mutStr = item.mutation ? `<span style="font-size:11px;font-weight:700;color:${mutationColor(item.mutation.name)}">${mutationEmoji(item.mutation.name)} ${item.mutation.name}</span>` : '';
+      const cachedAv = _avatarCache[item.sellerId];
+      return `<div class="highlight-card reveal" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
+        <div class="highlight-card-visual" style="background:${h.accent}14">
+          ${item.localImage ? `<img src="${item.localImage}" onerror="this.style.display='none'">` : `<span style="font-size:36px">${item.emoji||'🌿'}</span>`}
+          ${(item.version||99)===1 ? `<div style="position:absolute;bottom:3px;right:3px;font-size:9px;background:rgba(201,168,76,0.92);color:#fff;border-radius:4px;padding:1px 5px;font-weight:800">v1</div>` : ''}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="highlight-card-eyebrow">${h.label}</div>
+          <div class="highlight-card-name">${item.name}</div>
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:9px">
+            <span style="font-size:11px;font-weight:700;color:${rColor};background:${rColor}1a;border-radius:100px;padding:2px 8px">${item.rarity}</span>
+            ${(item.version||99)===1 ? v1Badge(true) : `<span style="font-size:11px;color:var(--ink3)">v${item.version||'?'}</span>`}
+            ${mutStr}
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:22px;height:22px;border-radius:50%;overflow:hidden;background:var(--green-pale);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--green);flex-shrink:0" id="hlav-${item.id}">
+                ${cachedAv ? `<img src="${cachedAv}" style="width:22px;height:22px;object-fit:cover">` : item.sellerName[0].toUpperCase()}
+              </div>
+              <span style="font-size:12px;color:var(--ink3)">${item.sellerName}</span>
+            </div>
+            <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink);letter-spacing:-0.02em;flex-shrink:0">${item.price.toLocaleString()} <span style="font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:var(--ink3)">coins</span></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    highlights.forEach(h => {
+      const id = h.item.sellerId;
+      if (!id || _avatarCache[id]) return;
+      fetchAvatar(id).then(url => {
+        if (!url) return;
+        const el = document.getElementById(`hlav-${h.item.id}`);
+        if (el) el.innerHTML = `<img src="${url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">`;
+      });
+    });
+    triggerReveal();
+  } catch(e) {
+    console.error('[highlights]', e);
+    const g = document.getElementById('market-highlights-grid');
+    if (g) g.style.display = 'none';
+  }
+}
+
   function loadMorePlants(btn, rarity, grid) {
   const offset = parseInt(btn.dataset.offset);
   const plants = window._profileGrouped[rarity];
@@ -1637,15 +1757,23 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
     ).join('');
     document.getElementById('lb-race-full').innerHTML = raceHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No race times yet</div>';
 
-    // Claims
+    // Daily claims
     const dailyTop = lb.daily[0]?.count || 1;
-    const claimsHTML = lb.daily.map((e,i) =>
+    const dailyHTML = lb.daily.map((e,i) =>
       renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
     ).join('');
     document.getElementById('lb-daily-mini').innerHTML = lb.daily.slice(0,5).map((e,i) =>
       renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
     ).join('');
-    document.getElementById('lb-claims-full').innerHTML = claimsHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
+    document.getElementById('lb-claims-daily').innerHTML = dailyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
+
+    // Weekly claims
+    const weekly = lb.weeklyClaims || lb.weekly || [];
+    const weeklyTop = weekly[0]?.count || 1;
+    const weeklyHTML = weekly.map((e,i) =>
+      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId)
+    ).join('');
+    document.getElementById('lb-claims-weekly').innerHTML = weeklyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No weekly data yet</div>';
 
     // Profiles grid
     const grid = document.getElementById('profiles-grid');
@@ -1698,6 +1826,8 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
   loadLBAvatars(lb.level,  'id');
   loadLBAvatars(lb.race,   'userId');
   loadLBAvatars(lb.daily,  'userId');
+
+  loadMarketHighlights();
 
   } catch(err) {
     console.error('Failed to load live data:', err);
