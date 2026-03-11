@@ -2004,6 +2004,7 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'market' || name === 'auctions') loadShopData();
   if (name === 'inventory') loadInventoryPage();
   if (name === 'trade') loadTradePage();
+  if (name === 'merchant') renderMerchantPage();
   if (name === 'market' || name === 'auctions' || name === 'auction-detail' || name === 'trade' || name === 'merchant') {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
@@ -5285,18 +5286,18 @@ function merchantBuyCrate(crateId, encodedName, price, encodedIcon, encodedOdds)
 }
 
 // Simulate a client-side crate drop result for graceful fallback display
+const _merchantRarityEmoji = {Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎'};
 function simulateCrateDrop(odds) {
   const roll = Math.random() * 100;
   let cumulative = 0;
   for (const o of odds) {
     cumulative += parseFloat(o.pct);
-    if (roll <= cumulative) return { rarity: o.rarity, name: rarityEmoji(o.rarity) + ' ' + o.rarity + ' Plant', emoji: rarityEmoji(o.rarity), color: o.color };
+    if (roll <= cumulative) {
+      const em = _merchantRarityEmoji[o.rarity] || '🌿';
+      return { rarity: o.rarity, name: em + ' ' + o.rarity + ' Plant', emoji: em, color: o.color };
+    }
   }
   return { rarity: odds[0].rarity, name: 'Plant', emoji: '🌱', color: '#52b788' };
-}
-
-function rarityEmoji(r) {
-  return {Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎'}[r] || '🌿';
 }
 
 function showCrateResult(plant, crateName) {
@@ -5362,16 +5363,6 @@ function closeMerchantModal() {
 
 function showMerchantError(msg) {
   showToast(msg, true);
-}
-
-// Patch showPage to render merchant on navigation
-const _origShowPage = showPage;
-function showPage(name, opts) {
-  _origShowPage(name, opts);
-  if (name === 'merchant') renderMerchantPage();
-  if (name === 'merchant') {
-    document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
-  }
 }
 
 
