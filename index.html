@@ -2715,6 +2715,15 @@ function connectAuctionWS(auctionId) {
   _ws = new WebSocket(`${proto}://${location.host}`);
 
   _ws.onopen = () => {
+    // Register this socket in userSockets so pushToUser/pushCoinUpdate still works
+    if (window._loggedInId) {
+      _ws.send(JSON.stringify({
+        type: 'auth',
+        userId: window._loggedInId,
+        username: window._loggedInUsername,
+        avatarUrl: window._loggedInAvatarUrl || null
+      }));
+    }
     _ws.send(JSON.stringify({
       type: 'join',
       auctionId,
@@ -2743,9 +2752,10 @@ function connectAuctionWS(auctionId) {
           container.scrollTop = container.scrollHeight;
         }
       } else if (msg.type === 'bid') {
-        // Live bid update
+        // Live bid update — msg has: bids[], currentBid, endsAt
+        const topBid = msg.bids && msg.bids[0];
         const bidHistory = document.getElementById(`bid-history-${auctionId}`);
-        if (bidHistory) {
+        if (bidHistory && topBid) {
           const existing = bidHistory.querySelector('.bid-entry.top-bid');
           if (existing) existing.classList.remove('top-bid');
           const newEntry = document.createElement('div');
@@ -2753,31 +2763,29 @@ function connectAuctionWS(auctionId) {
           newEntry.style.background = 'rgba(45,106,79,0.04)';
           newEntry.innerHTML = `
             <div class="bid-entry-avatar" style="overflow:hidden;padding:0;background:var(--green-pale)">
-              ${msg.avatarUrl
-                ? `<img src="${msg.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
-                : `<span style="font-size:12px;font-weight:700;color:var(--green)">${msg.username[0].toUpperCase()}</span>`}
+              <span style="font-size:12px;font-weight:700;color:var(--green)">${topBid.username[0].toUpperCase()}</span>
             </div>
             <div class="bid-entry-user">
-              <div class="bid-entry-name">${msg.username} 👑</div>
+              <div class="bid-entry-name">${topBid.username} 👑</div>
               <div class="bid-entry-time">just now</div>
             </div>
-            <div class="bid-entry-amount" style="color:var(--green)">${msg.amount.toLocaleString()} coins</div>`;
+            <div class="bid-entry-amount" style="color:var(--green)">${topBid.amount.toLocaleString()} coins</div>`;
           bidHistory.insertBefore(newEntry, bidHistory.firstChild);
         }
 
-        // Update current bid display
-        const bidBox = document.querySelector(`#bid-history-${auctionId}`)?.closest('.auction-panel')?.previousElementSibling;
-        const currentBidEl = document.querySelector(`[id="bid-history-${auctionId}"]`)?.closest('.auction-right')?.previousElementSibling?.querySelector('div[style*="Current Bid"] + div');
-        // Update the current bid number in the timer grid
+        // Update current bid display in the stats grid
         document.querySelectorAll(`#auction-detail-content [style*="Current Bid"]`).forEach(label => {
           const valEl = label.nextElementSibling;
-          if (valEl) valEl.textContent = msg.amount.toLocaleString() + ' coins';
+          if (valEl) valEl.textContent = msg.currentBid.toLocaleString() + ' coins';
         });
 
-        // Update min bid hint
-        const newMin = Math.ceil(msg.amount * 1.05);
+        // Update min bid hint and input placeholder
+        const newMin = Math.ceil(msg.currentBid * 1.05);
         const inputEl = document.getElementById(`bid-input-${auctionId}`);
         if (inputEl) inputEl.placeholder = `Min: ${newMin.toLocaleString()}`;
+
+        // Update endsAt timer if auction was extended
+        if (msg.endsAt && window._auctionEndTimes) window._auctionEndTimes[auctionId] = msg.endsAt;
 
         // Flash effect on bid history panel
         const panel = document.getElementById(`bid-history-${auctionId}`)?.closest('.auction-panel');
@@ -2787,7 +2795,7 @@ function connectAuctionWS(auctionId) {
           setTimeout(() => panel.style.boxShadow = '', 800);
         }
 
-        pushNotification('outbid', `${msg.username} placed a bid of ${msg.amount.toLocaleString()} coins.`);
+        if (topBid) pushNotification('outbid', `${topBid.username} placed a bid of ${topBid.amount.toLocaleString()} coins.`);
       }
     } catch {}
   };

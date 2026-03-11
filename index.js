@@ -3613,7 +3613,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
   if (cmd === 'addplant') {
@@ -3698,7 +3698,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!removecurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency = Math.max(0, (user.currency || 0) - amount); saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Removed ${fmt(amount)} from **${target.username}**.`);
   }
   if (cmd === 'removeplant') {
@@ -4510,9 +4510,9 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     touchActivity(db, req.user.id);
     saveDB(db);
 
-    // Broadcast live bid_update to WebSocket clients in this auction room
+    // Broadcast live bid update to WebSocket clients in this auction room
     const bidPayload = JSON.stringify({
-      type: 'bid_update',
+      type: 'bid',
       auctionId: req.params.id,
       bids: auction.bids.slice(-10).reverse().map(b => ({
         userId: b.userId,
