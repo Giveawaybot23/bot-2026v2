@@ -535,6 +535,12 @@ function recordClaim(userId, username) {
   }
   entry.username = username;
   entry.claims.push(now);
+  // Sprint Boost: count twice toward the leaderboard
+  const db = loadDB();
+  const user = db[userId];
+  if (user?.sprintBoost && user.sprintBoost.expiresAt > now) {
+    entry.claims.push(now);
+  }
   // clean up old claims beyond 1 week
   entry.claims = entry.claims.filter(t => now - t <= 7 * 24 * 60 * 60 * 1000);
   saveClaimsLB(lb);
@@ -4461,12 +4467,12 @@ app.get('/api/leaderboards', (req, res) => {
     };
 
     res.json({
-      garden: garden.map(e => ({ ...e, username: name(e.id), tierName: e.tier.name, tierEmoji: e.tier.emoji })),
-      level:  level.map(e  => ({ ...e, username: name(e.id), rank: getRank(e.level) })),
-      money:  money.map(e  => ({ ...e, username: name(e.id) })),
-      race:   race.map(e   => ({ ...e })),
-      daily,
-      weekly,
+      garden: garden.map(e => ({ ...e, username: name(e.id), tierName: e.tier.name, tierEmoji: e.tier.emoji, rainbowTag: !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now) })),
+      level:  level.map(e  => ({ ...e, username: name(e.id), rank: getRank(e.level), rainbowTag: !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now) })),
+      money:  money.map(e  => ({ ...e, username: name(e.id), rainbowTag: !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now) })),
+      race:   race.map(e   => ({ ...e, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })),
+      daily:  daily.map(e  => ({ ...e, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })),
+      weekly: weekly.map(e => ({ ...e, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })),
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -4895,12 +4901,16 @@ app.get('/api/plants', (req, res) => {
 app.get('/api/market', (req, res) => {
   try {
     const listings = loadListings();
+    const db = loadDB();
     const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111111' };
     const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
+    const now = Date.now();
     res.json(listings
       .filter(l => allowedRarities.includes(l.plant.rarity))
       .map(l => {
         const plantMatch = PLANTS.find(p => p.name === l.plant.name);
+        const seller = db[l.sellerId];
+        const boosted = seller?.listingBoost && seller.listingBoost.expiresAt > now;
         return {
           id: l.id,
           name: l.plant.name,
@@ -4913,8 +4923,10 @@ app.get('/api/market', (req, res) => {
           price: l.price,
           sellerName: l.sellerName,
           sellerId: l.sellerId,
+          boosted: boosted || false,
         };
-      }));
+      })
+      .sort((a, b) => (b.boosted ? 1 : 0) - (a.boosted ? 1 : 0)));
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4933,7 +4945,7 @@ app.post('/api/market/list', async (req, res) => {
   const { p: plant, i: plantIndex } = candidates[0];
   if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
   const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
-if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error: `Only Epic, Legendary, Mythic, and Secret plants can be listed on the market.` });
+  if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error: `Only Epic, Legendary, Mythic, and Secret plants can be listed on the market.` });
 
   const listingId = `l_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   user.collection.splice(plantIndex, 1);
@@ -4946,6 +4958,29 @@ if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error
   broadcastAll({ type: 'market_update' });
   pushCoinUpdate(req.user.id, getUser(loadDB(), req.user.id).currency);
   pushCollectionUpdate(req.user.id);
+
+  // ── Price Alert: notify users who have a matching alert ──
+  const listedPrice = parseInt(price);
+  const freshDb = loadDB();
+  for (const [alertUserId, alertUser] of Object.entries(freshDb)) {
+    if (alertUserId === req.user.id) continue;
+    if (!alertUser.priceAlerts?.length) continue;
+    for (const alert of alertUser.priceAlerts) {
+      if (alert.rarity && alert.rarity !== plant.rarity) continue;
+      if (alert.maxPrice && listedPrice > alert.maxPrice) continue;
+      // Match — DM the user
+      try {
+        const u = await client.users.fetch(alertUserId);
+        await u.send({ embeds: [new EmbedBuilder()
+          .setTitle('🔔 Price Alert!')
+          .setDescription(`A **${plant.rarity} ${plant.name}** \`v${plant.version || '?'}\` was just listed for **${listedPrice.toLocaleString()} coins** — within your alert threshold of **${alert.maxPrice?.toLocaleString() ?? 'any price'}**!\n\nHead to the Market to buy it.`)
+          .setColor(0xFFD700)
+        ]});
+      } catch {}
+      break; // only one alert match per user per listing
+    }
+  }
+
   res.json({ success: true, listingId });
 });
 
@@ -5224,14 +5259,11 @@ app.get('/api/fixmeta', (req, res) => {
 const MERCHANT_ITEM_PRICES = {
   drop_boost: 800, coin_magnet: 600, lucky_clover: 1200, xp_boost: 500,
   reroll_ticket: 1500, cooldown_skip: 2000, version_charm: 2500, vault_pass: 700,
-  // rename_token: 3000,
-  // seed_rare: 1500,
-  // mystery_box: 1000,
-  // plant_dye: 2000,
-  // trade_shield: 4000,
-  // coin_interest: 10000,
-  // rainbow_tag: 6000,
-  // drop_perm: 8000,
+  mystery_box: 1000,
+  rainbow_tag: 6000,
+  sprint_boost: 3000,
+  listing_boost: 2000,
+  price_alert: 500,
 };
 
 const MERCHANT_CRATE_POOLS = {
@@ -5279,7 +5311,35 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
   user.currency -= price;
 
-  if (type === 'seed') {
+  const now = Date.now();
+  let extraData = {};
+
+  if (itemId === 'mystery_box') {
+    // Pick a random item from the consumable pool (excluding mystery_box itself)
+    const pool = Object.keys(MERCHANT_ITEM_PRICES).filter(k => k !== 'mystery_box' && k !== 'rainbow_tag' && k !== 'sprint_boost' && k !== 'listing_boost' && k !== 'price_alert');
+    const won = pool[Math.floor(Math.random() * pool.length)];
+    user.merchantConsumables = user.merchantConsumables || [];
+    user.merchantConsumables.push({ itemId: won, name: won.replace(/_/g,' '), purchasedAt: now, used: false });
+    extraData.wonItemId = won;
+
+  } else if (itemId === 'rainbow_tag') {
+    // 7-day rainbow tag on leaderboard
+    user.rainbowTag = { expiresAt: now + 7 * 24 * 60 * 60 * 1000 };
+
+  } else if (itemId === 'sprint_boost') {
+    // 1-hour sprint: claims count double toward leaderboard
+    user.sprintBoost = { expiresAt: now + 60 * 60 * 1000 };
+
+  } else if (itemId === 'listing_boost') {
+    // 24-hour listing boost: seller's listings float to top of market
+    user.listingBoost = { expiresAt: now + 24 * 60 * 60 * 1000 };
+
+  } else if (itemId === 'price_alert') {
+    // Handled separately via /api/merchant/price-alert/set
+    // This purchase just deducts coins and confirms intent — the alert details come from a second call
+    extraData.needsSetup = true;
+
+  } else if (type === 'seed') {
     const rarityMap = { seed_common:'Common', seed_uncommon:'Uncommon', seed_rare:'Rare', seed_epic:'Epic', seed_legendary:'Legendary' };
     const rarity = rarityMap[itemId];
     if (rarity) {
@@ -5291,13 +5351,13 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
     user.merchantUpgrades[itemId] = (user.merchantUpgrades[itemId] || 0) + 1;
   } else {
     user.merchantConsumables = user.merchantConsumables || [];
-    user.merchantConsumables.push({ itemId, name, purchasedAt: Date.now(), used: false });
+    user.merchantConsumables.push({ itemId, name, purchasedAt: now, used: false });
   }
 
   saveDB(db);
   pushCoinUpdate(req.user.id, user.currency);
   if (type === 'seed') pushCollectionUpdate(req.user.id);
-  res.json({ ok: true, newBalance: user.currency });
+  res.json({ ok: true, newBalance: user.currency, ...extraData });
 });
 
 app.post('/api/merchant/crate', express.json(), (req, res) => {
@@ -5321,6 +5381,43 @@ app.post('/api/merchant/crate', express.json(), (req, res) => {
   pushCoinUpdate(req.user.id, user.currency);
   pushCollectionUpdate(req.user.id);
   res.json({ ok: true, newBalance: user.currency, plant: plant || null });
+});
+
+// ── PRICE ALERT API ───────────────────────────────────────────────────────────
+
+app.post('/api/merchant/price-alert/set', express.json(), (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { rarity, maxPrice } = req.body;
+  const validRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
+  if (rarity && !validRarities.includes(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
+  if (!maxPrice || isNaN(maxPrice) || maxPrice <= 0) return res.status(400).json({ error: 'Invalid max price' });
+
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  user.priceAlerts = user.priceAlerts || [];
+
+  // Max 5 alerts per user
+  if (user.priceAlerts.length >= 5) return res.status(400).json({ error: 'You already have 5 active alerts. Delete one first.' });
+
+  user.priceAlerts.push({ id: `pa_${Date.now()}`, rarity: rarity || null, maxPrice: parseInt(maxPrice), createdAt: Date.now() });
+  saveDB(db);
+  res.json({ ok: true, alerts: user.priceAlerts });
+});
+
+app.get('/api/merchant/price-alert', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  res.json(user.priceAlerts || []);
+});
+
+app.delete('/api/merchant/price-alert/:id', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  user.priceAlerts = (user.priceAlerts || []).filter(a => a.id !== req.params.id);
+  saveDB(db);
+  res.json({ ok: true, alerts: user.priceAlerts });
 });
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
