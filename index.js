@@ -5345,12 +5345,27 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   let extraData = {};
 
   if (itemId === 'mystery_box') {
-    // Pick a random item from the consumable pool (excluding mystery_box itself)
-    const pool = Object.keys(MERCHANT_ITEM_PRICES).filter(k => k !== 'mystery_box' && k !== 'rainbow_tag' && k !== 'sprint_boost' && k !== 'listing_boost' && k !== 'price_alert');
-    const won = pool[Math.floor(Math.random() * pool.length)];
-    user.merchantConsumables = user.merchantConsumables || [];
-    user.merchantConsumables.push({ itemId: won, name: won.replace(/_/g,' '), purchasedAt: now, used: false });
-    extraData.wonItemId = won;
+    // 10% chance to reroll the entire merchant shop
+    if (Math.random() < 0.10) {
+      extraData.wonItemId = 'merchant_reroll';
+      extraData.reroll = true;
+      // Bump the restock seed so the client re-renders with new items
+      extraData.restockToken = Date.now();
+    } else {
+      // Only items that are fully implemented and active in the shop
+      const ACTIVE_MERCHANT_ITEMS = [
+        { id: 'xp_boost',      name: 'XP Tome' },
+        { id: 'rainbow_tag',   name: 'Rainbow Nametag' },
+        { id: 'sprint_boost',  name: 'Sprint Boost' },
+        { id: 'listing_boost', name: 'Listing Boost' },
+        { id: 'price_alert',   name: 'Price Alert' },
+      ];
+      const won = ACTIVE_MERCHANT_ITEMS[Math.floor(Math.random() * ACTIVE_MERCHANT_ITEMS.length)];
+      user.merchantConsumables = user.merchantConsumables || [];
+      user.merchantConsumables.push({ itemId: won.id, name: won.name, purchasedAt: now, used: false });
+      extraData.wonItemId = won.id;
+      extraData.wonName = won.name;
+    }
 
   } else if (itemId === 'rainbow_tag') {
     // 7-day rainbow tag on leaderboard
