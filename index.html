@@ -1744,8 +1744,16 @@
         <div class="merchant-hero-text">
           <div class="merchant-hero-eyebrow">NPC Shop · Garden Horizons</div>
           <h1 class="merchant-hero-title">Guildwald's <em>Emporium</em></h1>
-          <div class="merchant-refresh-badge">
-            New stock in: <strong id="merchant-countdown">—</strong>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div class="merchant-refresh-badge">
+              New stock in: <strong id="merchant-countdown">—</strong>
+            </div>
+            <button id="merchant-restock-btn" onclick="merchantAdminRestock()"
+              style="display:none;align-items:center;gap:6px;padding:7px 16px;border-radius:100px;border:1.5px solid rgba(229,57,53,0.35);background:rgba(229,57,53,0.1);color:#e53935;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s"
+              onmouseover="this.style.background='rgba(229,57,53,0.2)'"
+              onmouseout="this.style.background='rgba(229,57,53,0.1)'">
+              🔄 Restock
+            </button>
           </div>
         </div>
       </div>
@@ -2806,6 +2814,13 @@ async function initAuth() {
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
       loadNavCoins(data.user.id);
+      // Check admin status (Manage Guild permission in Discord server)
+      fetch('/api/merchant/is-admin', { credentials: 'include' })
+        .then(r => r.json()).then(d => {
+          window._isAdmin = d.isAdmin === true;
+          const btn = document.getElementById('merchant-restock-btn');
+          if (btn) btn.style.display = window._isAdmin ? 'inline-flex' : 'none';
+        }).catch(() => { window._isAdmin = false; });
     } else {
       el.innerHTML = '<a href="/auth/discord" style="display:inline-flex;align-items:center;gap:8px;background:#5865F2;color:white;font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;text-decoration:none">Login with Discord</a>';
     }
@@ -4864,8 +4879,8 @@ function saveMerchantState() {
 }
 
 // ── RENDER ──
-function renderMerchantPage() {
-  const seed = dailySeed();
+function renderMerchantPage(seedOverride) {
+  const seed = seedOverride !== undefined ? seedOverride : (window._merchantRestockOverride !== undefined ? window._merchantRestockOverride : dailySeed());
 
   // Shuffle pool and pick 4 for this 30-min window
   const pool = [...MERCHANT_POOL];
@@ -4927,6 +4942,35 @@ function updateMerchantCountdown() {
     clearInterval(window._merchantCountdownInterval);
     window._merchantCountdownInterval = null;
     setTimeout(renderMerchantPage, 1000);
+  }
+}
+
+// ── ADMIN: FORCE RESTOCK ──
+async function merchantAdminRestock() {
+  if (!window._isAdmin) { showToast('No permission.', true); return; }
+  const btn = document.getElementById('merchant-restock-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Restocking…'; }
+  try {
+    const res = await fetch('/api/merchant/restock', { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Restock failed.', true);
+      return;
+    }
+    // Override the local seed with the server-provided restock token so the
+    // merchant renders a fresh set of items regardless of the 30-min window.
+    window._merchantRestockOverride = data.restockToken;
+    // Clear cached stock so all 4 slots start at 3/3 again
+    localStorage.removeItem('merchant_stock');
+    localStorage.removeItem('merchant_purchased');
+    Object.keys(_merchantStockLeft).forEach(k => delete _merchantStockLeft[k]);
+    Object.keys(_merchantPurchased).forEach(k => delete _merchantPurchased[k]);
+    renderMerchantPage(data.restockToken);
+    showToast('✅ Merchant restocked!');
+  } catch (e) {
+    showToast('Network error — try again.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Restock'; btn.style.display = 'inline-flex'; }
   }
 }
 

@@ -5253,6 +5253,36 @@ app.get('/api/fixmeta', (req, res) => {
 
 // ── MERCHANT API ─────────────────────────────────────────────────────────────
 
+// Check if the logged-in user has Manage Guild permission in the Discord server
+app.get('/api/merchant/is-admin', async (req, res) => {
+  if (!req.user) return res.json({ isAdmin: false });
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(req.user.id);
+    const isAdmin = member.permissions.has(PermissionsBitField.Flags.ManageGuild);
+    res.json({ isAdmin });
+  } catch (e) {
+    // User not in server or fetch failed — not an admin
+    res.json({ isAdmin: false });
+  }
+});
+
+// Admin-only: force a merchant restock by providing a new seed override
+app.post('/api/merchant/restock', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(req.user.id);
+    if (!member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+      return res.status(403).json({ error: 'Missing Manage Guild permission' });
+    }
+  } catch (e) {
+    return res.status(403).json({ error: 'Could not verify permissions' });
+  }
+  // Return a unique restock token — the client uses this to bust its local seed cache
+  res.json({ ok: true, restockToken: Date.now() });
+});
+
 // Active item prices — mirrors MERCHANT_POOL in index.html.
 // Add new item IDs here when you add them to the pool.
 // Placeholder IDs are commented out until implemented.
