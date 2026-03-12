@@ -5376,7 +5376,7 @@ function seededRand(seed, n) {
   let s = seed ^ (n * 2654435761);
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
-  return (s ^ (s >>> 16)) / 0xFFFFFFFF;
+  return Math.min((s ^ (s >>> 16)) / 0xFFFFFFFF, 0.9999999);
 }
 
 // ── ITEM POOL ──
@@ -5427,9 +5427,10 @@ function renderMerchantPage(seedOverride) {
     const j = Math.floor(seededRand(seed, i + 7) * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  const slots = pool.slice(0, 4);
+  const slots = pool.slice(0, 4).filter(item => item !== undefined && item.id !== undefined);
 
   const grid = document.getElementById('merchant-main-grid');
+  if (!grid) return;
   grid.innerHTML = slots.map((item, i) => {
     const stockKey = item.id + '_' + seed;
     if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = 3;
