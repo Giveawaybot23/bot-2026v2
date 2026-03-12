@@ -521,6 +521,30 @@
   .reveal { opacity: 0; transform: translateY(20px); transition: all 0.6s ease; }
   .reveal.visible { opacity: 1; transform: translateY(0); }
 
+  /* ── RAINBOW TAG ── */
+  @keyframes rainbowShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .rainbow-name {
+    background: linear-gradient(90deg, #ff0080, #ff8c00, #ffe000, #40ff00, #00cfff, #a855f7, #ff0080);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: rainbowShift 3s ease infinite;
+    font-weight: 700;
+  }
+
+  /* ── BOOSTED MARKET LISTING ── */
+  .market-card.boosted { box-shadow: 0 0 0 2px #00BCD4, 0 8px 24px rgba(0,188,212,0.18); }
+  .market-boost-badge {
+    position: absolute; top: 10px; left: 10px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    background: #00BCD4; color: #fff; padding: 2px 7px; border-radius: 100px;
+  }
+
   /* ── TRADE WAITING DOTS ── */
   @keyframes tradeWaitingFadeIn {
     from { opacity:0; transform:translateY(10px) scale(0.97); }
@@ -2198,8 +2222,16 @@ function pkBurst(x,y,color,count=24){
         <div class="merchant-hero-text">
           <div class="merchant-hero-eyebrow">NPC Shop · Garden Horizons</div>
           <h1 class="merchant-hero-title">Guildwald's <em>Emporium</em></h1>
-          <div class="merchant-refresh-badge">
-            New stock in: <strong id="merchant-countdown">—</strong>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div class="merchant-refresh-badge">
+              New stock in: <strong id="merchant-countdown">—</strong>
+            </div>
+            <button id="merchant-restock-btn" onclick="merchantAdminRestock()"
+              style="display:none;align-items:center;gap:6px;padding:7px 16px;border-radius:100px;border:1.5px solid rgba(229,57,53,0.35);background:rgba(229,57,53,0.1);color:#e53935;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s"
+              onmouseover="this.style.background='rgba(229,57,53,0.2)'"
+              onmouseout="this.style.background='rgba(229,57,53,0.1)'">
+              🔄 Restock
+            </button>
           </div>
         </div>
       </div>
@@ -2390,7 +2422,7 @@ function switchLBTab(btn, contentId) {
 // ── SCROLL REVEAL ──
 function triggerReveal() {
   setTimeout(() => {
-    document.querySelectorAll('.reveal').forEach((el, i) => {
+    document.querySelectorAll('.reveal:not(.visible)').forEach((el, i) => {
       setTimeout(() => el.classList.add('visible'), i * 60);
     });
   }, 50);
@@ -2409,41 +2441,41 @@ window._cachedLB = lb;
    // Garden
 const gardenTop = lb.garden[0]?.score || 1;
 const gardenHTML = lb.garden.map((e,i) =>
-  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId)
+  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag)
 ).join('');
 document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
   const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
-  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId);
+  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag);
 }).join('');
 document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
     // Level
     const levelTop = lb.level[0]?.xp || 1;
     const levelHTML = lb.level.map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-level-mini').innerHTML = lb.level.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-level-full').innerHTML = levelHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
     // Race
     const raceTop = lb.race[0]?.bestTime || 1;
     const raceHTML = lb.race.map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId)
+      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-race-mini').innerHTML = lb.race.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId)
+      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-race-full').innerHTML = raceHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No race times yet</div>';
 
     // Daily claims
     const dailyTop = lb.daily[0]?.count || 1;
     const dailyHTML = lb.daily.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-daily-mini').innerHTML = lb.daily.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-claims-daily').innerHTML = dailyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
 
@@ -2451,7 +2483,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
     const weekly = lb.weeklyClaims || lb.weekly || [];
     const weeklyTop = weekly[0]?.count || 1;
     const weeklyHTML = weekly.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId)
+      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId, e.rainbowTag)
     ).join('');
     document.getElementById('lb-claims-weekly').innerHTML = weeklyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No weekly data yet</div>';
 
@@ -3110,16 +3142,17 @@ ${isPodium ? `
   } catch(err) { console.error('[loadProfile]', err); }
 }
 
-function renderLBEntry(left, right, rightSub, pct, i, userId) {
+function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag) {
   const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const rankIcon  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
   const clickable = userId ? `onclick="loadProfile('${userId}')" style="cursor:pointer"` : '';
   const avId = userId ? `lb-av-${userId}` : `lb-av-${left}`;
+  const nameHtml = rainbowTag ? `<span class="rainbow-name">${left}</span>` : left;
   return `<div class="lb-entry">
     <div class="lb-rank ${rankClass}">${rankIcon}</div>
     <div class="lb-avatar" id="${avId}" ${clickable} style="overflow:hidden;padding:0;${userId?'cursor:pointer':''}"></div>
     <div class="lb-user" ${clickable}>
-      <div class="lb-username" style="${userId?'text-decoration:underline dotted;text-underline-offset:3px;':''}">${left}</div>
+      <div class="lb-username" style="${userId?'text-decoration:underline dotted;text-underline-offset:3px;':''}">${nameHtml}</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
@@ -3203,7 +3236,8 @@ function renderMarket() {
   }
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
-    return `<div class="market-card" data-rarity="${item.rarity}">
+    return `<div class="market-card${item.boosted ? ' boosted' : ''}" data-rarity="${item.rarity}" style="position:relative">
+      ${item.boosted ? `<div class="market-boost-badge">📌 Boosted</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
         ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
@@ -3259,6 +3293,13 @@ async function initAuth() {
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
       loadNavCoins(data.user.id);
+      // Check admin status (Manage Guild permission in Discord server)
+      fetch('/api/merchant/is-admin', { credentials: 'include' })
+        .then(r => r.json()).then(d => {
+          window._isAdmin = d.isAdmin === true;
+          const btn = document.getElementById('merchant-restock-btn');
+          if (btn) btn.style.display = window._isAdmin ? 'inline-flex' : 'none';
+        }).catch(() => { window._isAdmin = false; });
     } else {
       el.innerHTML = '<a href="/auth/discord" style="display:inline-flex;align-items:center;gap:8px;background:#5865F2;color:white;font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;text-decoration:none">Login with Discord</a>';
     }
@@ -5285,24 +5326,16 @@ const MERCHANT_POOL = [
     desc:'10× higher chance of a low-version (v1–v5) on your next drop.' },
   { id:'vault_pass',    icon:'🔐', name:'Vault Pass',           tag:'Utility', tagColor:'#9c27b0', price:700,
     desc:'Unlocks 5 extra vault lock slots for the week.' },
-
-  // ── Placeholder ideas (not yet implemented — uncomment & flesh out when ready) ──
-  // { id:'rename_token',    icon:'✏️', name:'Rename Token',        tag:'Cosmetic', tagColor:'#FF6B6B', price:3000,
-  //   desc:'Lets you rename one plant in your collection once.' },
-  // { id:'seed_rare',       icon:'🌸', name:'Rare Seed Pack',      tag:'Rare',     tagColor:'#2196F3', price:1500,
-  //   desc:'Guaranteed Rare plant drop from the game pool.' },
-  // { id:'mystery_box',     icon:'📦', name:'Mystery Box',         tag:'Gamble',   tagColor:'#FFD700', price:1000,
-  //   desc:'Could be anything. Could be great. Could be a Common.' },
-  // { id:'plant_dye',       icon:'🎨', name:'Plant Dye',           tag:'Cosmetic', tagColor:'#FF6B6B', price:2000,
-  //   desc:'Change the display colour tag on any one plant you own.' },
-  // { id:'trade_shield',    icon:'🛡️', name:'Trade Shield',        tag:'Passive',  tagColor:'#52b788', price:4000,
-  //   desc:'Flags unbalanced trade offers before you confirm.' },
-  // { id:'coin_interest',   icon:'💰', name:'Coin Interest',       tag:'Passive',  tagColor:'#c9a84c', price:10000,
-  //   desc:'Earn 1% daily interest on your balance (cap: 50k coins). One-time.' },
-  // { id:'rainbow_tag',     icon:'🌈', name:'Rainbow Nametag',     tag:'Cosmetic', tagColor:'#FF6B6B', price:6000,
-  //   desc:'Your username shimmers with a rainbow gradient. Pure flex. One-time.' },
-  // { id:'drop_perm',       icon:'🌠', name:'Permanent Drop Buff', tag:'Passive',  tagColor:'#c9a84c', price:8000,
-  //   desc:'+5% permanent drop rate stacked on your account.' },
+  { id:'mystery_box',   icon:'📦', name:'Mystery Box',          tag:'Gamble',  tagColor:'#FFD700', price:1000,
+    desc:"A mystery item from the shop — could be anything. Could be great. Could be... a Reroll Ticket." },
+  { id:'rainbow_tag',   icon:'🌈', name:'Rainbow Nametag',      tag:'Cosmetic',tagColor:'#FF6B6B', price:6000,
+    desc:'Your username shimmers with a rainbow gradient on all leaderboards for 7 days. Pure flex.' },
+  { id:'sprint_boost',  icon:'🏃', name:'Sprint Boost',         tag:'Boost',   tagColor:'#FF9800', price:3000,
+    desc:'Every plant you claim counts twice toward the daily & weekly leaderboard for 1 hour.' },
+  { id:'listing_boost', icon:'📌', name:'Listing Boost',        tag:'Market',  tagColor:'#00BCD4', price:2000,
+    desc:'All your market listings are pinned to the top of the market feed for 24 hours.' },
+  { id:'price_alert',   icon:'🔔', name:'Price Alert',          tag:'Market',  tagColor:'#00BCD4', price:500,
+    desc:'Set a rarity + max price. Get a Discord DM the moment a matching plant is listed. Up to 5 active alerts.' },
 ];
 
 // ── STATE ──
@@ -5325,8 +5358,8 @@ function saveMerchantState() {
 }
 
 // ── RENDER ──
-function renderMerchantPage() {
-  const seed = dailySeed();
+function renderMerchantPage(seedOverride) {
+  const seed = seedOverride !== undefined ? seedOverride : (window._merchantRestockOverride !== undefined ? window._merchantRestockOverride : dailySeed());
 
   // Shuffle pool and pick 4 for this 30-min window
   const pool = [...MERCHANT_POOL];
@@ -5366,7 +5399,12 @@ function renderMerchantPage() {
   if (window._merchantCountdownInterval) clearInterval(window._merchantCountdownInterval);
   window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
 
-  triggerReveal();
+  // Trigger reveal after a short delay to ensure DOM is painted
+  setTimeout(() => {
+    document.querySelectorAll('#merchant-main-grid .reveal').forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 70);
+    });
+  }, 60);
 }
 
 function updateMerchantCountdown() {
@@ -5383,6 +5421,35 @@ function updateMerchantCountdown() {
     clearInterval(window._merchantCountdownInterval);
     window._merchantCountdownInterval = null;
     setTimeout(renderMerchantPage, 1000);
+  }
+}
+
+// ── ADMIN: FORCE RESTOCK ──
+async function merchantAdminRestock() {
+  if (!window._isAdmin) { showToast('No permission.', true); return; }
+  const btn = document.getElementById('merchant-restock-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Restocking…'; }
+  try {
+    const res = await fetch('/api/merchant/restock', { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Restock failed.', true);
+      return;
+    }
+    // Override the local seed with the server-provided restock token so the
+    // merchant renders a fresh set of items regardless of the 30-min window.
+    window._merchantRestockOverride = data.restockToken;
+    // Clear cached stock so all 4 slots start at 3/3 again
+    localStorage.removeItem('merchant_stock');
+    localStorage.removeItem('merchant_purchased');
+    Object.keys(_merchantStockLeft).forEach(k => delete _merchantStockLeft[k]);
+    Object.keys(_merchantPurchased).forEach(k => delete _merchantPurchased[k]);
+    renderMerchantPage(data.restockToken);
+    showToast('✅ Merchant restocked!');
+  } catch (e) {
+    showToast('Network error — try again.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Restock'; btn.style.display = 'inline-flex'; }
   }
 }
 
@@ -5428,7 +5495,19 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
         // Update coin display
         if (data.newBalance !== undefined) updateNavCoins(data.newBalance);
         closeMerchantModal();
-        showToast(`✅ Purchased ${name}!`);
+
+        // Mystery Box — reveal what was won
+        if (itemId === 'mystery_box' && data.wonItemId) {
+          const wonName = data.wonItemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
+        }
+        // Price Alert — show setup modal
+        else if (itemId === 'price_alert') {
+          openPriceAlertSetupModal();
+        }
+        else {
+          showToast(`✅ Purchased ${name}!`);
+        }
         // Refresh the page to update stock
         renderMerchantPage();
       } catch(e) {
@@ -5486,6 +5565,105 @@ function closeMerchantModal() {
 
 function showMerchantError(msg) {
   showToast(msg, true);
+}
+
+// ── PRICE ALERT SETUP MODAL ──────────────────────────────────────────────────
+
+async function openPriceAlertSetupModal() {
+  // Fetch current alerts
+  let existingAlerts = [];
+  try {
+    const r = await fetch('/api/merchant/price-alert', { credentials: 'include' });
+    if (r.ok) existingAlerts = await r.json();
+  } catch {}
+
+  const overlay = document.createElement('div');
+  overlay.className = 'merchant-modal-overlay';
+  overlay.id = 'price-alert-modal';
+
+  const alertRows = existingAlerts.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--bg2);border-radius:10px;border:1px solid var(--border);margin-bottom:8px">
+      <span style="font-size:13px;color:var(--ink)">
+        ${a.rarity ? `<strong>${a.rarity}</strong>` : 'Any rarity'} under <strong>${a.maxPrice.toLocaleString()} coins</strong>
+      </span>
+      <button onclick="deletePriceAlert('${a.id}')" style="font-size:11px;font-weight:600;color:#e53935;background:rgba(229,57,53,0.1);border:1px solid rgba(229,57,53,0.3);border-radius:6px;padding:3px 10px;cursor:pointer">Remove</button>
+    </div>`).join('') || '<div style="font-size:13px;color:var(--ink3);text-align:center;padding:8px 0">No active alerts</div>';
+
+  overlay.innerHTML = `
+    <div class="merchant-modal" style="max-width:400px">
+      <div class="merchant-modal-icon">🔔</div>
+      <div class="merchant-modal-title">Set Up Price Alert</div>
+      <div class="merchant-modal-desc">Get a Discord DM when a plant matching your criteria is listed on the market.</div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--ink3);margin-bottom:5px;display:block">RARITY (optional)</label>
+          <select id="pa-rarity" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13px">
+            <option value="">Any Rarity</option>
+            <option value="Epic">Epic</option>
+            <option value="Legendary">Legendary</option>
+            <option value="Mythic">Mythic</option>
+            <option value="Secret">Secret</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--ink3);margin-bottom:5px;display:block">MAX PRICE (coins)</label>
+          <input id="pa-price" type="number" min="1" placeholder="e.g. 50000" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);color:var(--ink);font-family:inherit;font-size:13px;box-sizing:border-box">
+        </div>
+      </div>
+
+      <div class="merchant-modal-error" id="pa-error"></div>
+
+      <button onclick="submitPriceAlert()" style="width:100%;padding:12px;border-radius:100px;border:none;background:var(--green);color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:16px">
+        Add Alert
+      </button>
+
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--ink3);text-transform:uppercase;margin-bottom:8px">Active Alerts (${existingAlerts.length}/5)</div>
+        <div id="pa-alerts-list">${alertRows}</div>
+      </div>
+
+      <button onclick="document.getElementById('price-alert-modal')?.remove()" style="width:100%;padding:11px;border-radius:100px;border:1.5px solid var(--border);background:transparent;font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit">
+        Done
+      </button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function submitPriceAlert() {
+  const rarity   = document.getElementById('pa-rarity')?.value || '';
+  const maxPrice = parseInt(document.getElementById('pa-price')?.value);
+  const errEl    = document.getElementById('pa-error');
+  errEl.style.display = 'none';
+
+  if (!maxPrice || maxPrice <= 0) {
+    errEl.style.display = 'block'; errEl.textContent = 'Enter a valid max price.'; return;
+  }
+  try {
+    const res = await fetch('/api/merchant/price-alert/set', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rarity: rarity || null, maxPrice })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.style.display = 'block'; errEl.textContent = data.error; return; }
+    showToast('🔔 Price alert set!');
+    document.getElementById('price-alert-modal')?.remove();
+  } catch {
+    errEl.style.display = 'block'; errEl.textContent = 'Network error — try again.';
+  }
+}
+
+async function deletePriceAlert(alertId) {
+  try {
+    const res = await fetch(`/api/merchant/price-alert/${alertId}`, { method: 'DELETE', credentials: 'include' });
+    if (res.ok) {
+      showToast('Alert removed.');
+      document.getElementById('price-alert-modal')?.remove();
+    }
+  } catch {}
 }
 
 
