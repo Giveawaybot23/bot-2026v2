@@ -5369,7 +5369,7 @@ if (msg.type === 'leaderboard_update') {
 function dailySeed() {
   const d = new Date();
   // Each 30-min block gets a unique seed: date * 100 + half-hour index
-  const halfHour = Math.floor(d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0));
+  const halfHour = Math.floor(d.getHours() * 240 + Math.floor(d.getMinutes() * 4 + d.getSeconds() / 15));
   return (d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate()) * 100 + halfHour;
 }
 function seededRand(seed, n) {
@@ -5473,8 +5473,8 @@ function updateMerchantCountdown() {
   if (!el) return;
   const now = new Date();
   // Time until the next 30-min boundary
-  const minsLeft = 29 - (now.getMinutes() % 30);
-  const secsLeft = 59 - now.getSeconds();
+  const minsLeft = 0;
+  const secsLeft = 14 - (now.getSeconds() % 15);
   el.textContent = `${String(minsLeft).padStart(2,'0')}:${String(secsLeft).padStart(2,'0')}`;
 
   // When the window flips, re-render
@@ -5559,8 +5559,14 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
 
         // Mystery Box — reveal what was won
         if (itemId === 'mystery_box' && data.wonItemId) {
-          const wonName = data.wonItemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-          showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
+          if (data.reroll) {
+            window._merchantRestockOverride = data.restockToken;
+            renderMerchantPage(data.restockToken);
+            showToast('📦 Mystery Box opened! 🎰 You got a Merchant Reroll — the shop has been refreshed!');
+          } else {
+            const wonName = data.wonName || data.wonItemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
+          }
         }
         // Price Alert — show setup modal
         else if (itemId === 'price_alert') {
