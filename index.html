@@ -4161,8 +4161,21 @@ let _invPageSearch = '';
 
 async function loadInventoryPage() {
   try {
-    const res = await fetch('/api/plants');
-    const plants = await res.json();
+    const [plantsRes, profileRes] = await Promise.all([
+      fetch('/api/plants'),
+      window._loggedInId ? fetch(`/api/profile/${window._loggedInId}`) : Promise.resolve(null)
+    ]);
+
+    const plants = await plantsRes.json();
+    const profile = profileRes ? await profileRes.json() : null;
+
+    // Build a set of secret plant names the user owns
+    window._unlockedSecrets = new Set(
+      (profile?.collection || [])
+        .filter(p => p.rarity === 'Secret')
+        .map(p => p.name)
+    );
+
     const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
     document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
@@ -4197,7 +4210,7 @@ function renderInventoryPage() {
   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>'; return; }
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
-    const isSecret = p.rarity === 'Secret';
+    const isSecret = p.rarity === 'Secret' && !window._unlockedSecrets?.has(p.name);
     if (isSecret) {
       return `
         <div class="market-card" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:hidden">
