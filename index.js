@@ -2493,11 +2493,26 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (!auction) return message.reply('Auction not found.');
       if (Date.now() > auction.endsAt) return message.reply('This auction has ended.');
       if (auction.sellerId === message.author.id) return message.reply("You can't bid on your own auction.");
-      const topBid = auction.bids.length ? auction.bids[auction.bids.length - 1].amount : auction.startPrice;
-      const minBid = topBid + auction.minIncrement;
+      const prevTopBid = auction.bids.length ? auction.bids[auction.bids.length - 1] : null;
+      const topBidAmount = prevTopBid ? prevTopBid.amount : auction.startPrice;
+      const minBid = topBidAmount + auction.minIncrement;
       if (bidAmount < minBid) return message.reply(`❌ Minimum bid is ${fmt(minBid)}.`);
       const db = loadDB(); const user = getUser(db, message.author.id);
       if (user.currency < bidAmount) return message.reply(`❌ You only have ${fmt(user.currency)}.`);
+
+      // Refund the previous top bidder before placing the new bid
+      if (prevTopBid && prevTopBid.userId !== message.author.id) {
+        const prevBidder = getUser(db, prevTopBid.userId);
+        prevBidder.currency += prevTopBid.amount;
+        pushCoinUpdate(prevTopBid.userId, prevBidder.currency);
+      } else if (prevTopBid && prevTopBid.userId === message.author.id) {
+        // Same user raising their own bid — refund their previous bid first
+        user.currency += prevTopBid.amount;
+      }
+
+      // Deduct new bid amount immediately
+      user.currency -= bidAmount;
+
       auction.bids.push({ userId: message.author.id, username: message.author.username, amount: bidAmount, time: Date.now() });
 
       // Soft-close: extend if bid lands near the end
@@ -2520,6 +2535,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveAuctions(auctions);
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
+      pushCoinUpdate(message.author.id, user.currency);
 
       const extendedMsg = extended > 0 ? `\n⏱ Auction extended by **${Math.round(extended/1000)}s**!` : '';
       const newTimeLeft = Math.max(0, auction.endsAt - Date.now());
@@ -4357,34 +4373,7 @@ async function endAuction(auctionId, fallbackChannel) {
   const buyer  = getUser(db, winner.userId);
   const seller = getUser(db, auction.sellerId);
 
-  if (buyer.currency < winner.amount) {
-    // Winner can't pay — find next highest bidder who can
-    let paid = false;
-    for (let i = auction.bids.length - 2; i >= 0; i--) {
-      const fallback = auction.bids[i];
-      const fb = getUser(db, fallback.userId);
-      if (fb.currency >= fallback.amount) {
-        fb.currency -= fallback.amount;
-        seller.currency += fallback.amount;
-        fb.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
-        saveDB(db);
-        const embed = new EmbedBuilder()
-          .setTitle('🔨 Auction Complete')
-          .setDescription(`**${auction.plant.name}** sold to **${fallback.username}** for ${fmt(fallback.amount)}!\n*(Winner couldn't pay — next bidder awarded.)*`)
-          .setColor(rCfg.color);
-        if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
-        paid = true; break;
-      }
-    }
-    if (!paid) {
-      seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
-      saveDB(db);
-      if (fallbackChannel) fallbackChannel.send({ embeds: [new EmbedBuilder().setTitle('🔨 Auction Failed').setDescription(`No valid bidder could pay. **${auction.plant.name}** returned to **${auction.sellerName}**.`).setColor(0x9E9E9E)] }).catch(() => {});
-    }
-    return;
-  }
-
-  buyer.currency -= winner.amount;
+  // Coins were already deducted from the winner at bid time — just pay the seller
   seller.currency += winner.amount;
   buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
@@ -4627,12 +4616,26 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     const db   = loadDB();
     const user = getUser(db, req.user.id);
 
-    const topBid = auction.bids.length ? auction.bids[auction.bids.length - 1].amount : auction.startPrice - 1;
-    const minBid = Math.max(topBid + 1, Math.ceil(topBid * 1.05));
+    const prevTopBid = auction.bids.length ? auction.bids[auction.bids.length - 1] : null;
+    const prevTopAmount = prevTopBid ? prevTopBid.amount : auction.startPrice - 1;
+    const minBid = Math.max(prevTopAmount + 1, Math.ceil(prevTopAmount * 1.05));
     if (bidAmount < minBid) return res.status(400).json({ error: `Minimum bid is ${minBid.toLocaleString()} coins (5% above current)`, minBid });
 
     if (!user || user.currency === undefined) return res.status(400).json({ error: 'Your account was not found. Use the bot first to register.' });
     if (user.currency < bidAmount) return res.status(400).json({ error: `You only have ${user.currency.toLocaleString()} coins`, balance: user.currency });
+
+    // Refund the previous top bidder before placing the new bid
+    if (prevTopBid && prevTopBid.userId !== req.user.id) {
+      const prevBidder = getUser(db, prevTopBid.userId);
+      prevBidder.currency += prevTopBid.amount;
+      pushCoinUpdate(prevTopBid.userId, prevBidder.currency);
+    } else if (prevTopBid && prevTopBid.userId === req.user.id) {
+      // Same user raising their own bid — refund their previous amount first
+      user.currency += prevTopBid.amount;
+    }
+
+    // Deduct new bid amount immediately
+    user.currency -= bidAmount;
 
     // Soft-close extension
     const timeLeft   = auction.endsAt - Date.now();
@@ -4652,6 +4655,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     saveAuctions(auctions);
     touchActivity(db, req.user.id);
     saveDB(db);
+    pushCoinUpdate(req.user.id, user.currency);
 
     // Broadcast live bid update to WebSocket clients in this auction room
     const bidPayload = JSON.stringify({
