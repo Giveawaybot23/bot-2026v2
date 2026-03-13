@@ -5394,11 +5394,11 @@ app.post('/api/merchant/restock', async (req, res) => {
 // Add new item IDs here when you add them to the pool.
 // Placeholder IDs are commented out until implemented.
 const MERCHANT_ITEM_PRICES = {
-  xp_boost: 500,
-  mystery_box: 1000,
-  rainbow_tag: 6000,
-  sprint_boost: 3000,
-  listing_boost: 2000,
+  xp_boost:      17500,
+  mystery_box:    6000,
+  rainbow_tag:   48500,
+  sprint_boost:  25000,
+  listing_boost: 10000,
 };
 
 const MERCHANT_CRATE_POOLS = {
