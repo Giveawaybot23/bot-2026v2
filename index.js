@@ -82,13 +82,16 @@ function saveAutosellRules(r) { fs.writeFileSync(AUTOSELL_FILE, JSON.stringify(r
 function getUserAutosellRules(userId) {
   return loadAutosellRules()[userId] || [];
 }
-function applyAutosellRules(user, userId) {
+function applyAutosellRules(user, userId, newPlants) {
   const rules = getUserAutosellRules(userId);
   if (!rules.length) return 0;
   let totalEarned = 0;
   const toRemove = [];
+  // Only check newly added plants, not the entire collection
   for (let i = user.collection.length - 1; i >= 0; i--) {
     const p = user.collection[i];
+    // Skip if this plant is not in the newPlants list
+    if (newPlants && !newPlants.some(np => np.name === p.name && np.version === p.version)) continue;
     if (isLocked(userId, p)) continue;
     for (const rule of rules) {
       if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
@@ -102,7 +105,6 @@ function applyAutosellRules(user, userId) {
         const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
         if (!passes) continue;
       }
-      // matched a rule
       toRemove.push(i);
       totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
       break;
@@ -546,6 +548,10 @@ function recordClaim(userId, username) {
   saveClaimsLB(lb);
 }
 
+function getClaimsSince(claims, sinceTimestamp) {
+  return claims.filter(t => t >= sinceTimestamp).length;
+}
+
 function getClaimsInWindow(claims, ms) {
   const now = Date.now();
   return claims.filter(t => now - t <= ms).length;
@@ -648,12 +654,8 @@ function generateClaimsLBImage(entries, title, subtitle) {
     // Username
     ctx.textAlign = 'left';
     ctx.font = i < 3 ? 'bold 17px Arial' : '15px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 58, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
-      ctx.fillText(e.username, 58, mid);
-    }
+    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
+    ctx.fillText(e.username, 58, mid);
 
     // Count pill — right side
     const countTxt = `${e.count} claims`;
@@ -1271,19 +1273,6 @@ function drawRowGlow(ctx, y, rowH, W, rank) {
   ctx.fillStyle = rankHex; ctx.fillRect(0, y, 4, rowH); ctx.restore();
 }
 
-function drawRainbowText(ctx, text, x, y) {
-  const colors = ['#ff0000','#ff6600','#ffcc00','#00cc44','#0099ff','#9933ff'];
-  const totalW = ctx.measureText(text).width;
-  const grad = ctx.createLinearGradient(x, y, x + totalW, y);
-  colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c));
-  ctx.save();
-  ctx.fillStyle = grad;
-  ctx.shadowColor = 'rgba(180,100,255,0.4)';
-  ctx.shadowBlur = 6;
-  ctx.fillText(text, x, y);
-  ctx.restore();
-}
-
 function drawLBFooter(ctx, W, H, PADDING, label) {
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, H - PADDING); ctx.lineTo(W, H - PADDING); ctx.stroke();
@@ -1384,13 +1373,9 @@ async function generateInvLBImage(entries) {
 
     // Username
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 130, mid - 8);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
-      ctx.fillText(e.username, 130, mid - 8);
-    }
+    ctx.fillText(e.username, 130, mid - 8);
 
     // Tier name
     ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
@@ -1446,12 +1431,7 @@ async function generateLevelLBImage(entries) {
     if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
     else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
     ctx.font = '18px Arial'; ctx.textAlign = 'left'; ctx.fillText(e.rankEmoji, 54, mid - 1);
-    ctx.font = 'bold 16px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 80, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
-    }
+    ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
     ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#7986CB'; ctx.fillText(`Lv. ${e.level}`, W - 170, mid);
     const barX = W - 120, barW = 90, barH = 8, barY = mid - barH / 2;
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 4); ctx.fill();
@@ -2008,12 +1988,7 @@ function generateMoneyLBImage(entries) {
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
     else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 58, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
-    }
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
     ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#00C853' : 'rgba(255,255,255,0.7)';
     ctx.textAlign = 'right'; ctx.fillText(`${e.currency.toLocaleString()} coins`, W-16, mid); ctx.textAlign = 'left';
     const barX = W-170, barW = 100, barH = 5, barY = mid+10;
@@ -2204,7 +2179,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
       newAch = checkAchievements(user);
       user.claimCooldowns[drop.rarity.name] = Date.now();
-      applyAutosellRules(user, message.author.id);
+      const claimNewPlants = [{ name: drop.plant.name, version }];
+      applyAutosellRules(user, message.author.id, claimNewPlants);
       saveDB(db);
         recordClaim(message.author.id, message.author.username);
       }
@@ -2296,7 +2272,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
-      applyAutosellRules(user, message.author.id);
+      applyAutosellRules(user, message.author.id, addedCratePlants);
       saveDB(db);
     }
     const spoilerLines = addedCratePlants.map(p =>
@@ -2961,7 +2937,7 @@ if (cmd === 'web') {
         let username = `User#${id.slice(-4)}`;
         let avatarURL = null;
         try { const discordUser = await client.users.fetch(id); username = discordUser.username; avatarURL = discordUser.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
-        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL, rainbowTag: !!(u.rainbowTag && u.rainbowTag.expiresAt > Date.now()) };
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL };
       })
     );
     const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
@@ -3069,12 +3045,12 @@ if (cmd === 'web') {
   }
 
   if (cmd === 'dailylb' || cmd === 'dlb') {
-    const lb = loadClaimsLB();
-    const db = loadDB();
-    const now = Date.now();
-    const DAY = 24 * 60 * 60 * 1000;
-    const sorted = lb
-      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, DAY), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
+  const lb = loadClaimsLB();
+  const payoutState = loadPayoutState();
+  const DAY = 24 * 60 * 60 * 1000;
+  const dailyStart = payoutState.dailyEndsAt ? payoutState.dailyEndsAt - DAY : Date.now() - DAY;
+  const sorted = lb
+    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, dailyStart), userId: e.userId }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -3086,11 +3062,11 @@ if (cmd === 'web') {
 
   if (cmd === 'weeklylb' || cmd === 'wlb') {
     const lb = loadClaimsLB();
-    const db = loadDB();
-    const now = Date.now();
-    const WEEK = 167 * 60 * 60 * 1000;
-    const sorted = lb
-      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, WEEK), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
+    const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const payoutState = loadPayoutState();
+  const weeklyStart = payoutState.weeklyEndsAt ? payoutState.weeklyEndsAt - WEEK : Date.now() - WEEK;
+  const sorted = lb
+    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, weeklyStart), userId: e.userId }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -3103,9 +3079,8 @@ if (cmd === 'web') {
   // ── !moneylb / !mlb ───────────────────────────────────────────────────────
   if (cmd === 'moneylb' || cmd === 'mlb') {
     const db = loadDB();
-    const now = Date.now();
     const sorted = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, currency: u.currency||0 })).sort((a,b) => b.currency-a.currency).slice(0, 10);
-    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency, rainbowTag: !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now) }; }));
+    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency }; }));
     const imgBuf = generateMoneyLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'moneylb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://moneylb.png').setFooter({ text: `Top ${entries.length} Richest  ·  !mlb` }).setColor(0x00C853)], files: [att] });
@@ -3576,7 +3551,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }]); saveDB(db);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
@@ -3598,7 +3573,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version }))); saveDB(db);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -3702,7 +3677,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       }
       saveMeta(crateMeta);
       user.cratesOpened = (user.cratesOpened||0) + 1;
-      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id, addedPlants); saveDB(db);
     }
     const spoilerLines = addedPlants.map(p =>
       `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
@@ -5389,8 +5364,8 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
     extraData.wonItemId = won;
 
   } else if (itemId === 'rainbow_tag') {
-    // 4-hour rainbow tag on leaderboard
-    user.rainbowTag = { expiresAt: now + 4 * 60 * 60 * 1000 };
+    // 7-day rainbow tag on leaderboard
+    user.rainbowTag = { expiresAt: now + 7 * 24 * 60 * 60 * 1000 };
 
   } else if (itemId === 'sprint_boost') {
     // 1-hour sprint: claims count double toward leaderboard
