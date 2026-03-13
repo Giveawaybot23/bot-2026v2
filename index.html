@@ -5415,14 +5415,14 @@ if (msg.type === 'leaderboard_update') {
 function dailySeed() {
   const d = new Date();
   // Each 30-min block gets a unique seed: date * 100 + half-hour index
-  const halfHour = Math.floor(d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0));
+  const halfHour = Math.floor(d.getHours() * 240 + Math.floor(d.getMinutes() * 4 + d.getSeconds() / 15));
   return (d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate()) * 100 + halfHour;
 }
 function seededRand(seed, n) {
   let s = seed ^ (n * 2654435761);
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
   s = ((s ^ (s >>> 16)) * 0x45d9f3b) >>> 0;
-  return (s ^ (s >>> 16)) / 0xFFFFFFFF;
+  return Math.min((s ^ (s >>> 16)) / 0xFFFFFFFF, 0.9999999);
 }
 
 // ── ITEM POOL ──
@@ -5430,22 +5430,8 @@ function seededRand(seed, n) {
 // Add new items here as the game grows — they'll automatically rotate in.
 const MERCHANT_POOL = [
   // ── Active items ──
-  { id:'drop_boost',    icon:'⚡', name:'Drop Rate Boost',     tag:'Boost',   tagColor:'#52b788', price:800,
-    desc:'Doubles your plant drop rate for the next 30 minutes.' },
-  { id:'coin_magnet',   icon:'🧲', name:'Coin Magnet',          tag:'Boost',   tagColor:'#52b788', price:600,
-    desc:'Earn +50% more coins from selling plants for the next hour.' },
-  { id:'lucky_clover',  icon:'🍀', name:'Lucky Clover',         tag:'Luck',    tagColor:'#4CAF50', price:1200,
-    desc:'3× mutation chance on your next 5 plant claims.' },
   { id:'xp_boost',      icon:'📚', name:'XP Tome',              tag:'XP',      tagColor:'#2196F3', price:500,
     desc:'+200% XP on all actions for 20 minutes.' },
-  { id:'reroll_ticket', icon:'🎲', name:'Reroll Ticket',        tag:'Utility', tagColor:'#9c27b0', price:1500,
-    desc:'Re-roll your last plant drop for a fresh shot at a better rarity.' },
-  { id:'cooldown_skip', icon:'⏩', name:'Cooldown Skip',        tag:'Utility', tagColor:'#9c27b0', price:2000,
-    desc:'Instantly resets all your active claim cooldowns.' },
-  { id:'version_charm', icon:'💎', name:'Version Charm',        tag:'Rare',    tagColor:'#c9a84c', price:2500,
-    desc:'10× higher chance of a low-version (v1–v5) on your next drop.' },
-  { id:'vault_pass',    icon:'🔐', name:'Vault Pass',           tag:'Utility', tagColor:'#9c27b0', price:700,
-    desc:'Unlocks 5 extra vault lock slots for the week.' },
   { id:'mystery_box',   icon:'📦', name:'Mystery Box',          tag:'Gamble',  tagColor:'#FFD700', price:1000,
     desc:"A mystery item from the shop — could be anything. Could be great. Could be... a Reroll Ticket." },
   { id:'rainbow_tag',   icon:'🌈', name:'Rainbow Nametag',      tag:'Cosmetic',tagColor:'#FF6B6B', price:6000,
@@ -5487,9 +5473,10 @@ function renderMerchantPage(seedOverride) {
     const j = Math.floor(seededRand(seed, i + 7) * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  const slots = pool.slice(0, 4);
+  const slots = pool.slice(0, 4).filter(item => item !== undefined && item.id !== undefined);
 
   const grid = document.getElementById('merchant-main-grid');
+  if (!grid) return;
   grid.innerHTML = slots.map((item, i) => {
     const stockKey = item.id + '_' + seed;
     if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = 3;
@@ -5532,8 +5519,8 @@ function updateMerchantCountdown() {
   if (!el) return;
   const now = new Date();
   // Time until the next 30-min boundary
-  const minsLeft = 29 - (now.getMinutes() % 30);
-  const secsLeft = 59 - now.getSeconds();
+  const minsLeft = 0;
+  const secsLeft = 14 - (now.getSeconds() % 15);
   el.textContent = `${String(minsLeft).padStart(2,'0')}:${String(secsLeft).padStart(2,'0')}`;
 
   // When the window flips, re-render
@@ -5618,8 +5605,14 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
 
         // Mystery Box — reveal what was won
         if (itemId === 'mystery_box' && data.wonItemId) {
-          const wonName = data.wonItemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-          showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
+          if (data.reroll) {
+            window._merchantRestockOverride = data.restockToken;
+            renderMerchantPage(data.restockToken);
+            showToast('📦 Mystery Box opened! 🎰 You got a Merchant Reroll — the shop has been refreshed!');
+          } else {
+            const wonName = data.wonName || data.wonItemId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
+          }
         }
         // Price Alert — show setup modal
         else if (itemId === 'price_alert') {
