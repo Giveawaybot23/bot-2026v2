@@ -5790,15 +5790,13 @@ async function deletePriceAlert(alertId) {
 <script>
 // ── ELECTRIC BORDER ENGINE ──────────────────────────────────────────────────
 (function() {
-  const COLOR = '#9c5fff';
   const SPEED = 1.2;
-  const CHAOS = 0.18;
-  const BORDER_OFFSET = 14;
-  const DISPLACEMENT = 17;
+  const DISPLACEMENT = 14;
   const OCTAVES = 8;
   const LACUNARITY = 1.6;
   const GAIN = 0.7;
   const FREQUENCY = 10;
+  const CHAOS = 0.18;
 
   function rand(x) { return ((Math.sin(x * 12.9898) * 43758.5453) % 1 + 1) % 1; }
 
@@ -5821,116 +5819,134 @@ async function deletePriceAlert(alertId) {
     return y;
   }
 
-  function cornerPt(cx, cy, r, start, arc, t) {
-    const a = start + t * arc;
-    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
-  }
-
   function getRRPoint(t, left, top, w, h, r) {
     const sw = w - 2*r, sh = h - 2*r, ca = Math.PI*r/2;
     const perim = 2*sw + 2*sh + 4*ca;
-    let d = t * perim, acc = 0;
-    if (d <= acc+sw) return { x: left+r+(d-acc)/sw*sw, y: top };
+    let d = ((t % 1) + 1) % 1 * perim, acc = 0;
+    const cp = (cx, cy, startA, arcA, p) => ({
+      x: cx + r * Math.cos(startA + p * arcA),
+      y: cy + r * Math.sin(startA + p * arcA)
+    });
+    if (d <= acc+sw) return { x: left+r+(d-acc), y: top };
     acc += sw;
-    if (d <= acc+ca) return cornerPt(left+w-r, top+r, r, -Math.PI/2, Math.PI/2, (d-acc)/ca);
+    if (d <= acc+ca) return cp(left+w-r, top+r, -Math.PI/2, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (d <= acc+sh) return { x: left+w, y: top+r+(d-acc)/sh*sh };
+    if (d <= acc+sh) return { x: left+w, y: top+r+(d-acc) };
     acc += sh;
-    if (d <= acc+ca) return cornerPt(left+w-r, top+h-r, r, 0, Math.PI/2, (d-acc)/ca);
+    if (d <= acc+ca) return cp(left+w-r, top+h-r, 0, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (d <= acc+sw) return { x: left+w-r-(d-acc)/sw*sw, y: top+h };
+    if (d <= acc+sw) return { x: left+w-r-(d-acc), y: top+h };
     acc += sw;
-    if (d <= acc+ca) return cornerPt(left+r, top+h-r, r, Math.PI/2, Math.PI/2, (d-acc)/ca);
+    if (d <= acc+ca) return cp(left+r, top+h-r, Math.PI/2, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (d <= acc+sh) return { x: left, y: top+h-r-(d-acc)/sh*sh };
+    if (d <= acc+sh) return { x: left, y: top+h-r-(d-acc) };
     acc += sh;
-    return cornerPt(left+r, top+r, r, Math.PI, Math.PI/2, (d-acc)/ca);
+    return cp(left+r, top+r, Math.PI, Math.PI/2, (d-acc)/ca);
   }
 
   function initElectricBorder(container) {
     if (container._ebInit) return;
     container._ebInit = true;
 
-    // Canvas lives on body, positioned over the container
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;';
-    document.body.appendChild(canvas);
+    canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;width:100%;height:100%;border-radius:inherit;';
+    // Container must be position:relative for absolute canvas to work
+    const cs = getComputedStyle(container);
+    if (cs.position === 'static') container.style.position = 'relative';
+    container.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
     let timeRef = 0, lastFrame = performance.now(), raf;
-    const borderRadius = 18;
 
     function draw(now) {
-      const dt = (now - lastFrame) / 1000;
+      const dt = Math.min((now - lastFrame) / 1000, 0.05);
       timeRef += dt * SPEED;
       lastFrame = now;
 
-      const rect = container.getBoundingClientRect();
-      if (rect.width === 0) { raf = requestAnimationFrame(draw); return; }
-
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const cw = rect.width + BORDER_OFFSET * 2;
-      const ch = rect.height + BORDER_OFFSET * 2;
+      const w = container.offsetWidth;
+      const h = container.offsetHeight;
 
-      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
-        canvas.width = Math.round(cw * dpr);
-        canvas.height = Math.round(ch * dpr);
-        canvas.style.width = cw + 'px';
-        canvas.style.height = ch + 'px';
+      if (w === 0 || h === 0) { raf = requestAnimationFrame(draw); return; }
+
+      const pw = Math.round(w * dpr);
+      const ph = Math.round(h * dpr);
+      if (canvas.width !== pw || canvas.height !== ph) {
+        canvas.width = pw;
+        canvas.height = ph;
       }
-
-      canvas.style.left = (rect.left - BORDER_OFFSET) + 'px';
-      canvas.style.top  = (rect.top  - BORDER_OFFSET + window.scrollY) + 'px';
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, cw, ch);
+      ctx.clearRect(0, 0, w, h);
 
-      const left = BORDER_OFFSET, top = BORDER_OFFSET;
-      const bw = rect.width, bh = rect.height;
-      const maxR = Math.min(bw, bh) / 2;
-      const r = Math.min(borderRadius, maxR);
+      // Inset slightly so the glow doesn't clip at the container edge
+      const pad = 3;
+      const left = pad, top = pad, bw = w - pad*2, bh = h - pad*2;
+      const cs2 = getComputedStyle(container);
+      const rawR = parseFloat(cs2.borderRadius) || 14;
+      const r = Math.min(rawR, bw/2, bh/2);
       const perim = 2*(bw+bh) + 2*Math.PI*r;
-      const samples = Math.floor(perim / 1.5);
+      const samples = Math.max(80, Math.floor(perim / 1.2));
 
-      // Outer glow pass
-      ctx.strokeStyle = 'rgba(156,95,255,0.35)';
-      ctx.lineWidth = 6;
+      // Build displaced path
+      const pts = [];
+      for (let i = 0; i <= samples; i++) {
+        const p = i / samples;
+        const pt = getRRPoint(p, left, top, bw, bh, r);
+        const nx = octNoise(p * 8, timeRef, 0);
+        const ny = octNoise(p * 8, timeRef, 1);
+        // Normal direction: approximate outward normal from center
+        const cx2 = left + bw/2, cy2 = top + bh/2;
+        const dx = pt.x - cx2, dy = pt.y - cy2;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+        const disp = (nx + ny) * DISPLACEMENT;
+        pts.push({ x: pt.x + (dx/len) * disp, y: pt.y + (dy/len) * disp });
+      }
+
+      // Outer wide glow
+      ctx.save();
+      ctx.strokeStyle = 'rgba(156,95,255,0.25)';
+      ctx.lineWidth = 10;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.filter = 'blur(4px)';
+      ctx.filter = 'blur(6px)';
       ctx.beginPath();
-      for (let i = 0; i <= samples; i++) {
-        const p = i / samples;
-        const pt = getRRPoint(p, left, top, bw, bh, r);
-        const xn = octNoise(p * 8, timeRef, 0) * DISPLACEMENT;
-        const yn = octNoise(p * 8, timeRef, 1) * DISPLACEMENT;
-        if (i === 0) ctx.moveTo(pt.x + xn, pt.y + yn);
-        else ctx.lineTo(pt.x + xn, pt.y + yn);
-      }
+      pts.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
       ctx.closePath();
       ctx.stroke();
+      ctx.restore();
 
-      // Core bright pass
-      ctx.strokeStyle = '#c89fff';
-      ctx.lineWidth = 1.5;
+      // Mid glow
+      ctx.save();
+      ctx.strokeStyle = 'rgba(180,120,255,0.55)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.filter = 'blur(2px)';
+      ctx.beginPath();
+      pts.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+
+      // Core bright line
+      ctx.save();
+      ctx.strokeStyle = '#e0c8ff';
+      ctx.lineWidth = 1.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.filter = 'none';
       ctx.beginPath();
-      for (let i = 0; i <= samples; i++) {
-        const p = i / samples;
-        const pt = getRRPoint(p, left, top, bw, bh, r);
-        const xn = octNoise(p * 8, timeRef, 0) * DISPLACEMENT;
-        const yn = octNoise(p * 8, timeRef, 1) * DISPLACEMENT;
-        if (i === 0) ctx.moveTo(pt.x + xn, pt.y + yn);
-        else ctx.lineTo(pt.x + xn, pt.y + yn);
-      }
+      pts.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
       ctx.closePath();
       ctx.stroke();
+      ctx.restore();
 
       raf = requestAnimationFrame(draw);
     }
 
     raf = requestAnimationFrame(draw);
-    container._ebCleanup = () => { cancelAnimationFrame(raf); canvas.remove(); };
+    container._ebCleanup = () => { cancelAnimationFrame(raf); canvas.remove(); container._ebInit = false; };
   }
 
   function applyToAll() {
