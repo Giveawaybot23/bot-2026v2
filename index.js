@@ -118,36 +118,6 @@ function applyAutosellRules(user, userId, newPlants) {
   user.currency += totalEarned;
   return totalEarned;
 }
-  const rules = getUserAutosellRules(userId);
-  if (!rules.length) return 0;
-  let totalEarned = 0;
-  const toRemove = [];
-  // Only check newly added plants, not the entire collection
-  for (let i = user.collection.length - 1; i >= 0; i--) {
-    const p = user.collection[i];
-    // Skip if this plant is not in the newPlants list
-    if (newPlants && !newPlants.some(np => np.name === p.name && np.version === p.version)) continue;
-    if (isLocked(userId, p)) continue;
-    for (const rule of rules) {
-      if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
-      if (rule.mutation === 'none' && p.mutation) continue;
-      if (rule.mutation && rule.mutation !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== rule.mutation.toLowerCase())) continue;
-      if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
-      if (rule.version_op && rule.version_n !== undefined) {
-        const v = p.version || 0;
-        const n = rule.version_n;
-        const op = rule.version_op;
-        const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
-        if (!passes) continue;
-      }
-      toRemove.push(i);
-      totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
-      break;
-    }
-  }
-  for (const idx of toRemove) user.collection.splice(idx, 1);
-  user.currency += totalEarned;
-  return totalEarned;
 
 function loadTrades() {
   if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
