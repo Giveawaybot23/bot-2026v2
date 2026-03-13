@@ -1360,17 +1360,22 @@
   <div class="nav-links">
     <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
     <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
-    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Collection</a>
-    <div class="nav-dropdown-wrap" id="nav-shop-wrap">
-      <a class="nav-dropdown-trigger" id="nav-shop">Shop ▾</a>
+    <div class="nav-dropdown-wrap" id="nav-market-wrap">
+      <a class="nav-dropdown-trigger" id="nav-market-trigger">Market ▾</a>
       <div class="nav-dropdown">
-        <a onclick="showPage('market')" class="nav-dropdown-item">🛒 Market</a>
-        <a onclick="showPage('packs')" class="nav-dropdown-item">📦 Pack Opening</a>
-        <a onclick="showPage('auctions')" class="nav-dropdown-item">🔨 Auctions</a>
-        <a onclick="showPage('trade')" class="nav-dropdown-item" id="nav-trade">🔄 Trade</a>
+        <a onclick="showPage('market')" class="nav-dropdown-item" id="nav-market">🛒 Browse</a>
+        <a onclick="showPage('auctions')" class="nav-dropdown-item" id="nav-auctions">🔨 Auctions</a>
+      </div>
+    </div>
+    <div class="nav-dropdown-wrap" id="nav-play-wrap">
+      <a class="nav-dropdown-trigger" id="nav-play-trigger">Play ▾</a>
+      <div class="nav-dropdown">
+        <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Pack Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
+    <a onclick="showPage('trade')" id="nav-trade">Trade</a>
+    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Collection</a>
   </div>
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
@@ -2481,19 +2486,24 @@ async function loadMarketHighlights() {
   }
 }
 
-  // Nav dropdown toggle — hover only
-document.getElementById('nav-shop-wrap').addEventListener('mouseenter', function() {
-  this.classList.add('open');
-});
-document.getElementById('nav-shop-wrap').addEventListener('mouseleave', function() {
-  this.classList.remove('open');
-});
-document.getElementById('nav-shop').addEventListener('click', function(e) {
-  e.stopPropagation();
-  document.getElementById('nav-shop-wrap').classList.toggle('open');
-});
+  // Nav dropdown toggles
+function initNavDropdown(wrapperId, triggerId) {
+  const wrap = document.getElementById(wrapperId);
+  const trigger = document.getElementById(triggerId);
+  if (!wrap || !trigger) return;
+  wrap.addEventListener('mouseenter', () => wrap.classList.add('open'));
+  wrap.addEventListener('mouseleave', () => wrap.classList.remove('open'));
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    // Close the other dropdown first
+    document.querySelectorAll('.nav-dropdown-wrap').forEach(w => { if (w !== wrap) w.classList.remove('open'); });
+    wrap.classList.toggle('open');
+  });
+}
+initNavDropdown('nav-market-wrap', 'nav-market-trigger');
+initNavDropdown('nav-play-wrap',   'nav-play-trigger');
 document.addEventListener('click', function() {
-  document.getElementById('nav-shop-wrap').classList.remove('open');
+  document.querySelectorAll('.nav-dropdown-wrap').forEach(w => w.classList.remove('open'));
 });
 
 // ── PAGE ROUTING ──
@@ -2514,12 +2524,18 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'inventory') loadInventoryPage();
   if (name === 'trade') loadTradePage();
   if (name === 'merchant') { renderMerchantPage(); loadBoostStatus(); }
-  if (name === 'market' || name === 'auctions' || name === 'auction-detail' || name === 'trade' || name === 'merchant' || name === 'packs') {
-    document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
+  if (name === 'market' || name === 'auctions' || name === 'auction-detail') {
+    document.getElementById('nav-market-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
-    document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
+    document.getElementById('nav-market-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
   }
-  document.getElementById('nav-shop-wrap')?.classList.remove('open');
+  if (name === 'packs' || name === 'merchant') {
+    document.getElementById('nav-play-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
+  } else {
+    document.getElementById('nav-play-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
+  }
+  document.getElementById('nav-market-wrap')?.classList.remove('open');
+  document.getElementById('nav-play-wrap')?.classList.remove('open');
   window.scrollTo(0,0);
   triggerReveal();
   // Update URL hash so refresh restores this page
