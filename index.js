@@ -654,8 +654,12 @@ function generateClaimsLBImage(entries, title, subtitle) {
     // Username
     ctx.textAlign = 'left';
     ctx.font = i < 3 ? 'bold 17px Arial' : '15px Arial';
-    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
-    ctx.fillText(e.username, 58, mid);
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 58, mid);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
+      ctx.fillText(e.username, 58, mid);
+    }
 
     // Count pill — right side
     const countTxt = `${e.count} claims`;
@@ -1387,9 +1391,13 @@ async function generateInvLBImage(entries) {
 
     // Username
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
-    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(e.username, 130, mid - 8);
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
 
     // Tier name
     ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
@@ -2963,7 +2971,7 @@ if (cmd === 'web') {
         let username = `User#${id.slice(-4)}`;
         let avatarURL = null;
         try { const discordUser = await client.users.fetch(id); username = discordUser.username; avatarURL = discordUser.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
-        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL };
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL, rainbowTag: !!(u.rainbowTag && u.rainbowTag.expiresAt > Date.now()) };
       })
     );
     const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
@@ -3074,11 +3082,13 @@ if (cmd === 'web') {
 
   if (cmd === 'dailylb' || cmd === 'dlb') {
   const lb = loadClaimsLB();
+  const db = loadDB();
+  const now = Date.now();
   const payoutState = loadPayoutState();
   const DAY = 24 * 60 * 60 * 1000;
   const dailyStart = payoutState.dailyEndsAt ? payoutState.dailyEndsAt - DAY : Date.now() - DAY;
   const sorted = lb
-    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, dailyStart), userId: e.userId }))
+    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, dailyStart), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -3090,11 +3100,13 @@ if (cmd === 'web') {
 
   if (cmd === 'weeklylb' || cmd === 'wlb') {
     const lb = loadClaimsLB();
+    const db = loadDB();
+    const now = Date.now();
     const WEEK = 7 * 24 * 60 * 60 * 1000;
   const payoutState = loadPayoutState();
   const weeklyStart = payoutState.weeklyEndsAt ? payoutState.weeklyEndsAt - WEEK : Date.now() - WEEK;
   const sorted = lb
-    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, weeklyStart), userId: e.userId }))
+    .map(e => ({ username: e.username, count: getClaimsSince(e.claims, weeklyStart), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
