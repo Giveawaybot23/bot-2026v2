@@ -5204,18 +5204,63 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     const tUser = db[trade.targetId];
     const iSide = trade.sides[trade.initiatorId];
     const tSide = trade.sides[trade.targetId];
+
+    // Helper to fail the trade cleanly, resetting confirmed state so neither
+    // side is stuck, and never touching collections or balances.
+    const failTrade = (reason) => {
+      trade.status = 'failed';
+      trade.failReason = reason;
+      iSide.confirmed = false;
+      tSide.confirmed = false;
+      saveTrades(webTrades);
+      return res.status(400).json({ error: reason });
+    };
+
+    // ── Phase 1: validate everything against the fresh DB before any mutation ──
+
+    // Re-validate coin balances now, not just at offer time. A user could have
+    // spent coins between offering and confirming, which would drive currency
+    // negative without this check.
+    if (iSide.coins > 0 && (iUser.currency || 0) < iSide.coins)
+      return failTrade(`${trade.initiatorName} no longer has enough coins (offered ${iSide.coins}, has ${iUser.currency || 0})`);
+    if (tSide.coins > 0 && (tUser.currency || 0) < tSide.coins)
+      return failTrade(`${trade.targetName} no longer has enough coins (offered ${tSide.coins}, has ${tUser.currency || 0})`);
+
+    // Re-validate plant ownership for both sides up-front. We only look up
+    // indices here — nothing is mutated yet. This prevents partial execution
+    // where one side's plants are removed before the other side's check fails.
+    const iPlantIndices = [];
     for (const p of iSide.plants) {
       const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) { trade.status = 'failed'; trade.failReason = `${trade.initiatorName} no longer has ${p.name} v${p.version}`; saveTrades(webTrades); return res.status(400).json({ error: trade.failReason }); }
-      iUser.collection.splice(idx, 1); tUser.collection.push({ ...p, claimedAt: new Date().toISOString() }); recordTrade(p.name);
+      if (idx === -1) return failTrade(`${trade.initiatorName} no longer has ${p.name} v${p.version}`);
+      iPlantIndices.push(idx);
     }
+    const tPlantIndices = [];
     for (const p of tSide.plants) {
       const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) { trade.status = 'failed'; trade.failReason = `${trade.targetName} no longer has ${p.name} v${p.version}`; saveTrades(webTrades); return res.status(400).json({ error: trade.failReason }); }
-      tUser.collection.splice(idx, 1); iUser.collection.push({ ...p, claimedAt: new Date().toISOString() }); recordTrade(p.name);
+      if (idx === -1) return failTrade(`${trade.targetName} no longer has ${p.name} v${p.version}`);
+      tPlantIndices.push(idx);
     }
+
+    // ── Phase 2: all checks passed — apply mutations atomically ──
+
+    // Remove initiator's plants (iterate indices in reverse to avoid splice offset drift)
+    for (let i = iPlantIndices.length - 1; i >= 0; i--) {
+      const [removed] = iUser.collection.splice(iPlantIndices[i], 1);
+      tUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+      recordTrade(removed.name);
+    }
+    // Remove target's plants
+    for (let i = tPlantIndices.length - 1; i >= 0; i--) {
+      const [removed] = tUser.collection.splice(tPlantIndices[i], 1);
+      iUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+      recordTrade(removed.name);
+    }
+
+    // Transfer coins (balances already confirmed sufficient above)
     if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
     if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+
     touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
     saveDB(db);
     trade.status = 'complete';
