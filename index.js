@@ -4682,13 +4682,17 @@ app.get('/api/auctions', (req, res) => {
   try {
     const auctions = loadAuctions();
     const db = loadDB();
+    const now = Date.now();
     res.json(auctions.map(a => {
       const rCfg = getRarityConfig(a.plant.rarity);
       const topBid = a.bids.length ? a.bids[a.bids.length - 1] : null;
+      const seller = db[a.sellerId];
+      const boosted = !!(seller?.listingBoost && seller.listingBoost.expiresAt > now);
       return {
         id: a.id,
         sellerId: a.sellerId,
         sellerName: a.sellerName,
+        boosted,
         plant: {
           name: a.plant.name,
           rarity: a.plant.rarity,
@@ -4708,11 +4712,11 @@ app.get('/api/auctions', (req, res) => {
         currentBid: topBid ? topBid.amount : a.startPrice || 0,
         topBidder: topBid ? topBid.username : null,
         bidCount: a.bids.length,
-        bids: a.bids.slice(-10).reverse(), // last 10 bids, newest first
+        bids: a.bids.slice(-10).reverse(),
         endsAt: a.endsAt,
-        timeLeft: Math.max(0, a.endsAt - Date.now()),
+        timeLeft: Math.max(0, a.endsAt - now),
       };
-    }));
+    }).sort((a, b) => (b.boosted ? 1 : 0) - (a.boosted ? 1 : 0)));
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -5396,12 +5400,33 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   let extraData = {};
 
   if (itemId === 'mystery_box') {
-    // Pick a random item from the consumable pool (excluding mystery_box itself)
-    const pool = Object.keys(MERCHANT_ITEM_PRICES).filter(k => k !== 'mystery_box' && k !== 'rainbow_tag' && k !== 'sprint_boost' && k !== 'listing_boost' && k !== 'price_alert');
-    const won = pool[Math.floor(Math.random() * pool.length)];
-    user.merchantConsumables = user.merchantConsumables || [];
-    user.merchantConsumables.push({ itemId: won, name: won.replace(/_/g,' '), purchasedAt: now, used: false });
-    extraData.wonItemId = won;
+    // Only items that are fully implemented — pick one at random and activate it
+    const ACTIVE_ITEMS = [
+      { id: 'xp_boost',      name: 'XP Tome' },
+      { id: 'rainbow_tag',   name: 'Rainbow Nametag' },
+      { id: 'sprint_boost',  name: 'Sprint Boost' },
+      { id: 'listing_boost', name: 'Listing Boost' },
+      { id: 'price_alert',   name: 'Price Alert' },
+    ];
+    const won = ACTIVE_ITEMS[Math.floor(Math.random() * ACTIVE_ITEMS.length)];
+    extraData.wonItemId = won.id;
+    extraData.wonName = won.name;
+    // Activate the won item immediately just like a direct purchase
+    if (won.id === 'xp_boost') {
+      const existing = user.xpBoost && user.xpBoost.expiresAt > now ? user.xpBoost.expiresAt : now;
+      user.xpBoost = { expiresAt: existing + 30 * 60 * 1000 };
+    } else if (won.id === 'rainbow_tag') {
+      user.rainbowTag = { expiresAt: now + 6 * 60 * 60 * 1000 };
+    } else if (won.id === 'sprint_boost') {
+      user.sprintBoost = { expiresAt: now + 60 * 60 * 1000 };
+    } else if (won.id === 'listing_boost') {
+      user.listingBoost = { expiresAt: now + 24 * 60 * 60 * 1000 };
+    } else if (won.id === 'price_alert') {
+      // Price alert needs setup — store as pending consumable
+      user.merchantConsumables = user.merchantConsumables || [];
+      user.merchantConsumables.push({ itemId: 'price_alert', name: 'Price Alert', purchasedAt: now, used: false });
+      extraData.needsSetup = true;
+    }
 
   } else if (itemId === 'xp_boost') {
     // 30-minute 2x XP boost — activates immediately, stacks time if already active
