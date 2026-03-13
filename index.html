@@ -2531,6 +2531,7 @@ window._cachedLB = lb;
 
    // Garden
 const gardenTop = lb.garden[0]?.score || 1;
+window._gardenRank1Id = lb.garden[0]?.id || lb.garden[0]?.userId || null;
 const gardenHTML = lb.garden.map((e,i) =>
   renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag)
 ).join('');
@@ -2585,7 +2586,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
         <div class="profile-mini-top">
           <div class="profile-mini-avatar" id="av-${p.id}">${p.rankEmoji}</div>
           <div>
-            <div class="profile-mini-name">${p.username}</div>
+            <div class="profile-mini-name">${window._gardenRank1Id && p.id === window._gardenRank1Id ? `<canvas class="fuzzy-name-canvas" data-text="${p.username}" style="display:block;height:20px"></canvas>` : p.username}</div>
             <div class="profile-mini-rank">${p.rankEmoji} ${p.rankName}</div>
           </div>
         </div>
@@ -2938,7 +2939,11 @@ ${isPodium ? `
       </div>
 
       <div style="font-family:'DM Serif Display',serif;font-size:clamp(24px,3.8vw,42px);letter-spacing:-.02em;margin-bottom:5px;animation:_pFadeUp .4s ease both">
-        ${isPodium ? `<span class="_p-un">${data.username}</span>` : `<span style="color:var(--ink)">${data.username}</span>`}
+        ${isPodium && globalRank === 1
+  ? `<canvas class="fuzzy-name-canvas" data-text="${data.username}" style="display:inline-block;vertical-align:middle"></canvas>`
+  : isPodium
+  ? `<span class="_p-un">${data.username}</span>`
+  : `<span style="color:var(--ink)">${data.username}</span>`}
       </div>
 
       ${data.title ? `
@@ -3238,7 +3243,12 @@ function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag) {
   const rankIcon  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
   const clickable = userId ? `onclick="loadProfile('${userId}')" style="cursor:pointer"` : '';
   const avId = userId ? `lb-av-${userId}` : `lb-av-${left}`;
-  const nameHtml = rainbowTag ? `<span class="rainbow-name">${left}</span>` : left;
+  const isFirst = i === 0;
+  const nameHtml = isFirst
+    ? `<canvas class="fuzzy-name-canvas" data-text="${left}" data-userid="${userId||''}" style="display:block;max-width:140px;height:28px"></canvas>`
+    : rainbowTag
+    ? `<span class="rainbow-name">${left}</span>`
+    : left;
   return `<div class="lb-entry">
     <div class="lb-rank ${rankClass}">${rankIcon}</div>
     <div class="lb-avatar" id="${avId}" ${clickable} style="overflow:hidden;padding:0;${userId?'cursor:pointer':''}"></div>
@@ -3349,6 +3359,89 @@ function renderMarket() {
     </div>`;
   }).join('');
 }
+
+// ── FUZZY TEXT ENGINE (vanilla canvas, #1 rank only) ──────────────────────
+const FuzzyEngine = {
+  instances: new Map(),
+
+  init(canvas, text, opts = {}) {
+    const key = canvas;
+    if (this.instances.has(key)) return;
+    const {
+      fontSize = 14,
+      fontWeight = 700,
+      color = '#FFD700',
+      baseIntensity = 0.12,
+      hoverIntensity = 0.45,
+      fuzzRange = 22,
+      fps = 60,
+    } = opts;
+
+    let animId, lastFrame = 0, isHovering = false, isCancelled = false;
+    const frameDur = 1000 / fps;
+    const fontStr = `${fontWeight} ${fontSize}px 'DM Sans', sans-serif`;
+
+    const off = document.createElement('canvas');
+    const offCtx = off.getContext('2d');
+    offCtx.font = fontStr;
+    offCtx.textBaseline = 'alphabetic';
+    const m = offCtx.measureText(text);
+    const ascent  = m.actualBoundingBoxAscent  ?? fontSize;
+    const descent = m.actualBoundingBoxDescent ?? fontSize * 0.2;
+    const tw = Math.ceil(m.actualBoundingBoxLeft + m.actualBoundingBoxRight) || Math.ceil(m.width);
+    const th = Math.ceil(ascent + descent);
+    off.width  = tw + 10;
+    off.height = th;
+    offCtx.font = fontStr;
+    offCtx.textBaseline = 'alphabetic';
+    offCtx.fillStyle = color;
+    offCtx.fillText(text, 5 - (m.actualBoundingBoxLeft || 0), ascent);
+
+    const hm = fuzzRange + 16;
+    canvas.width  = off.width  + hm * 2;
+    canvas.height = off.height;
+    canvas.style.width  = (off.width + hm * 2) + 'px';
+    canvas.style.height = th + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.translate(hm, 0);
+
+    const draw = (ts) => {
+      if (isCancelled) return;
+      if (ts - lastFrame < frameDur) { animId = requestAnimationFrame(draw); return; }
+      lastFrame = ts;
+      ctx.clearRect(-hm - 5, -5, off.width + hm * 2 + 10, th + 10);
+      const intensity = isHovering ? hoverIntensity : baseIntensity;
+      for (let j = 0; j < th; j++) {
+        const dx = Math.floor(intensity * (Math.random() - 0.5) * fuzzRange);
+        ctx.drawImage(off, 0, j, off.width, 1, dx, j, off.width, 1);
+      }
+      animId = requestAnimationFrame(draw);
+    };
+    animId = requestAnimationFrame(draw);
+
+    const onEnter = () => { isHovering = true; };
+    const onLeave = () => { isHovering = false; };
+    canvas.addEventListener('mouseenter', onEnter);
+    canvas.addEventListener('mouseleave', onLeave);
+
+    this.instances.set(key, { stop() { isCancelled = true; cancelAnimationFrame(animId); canvas.removeEventListener('mouseenter', onEnter); canvas.removeEventListener('mouseleave', onLeave); } });
+  },
+
+  initAll() {
+    document.querySelectorAll('canvas.fuzzy-name-canvas').forEach(c => {
+      if (c._fuzzyDone) return;
+      c._fuzzyDone = true;
+      const text = c.dataset.text;
+      if (!text) return;
+      this.init(c, text, { fontSize: 14, fontWeight: 700, color: '#FFD700', baseIntensity: 0.12, hoverIntensity: 0.5, fuzzRange: 24, fps: 60 });
+    });
+  }
+};
+
+// Patch MutationObserver to auto-init fuzzy canvases added to DOM
+const _fuzzyMO = new MutationObserver(() => FuzzyEngine.initAll());
+_fuzzyMO.observe(document.body, { childList: true, subtree: true });
+
 function msToStr(ms) { return ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(2)}s`; }
 
 function filterProfiles(val) {
