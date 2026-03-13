@@ -3431,7 +3431,7 @@ const FuzzyEngine = {
       c._fuzzyDone = true;
       const text = c.dataset.text;
       if (!text) return;
-      const isHero = !c.closest('.profile-mini');
+      const isHero = !c.closest('.profile-mini') && !c.closest('.lb-entry');
 this.init(c, text, { fontSize: isHero ? 32 : 14, fontWeight: 700, color: '#FFD700', baseIntensity: isHero ? 0.08 : 0.12, hoverIntensity: isHero ? 0.38 : 0.5, fuzzRange: isHero ? 40 : 24, fps: 60 });
     });
   }
