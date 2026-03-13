@@ -2586,7 +2586,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
         <div class="profile-mini-top">
           <div class="profile-mini-avatar" id="av-${p.id}">${p.rankEmoji}</div>
           <div>
-            <div class="profile-mini-name">${window._gardenRank1Id && p.id === window._gardenRank1Id ? `<canvas class="fuzzy-name-canvas" data-text="${p.username}" style="display:block;height:20px"></canvas>` : p.username}</div>
+            <div class="profile-mini-name" style="${window._gardenRank1Id && p.id === window._gardenRank1Id ? 'display:flex;justify-content:flex-start;' : ''}">${window._gardenRank1Id && p.id === window._gardenRank1Id ? `<canvas class="fuzzy-name-canvas" data-text="${p.username}" style="display:block;height:20px"></canvas>` : p.username}</div>
             <div class="profile-mini-rank">${p.rankEmoji} ${p.rankName}</div>
           </div>
         </div>
@@ -2940,7 +2940,7 @@ ${isPodium ? `
 
       <div style="font-family:'DM Serif Display',serif;font-size:clamp(24px,3.8vw,42px);letter-spacing:-.02em;margin-bottom:5px;animation:_pFadeUp .4s ease both">
         ${isPodium && globalRank === 1
-  ? `<canvas class="fuzzy-name-canvas" data-text="${data.username}" style="display:inline-block;vertical-align:middle"></canvas>`
+  ? `<canvas class="fuzzy-name-canvas" data-text="${data.username}" style="display:block;margin:0 auto"></canvas>`
   : isPodium
   ? `<span class="_p-un">${data.username}</span>`
   : `<span style="color:var(--ink)">${data.username}</span>`}
@@ -2952,11 +2952,9 @@ ${isPodium ? `
       </div>` : ''}
 
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:center;animation:_pFadeUp .6s ease both">
-        <div style="background:${bg2};border:1px solid ${bord};border-radius:100px;padding:4px 11px;font-size:11px;font-weight:500;color:${ink2}">${data.rank?.emoji} ${data.rank?.name} · Lv.${data.level}</div>
         <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:4px 11px;font-size:11px;font-weight:700;color:${tc}">
           <img src="/images/tiers/${data.gardenTier?.name?.toLowerCase()}.webp" style="width:12px;height:12px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">${data.gardenTier?.name}
         </div>
-        ${globalRank ? `<div style="background:${bg2};border:1px solid ${bord};border-radius:100px;padding:4px 11px;font-size:11px;color:${ink3}">#${data.serverRank} of ${data.serverTotal}</div>` : ''}
       </div>
     </div>
   </div><!-- /hero -->
@@ -3433,7 +3431,8 @@ const FuzzyEngine = {
       c._fuzzyDone = true;
       const text = c.dataset.text;
       if (!text) return;
-      this.init(c, text, { fontSize: 14, fontWeight: 700, color: '#FFD700', baseIntensity: 0.12, hoverIntensity: 0.5, fuzzRange: 24, fps: 60 });
+      const isHero = !c.closest('.profile-mini');
+this.init(c, text, { fontSize: isHero ? 32 : 14, fontWeight: 700, color: '#FFD700', baseIntensity: isHero ? 0.08 : 0.12, hoverIntensity: isHero ? 0.38 : 0.5, fuzzRange: isHero ? 40 : 24, fps: 60 });
     });
   }
 };
