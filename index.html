@@ -5673,10 +5673,15 @@ async function loadBoostStatus() {
       const mins = Math.ceil(data.xpBoost.msLeft / 60000);
       container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(33,150,243,0.12);border:1.5px solid rgba(33,150,243,0.35);color:#64b5f6;font-size:13px;font-weight:700">📚 2x XP Active — ${mins} min left</div>`;
     }
+    if (data.sprintBoost && data.sprintBoost.active) {
+      hasAny = true;
+      const mins = Math.ceil(data.sprintBoost.msLeft / 60000);
+      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(255,152,0,0.12);border:1.5px solid rgba(255,152,0,0.35);color:#ffb74d;font-size:13px;font-weight:700">🏃 Sprint Boost Active — ${mins} min left</div>`;
+    }
     if (data.rainbowTag && data.rainbowTag.active) {
       hasAny = true;
-      const hrs = Math.ceil(data.rainbowTag.msLeft / 3600000);
-      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(180,100,255,0.12);border:1.5px solid rgba(180,100,255,0.35);color:#ce93d8;font-size:13px;font-weight:700">🌈 Rainbow Tag Active — ${hrs}h left</div>`;
+      const mins = Math.ceil(data.rainbowTag.msLeft / 60000);
+      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(180,100,255,0.12);border:1.5px solid rgba(180,100,255,0.35);color:#ce93d8;font-size:13px;font-weight:700">🌈 Rainbow Tag Active — ${mins} min left</div>`;
     }
     container.style.display = hasAny ? 'flex' : 'none';
   } catch {}
@@ -5737,8 +5742,11 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
         }
         // XP Boost — show time remaining
         else if (itemId === 'xp_boost') {
-          const mins = 30;
-          showToast(`📚 2x XP Boost activated! Every XP you earn is doubled for ${mins} minutes.`);
+          showToast(`📚 2x XP Boost activated! Every XP you earn is doubled for 30 minutes.`);
+        }
+        // Sprint Boost
+        else if (itemId === 'sprint_boost') {
+          showToast(`🏃 Sprint Boost activated! Every plant you claim counts as 2 toward the leaderboard for 60 minutes.`);
         }
         // Price Alert — show setup modal
         else if (itemId === 'price_alert') {

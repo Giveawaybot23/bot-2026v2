@@ -5510,6 +5510,9 @@ app.get('/api/merchant/boost-status', (req, res) => {
     rainbowTag: user.rainbowTag && user.rainbowTag.expiresAt > now
       ? { active: true, expiresAt: user.rainbowTag.expiresAt, msLeft: user.rainbowTag.expiresAt - now }
       : { active: false },
+    sprintBoost: user.sprintBoost && user.sprintBoost.expiresAt > now
+      ? { active: true, expiresAt: user.sprintBoost.expiresAt, msLeft: user.sprintBoost.expiresAt - now }
+      : { active: false },
   });
 });
 
