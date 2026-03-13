@@ -5683,6 +5683,11 @@ async function loadBoostStatus() {
       const mins = Math.ceil(data.sprintBoost.msLeft / 60000);
       container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(255,152,0,0.12);border:1.5px solid rgba(255,152,0,0.35);color:#ffb74d;font-size:13px;font-weight:700">🏃 Sprint Boost Active — ${mins} min left</div>`;
     }
+    if (data.listingBoost && data.listingBoost.active) {
+      hasAny = true;
+      const mins = Math.ceil(data.listingBoost.msLeft / 60000);
+      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(156,95,255,0.12);border:1.5px solid rgba(156,95,255,0.35);color:#ce93d8;font-size:13px;font-weight:700">📌 Listing Boost Active — ${mins} min left</div>`;
+    }
     if (data.rainbowTag && data.rainbowTag.active) {
       hasAny = true;
       const mins = Math.ceil(data.rainbowTag.msLeft / 60000);
@@ -5752,6 +5757,10 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
         // Sprint Boost
         else if (itemId === 'sprint_boost') {
           showToast(`🏃 Sprint Boost activated! Every plant you claim counts as 2 toward the leaderboard for 60 minutes.`);
+        }
+        // Listing Boost
+        else if (itemId === 'listing_boost') {
+          showToast(`📌 Listing Boost activated! All your market and auction listings are pinned to the top for 24 hours.`);
         }
         // Price Alert — show setup modal
         else if (itemId === 'price_alert') {

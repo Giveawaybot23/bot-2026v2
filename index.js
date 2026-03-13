@@ -5538,6 +5538,9 @@ app.get('/api/merchant/boost-status', (req, res) => {
     sprintBoost: user.sprintBoost && user.sprintBoost.expiresAt > now
       ? { active: true, expiresAt: user.sprintBoost.expiresAt, msLeft: user.sprintBoost.expiresAt - now }
       : { active: false },
+    listingBoost: user.listingBoost && user.listingBoost.expiresAt > now
+      ? { active: true, expiresAt: user.listingBoost.expiresAt, msLeft: user.listingBoost.expiresAt - now }
+      : { active: false },
   });
 });
 
@@ -5549,6 +5552,24 @@ app.delete('/api/merchant/price-alert/:id', (req, res) => {
   saveDB(db);
   res.json({ ok: true, alerts: user.priceAlerts });
 });
+
+// ── One-time startup cleanup: remove listingBoost from users who never bought it ──
+// This fixes corrupted data from previous deployments where listingBoost was set incorrectly.
+(function cleanupListingBoost() {
+  try {
+    const db = loadDB();
+    const now = Date.now();
+    const maxValid = now + 25 * 60 * 60 * 1000; // max 25 hours from now is valid
+    let fixed = 0;
+    for (const user of Object.values(db)) {
+      if (user.listingBoost && user.listingBoost.expiresAt > maxValid) {
+        delete user.listingBoost;
+        fixed++;
+      }
+    }
+    if (fixed > 0) { saveDB(db); console.log(`[cleanup] Removed corrupted listingBoost from ${fixed} users`); }
+  } catch(e) { console.error('[cleanup] listingBoost cleanup failed:', e); }
+})();
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 
