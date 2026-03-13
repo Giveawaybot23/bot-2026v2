@@ -1275,7 +1275,7 @@
   position: relative;
   border-radius: inherit;
 }
-.electric-border-wrap .eb-canvas-container {
+.electric-border-wrap {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1283,7 +1283,7 @@
   pointer-events: none;
   z-index: 10;
 }
-.electric-border-wrap .eb-glow-ring {
+.electric-border-wrap  {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -1293,7 +1293,7 @@
   filter: blur(1px);
   box-sizing: border-box;
 }
-.electric-border-wrap .eb-glow-ring-2 {
+.electric-border-wrap {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -1303,7 +1303,7 @@
   filter: blur(4px);
   box-sizing: border-box;
 }
-.electric-border-wrap .eb-bg-glow {
+.electric-border-wrap {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -5791,11 +5791,11 @@ async function deletePriceAlert(alertId) {
 // ── ELECTRIC BORDER ENGINE ──────────────────────────────────────────────────
 (function() {
   const COLOR = '#9c5fff';
-  const SPEED = 0.7;
-  const CHAOS = 0.12;
-  const BORDER_OFFSET = 8;
-  const DISPLACEMENT = 8;
-  const OCTAVES = 10;
+  const SPEED = 1.2;
+  const CHAOS = 0.18;
+  const BORDER_OFFSET = 12;
+  const DISPLACEMENT = 12;
+  const OCTAVES = 8;
   const LACUNARITY = 1.6;
   const GAIN = 0.7;
   const FREQUENCY = 10;
@@ -5806,128 +5806,120 @@ async function deletePriceAlert(alertId) {
     const i = Math.floor(x), j = Math.floor(y);
     const fx = x - i, fy = y - j;
     const a = rand(i + j * 57), b = rand(i + 1 + j * 57);
-    const c = rand(i + (j + 1) * 57), d = rand(i + 1 + (j + 1) * 57);
-    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const c = rand(i + (j+1) * 57), d = rand(i + 1 + (j+1) * 57);
+    const ux = fx*fx*(3-2*fx), uy = fy*fy*(3-2*fy);
     return a*(1-ux)*(1-uy) + b*ux*(1-uy) + c*(1-ux)*uy + d*ux*uy;
   }
 
-  function octNoise(x, octaves, lac, gain, amp, freq, time, seed) {
-    let y = 0, amplitude = amp * 0, frequency = freq;
-    amplitude = amp;
-    for (let i = 0; i < octaves; i++) {
-      const oa = i === 0 ? amplitude * 0 : amplitude;
-      y += oa * noise2D(frequency * x + seed * 100, time * frequency * 0.3);
-      frequency *= lac;
-      amplitude *= gain;
-    }
-    return y;
-  }
-
-  function octNoiseReal(x, time, seed) {
+  function octNoise(x, time, seed) {
     let y = 0, amplitude = CHAOS, frequency = FREQUENCY;
     for (let i = 0; i < OCTAVES; i++) {
-      const oa = i === 0 ? amplitude * 0 : amplitude;
-      y += oa * noise2D(frequency * x + seed * 100, time * frequency * 0.3);
+      y += amplitude * noise2D(frequency * x + seed * 100, time * frequency * 0.3);
       frequency *= LACUNARITY;
       amplitude *= GAIN;
     }
     return y;
   }
 
-  function cornerPoint(cx, cy, r, startAngle, arcLen, progress) {
-    const angle = startAngle + progress * arcLen;
-    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  function cornerPt(cx, cy, r, start, arc, t) {
+    const a = start + t * arc;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
   }
 
-  function getRoundedRectPoint(t, left, top, width, height, radius) {
-    const sw = width - 2 * radius, sh = height - 2 * radius;
-    const ca = (Math.PI * radius) / 2;
-    const perim = 2 * sw + 2 * sh + 4 * ca;
-    const dist = t * perim;
-    let acc = 0;
-    if (dist <= acc + sw) return { x: left + radius + (dist-acc)/sw * sw, y: top };
+  function getRRPoint(t, left, top, w, h, r) {
+    const sw = w - 2*r, sh = h - 2*r, ca = Math.PI*r/2;
+    const perim = 2*sw + 2*sh + 4*ca;
+    let d = t * perim, acc = 0;
+    if (d <= acc+sw) return { x: left+r+(d-acc)/sw*sw, y: top };
     acc += sw;
-    if (dist <= acc + ca) return cornerPoint(left+width-radius, top+radius, radius, -Math.PI/2, Math.PI/2, (dist-acc)/ca);
+    if (d <= acc+ca) return cornerPt(left+w-r, top+r, r, -Math.PI/2, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (dist <= acc + sh) return { x: left+width, y: top+radius+(dist-acc)/sh*sh };
+    if (d <= acc+sh) return { x: left+w, y: top+r+(d-acc)/sh*sh };
     acc += sh;
-    if (dist <= acc + ca) return cornerPoint(left+width-radius, top+height-radius, radius, 0, Math.PI/2, (dist-acc)/ca);
+    if (d <= acc+ca) return cornerPt(left+w-r, top+h-r, r, 0, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (dist <= acc + sw) return { x: left+width-radius-(dist-acc)/sw*sw, y: top+height };
+    if (d <= acc+sw) return { x: left+w-r-(d-acc)/sw*sw, y: top+h };
     acc += sw;
-    if (dist <= acc + ca) return cornerPoint(left+radius, top+height-radius, radius, Math.PI/2, Math.PI/2, (dist-acc)/ca);
+    if (d <= acc+ca) return cornerPt(left+r, top+h-r, r, Math.PI/2, Math.PI/2, (d-acc)/ca);
     acc += ca;
-    if (dist <= acc + sh) return { x: left, y: top+height-radius-(dist-acc)/sh*sh };
+    if (d <= acc+sh) return { x: left, y: top+h-r-(d-acc)/sh*sh };
     acc += sh;
-    return cornerPoint(left+radius, top+radius, radius, Math.PI, Math.PI/2, (dist-acc)/ca);
+    return cornerPt(left+r, top+r, r, Math.PI, Math.PI/2, (d-acc)/ca);
   }
 
   function initElectricBorder(container) {
     if (container._ebInit) return;
     container._ebInit = true;
 
+    // Canvas lives on body, positioned over the container
     const canvas = document.createElement('canvas');
-    canvas.className = 'eb-canvas';
-    const wrap = document.createElement('div');
-    wrap.className = 'eb-canvas-container';
-    wrap.appendChild(canvas);
-
-    const glow1 = document.createElement('div'); glow1.className = 'eb-glow-ring';
-    const glow2 = document.createElement('div'); glow2.className = 'eb-glow-ring-2';
-    const bgGlow = document.createElement('div'); bgGlow.className = 'eb-bg-glow';
-
-    container.appendChild(wrap);
-    container.appendChild(glow1);
-    container.appendChild(glow2);
-    container.appendChild(bgGlow);
-
+    canvas.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;';
+    document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d');
-    let timeRef = 0, lastFrame = 0, raf;
 
-    const borderRadius = parseFloat(getComputedStyle(container).borderRadius) || 14;
-
-    function resize() {
-      const rect = container.getBoundingClientRect();
-      const w = rect.width + BORDER_OFFSET * 2;
-      const h = rect.height + BORDER_OFFSET * 2;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = w * dpr; canvas.height = h * dpr;
-      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.scale(dpr, dpr);
-      return { w, h };
-    }
-
-    let { w, h } = resize();
+    let timeRef = 0, lastFrame = performance.now(), raf;
+    const borderRadius = 14;
 
     function draw(now) {
       const dt = (now - lastFrame) / 1000;
       timeRef += dt * SPEED;
       lastFrame = now;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(dpr, dpr);
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0) { raf = requestAnimationFrame(draw); return; }
 
-      ctx.strokeStyle = COLOR;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cw = rect.width + BORDER_OFFSET * 2;
+      const ch = rect.height + BORDER_OFFSET * 2;
+
+      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+        canvas.width = Math.round(cw * dpr);
+        canvas.height = Math.round(ch * dpr);
+        canvas.style.width = cw + 'px';
+        canvas.style.height = ch + 'px';
+      }
+
+      canvas.style.left = (rect.left - BORDER_OFFSET) + 'px';
+      canvas.style.top  = (rect.top  - BORDER_OFFSET + window.scrollY) + 'px';
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cw, ch);
 
       const left = BORDER_OFFSET, top = BORDER_OFFSET;
-      const bw = w - 2*BORDER_OFFSET, bh = h - 2*BORDER_OFFSET;
+      const bw = rect.width, bh = rect.height;
       const maxR = Math.min(bw, bh) / 2;
       const r = Math.min(borderRadius, maxR);
       const perim = 2*(bw+bh) + 2*Math.PI*r;
-      const samples = Math.floor(perim / 2);
+      const samples = Math.floor(perim / 1.5);
 
+      // Outer glow pass
+      ctx.strokeStyle = 'rgba(156,95,255,0.35)';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.filter = 'blur(4px)';
       ctx.beginPath();
       for (let i = 0; i <= samples; i++) {
         const p = i / samples;
-        const pt = getRoundedRectPoint(p, left, top, bw, bh, r);
-        const xn = octNoiseReal(p * 8, timeRef, 0) * DISPLACEMENT;
-        const yn = octNoiseReal(p * 8, timeRef, 1) * DISPLACEMENT;
+        const pt = getRRPoint(p, left, top, bw, bh, r);
+        const xn = octNoise(p * 8, timeRef, 0) * DISPLACEMENT;
+        const yn = octNoise(p * 8, timeRef, 1) * DISPLACEMENT;
+        if (i === 0) ctx.moveTo(pt.x + xn, pt.y + yn);
+        else ctx.lineTo(pt.x + xn, pt.y + yn);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // Core bright pass
+      ctx.strokeStyle = '#c89fff';
+      ctx.lineWidth = 1.5;
+      ctx.filter = 'none';
+      ctx.beginPath();
+      for (let i = 0; i <= samples; i++) {
+        const p = i / samples;
+        const pt = getRRPoint(p, left, top, bw, bh, r);
+        const xn = octNoise(p * 8, timeRef, 0) * DISPLACEMENT;
+        const yn = octNoise(p * 8, timeRef, 1) * DISPLACEMENT;
         if (i === 0) ctx.moveTo(pt.x + xn, pt.y + yn);
         else ctx.lineTo(pt.x + xn, pt.y + yn);
       }
@@ -5937,24 +5929,14 @@ async function deletePriceAlert(alertId) {
       raf = requestAnimationFrame(draw);
     }
 
-    raf = requestAnimationFrame(t => { lastFrame = t; draw(t); });
-
-    const ro = new ResizeObserver(() => { const s = resize(); w = s.w; h = s.h; });
-    ro.observe(container);
-    container._ebCleanup = () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    raf = requestAnimationFrame(draw);
+    container._ebCleanup = () => { cancelAnimationFrame(raf); canvas.remove(); };
   }
 
-  // Apply to all existing .secret-electric elements, and watch for new ones
   function applyToAll() {
-    document.querySelectorAll('.secret-electric').forEach(el => {
-      if (!el.classList.contains('electric-border-wrap')) {
-        el.classList.add('electric-border-wrap');
-      }
-      initElectricBorder(el);
-    });
+    document.querySelectorAll('.secret-electric').forEach(el => initElectricBorder(el));
   }
 
-  // Run on DOM ready and watch for dynamic content
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyToAll);
   } else {
