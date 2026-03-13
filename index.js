@@ -86,6 +86,41 @@ function applyAutosellRules(user, userId, newPlants) {
   const rules = getUserAutosellRules(userId);
   if (!rules.length) return 0;
   let totalEarned = 0;
+  const candidates = [];
+  const usedIndexes = new Set();
+
+  for (let i = user.collection.length - 1; i >= 0; i--) {
+    const p = user.collection[i];
+    if (usedIndexes.has(i)) continue;
+    if (newPlants && !newPlants.some(np => np.name === p.name && np.version === p.version)) continue;
+    if (isLocked(userId, p)) continue;
+    for (const rule of rules) {
+      if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
+      if (rule.mutation === 'none' && p.mutation) continue;
+      if (rule.mutation && rule.mutation !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== rule.mutation.toLowerCase())) continue;
+      if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
+      if (rule.version_op && rule.version_n !== undefined) {
+        const v = p.version || 0;
+        const n = rule.version_n;
+        const op = rule.version_op;
+        const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
+        if (!passes) continue;
+      }
+      usedIndexes.add(i);
+      candidates.push(i);
+      totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      break;
+    }
+  }
+
+  candidates.sort((a, b) => b - a);
+  for (const idx of candidates) user.collection.splice(idx, 1);
+  user.currency += totalEarned;
+  return totalEarned;
+}
+  const rules = getUserAutosellRules(userId);
+  if (!rules.length) return 0;
+  let totalEarned = 0;
   const toRemove = [];
   // Only check newly added plants, not the entire collection
   for (let i = user.collection.length - 1; i >= 0; i--) {
@@ -113,7 +148,6 @@ function applyAutosellRules(user, userId, newPlants) {
   for (const idx of toRemove) user.collection.splice(idx, 1);
   user.currency += totalEarned;
   return totalEarned;
-}
 
 function loadTrades() {
   if (!fs.existsSync(TRADES_FILE)) fs.writeFileSync(TRADES_FILE, '{}');
@@ -471,7 +505,7 @@ const PLANTS = [
 ];
 
 
-const processedMessages = new Set();
+const processedMessages = new Set(); const claimingDaily = new Set(); const claimingWeekly = new Set();
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeDrops  = {};
@@ -479,7 +513,7 @@ let activeRaces  = {};
 let pendingSells = {};
 let pendingWipes = {};
 let pendingCrates ={};
-let devRarity    = null;
+let devRarity = null; const versionLocks = new Set();
 
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
@@ -863,7 +897,7 @@ function getAvailableVersionFromMeta(plantName, db, meta) {
   }
 
   const free = [];
-  for (let v = 1; v <= high; v++) { if (!owned.has(v)) free.push(v); }
+  for (let v = 1; v <= high; v++) { if (!owned.has(v) && !versionLocks.has(`${plantName}:${v}`)) free.push(v); }
 
   let ver;
   if (free.length > 0) {
@@ -873,8 +907,7 @@ function getAvailableVersionFromMeta(plantName, db, meta) {
     meta.plantVersions[plantName] = ver;
     meta.totalDrops = (meta.totalDrops || 0) + 1;
   }
-  meta.plantClaimed[plantName].push(ver);
-  return ver;
+  const lockKey = `${plantName}:${ver}`; versionLocks.add(lockKey); setTimeout(() => versionLocks.delete(lockKey), 10000); meta.plantClaimed[plantName].push(ver); return ver;
 }
 
 function getAvailableVersion(plantName, db) {
@@ -2878,7 +2911,7 @@ if (cmd === 'web') {
   }
 
   // ── !togglev10 ────────────────────────────────────────────────────────────
-  if (cmd === 'togglev10') {
+  if (cmd === 'togglev10') { if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     sellbatchV10Protection = !sellbatchV10Protection;
     return message.reply(`✅ Sellbatch v1–v10 protection is now **${sellbatchV10Protection ? 'ON' : 'OFF'}**.`);
   }
@@ -3577,13 +3610,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   }
 
   // ── !daily ────────────────────────────────────────────────────────────────
-  if (cmd === 'daily') {
+  if (cmd === 'daily') { if (claimingDaily.has(message.author.id)) return message.reply('⏳ Already processing, please wait.'); claimingDaily.add(message.author.id);
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     touchActivity(db, message.author.id, message.author);
     const now = Date.now(), DAY = 86400000;
-    if (user.lastDaily && now - user.lastDaily < DAY) { const rem = DAY - (now - user.lastDaily); const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000); return message.reply(`⏳ Come back in **${h}h ${m}m**.`); }
+    if (user.lastDaily && now - user.lastDaily < DAY) { claimingDaily.delete(message.author.id); const rem = DAY - (now - user.lastDaily); const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000); return message.reply(`⏳ Come back in **${h}h ${m}m**.`); }
     const rarity = pickRarityWithCharms(db, message.author.id), plant = pickPlant(rarity.name), mutation = rollMutation();
     const version = getAvailableVersion(plant.name, db); recordVersionHighWater(plant.name, version);
     const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
@@ -3591,20 +3624,20 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }]); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }]); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
   }
 
   // ── !weekly ───────────────────────────────────────────────────────────────
-  if (cmd === 'weekly') {
+  if (cmd === 'weekly') { if (claimingWeekly.has(message.author.id)) return message.reply('⏳ Already processing, please wait.'); claimingWeekly.add(message.author.id);
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     touchActivity(db, message.author.id, message.author);
     const now = Date.now(), WEEK = 604800000;
-    if (user.lastWeekly && now - user.lastWeekly < WEEK) { const rem = WEEK - (now - user.lastWeekly); const d = Math.floor(rem/86400000), h = Math.floor((rem%86400000)/3600000); return message.reply(`⏳ Come back in **${d}d ${h}h**.`); }
+    if (user.lastWeekly && now - user.lastWeekly < WEEK) { claimingWeekly.delete(message.author.id); const rem = WEEK - (now - user.lastWeekly); const d = Math.floor(rem/86400000), h = Math.floor((rem%86400000)/3600000); return message.reply(`⏳ Come back in **${d}d ${h}h**.`); }
     const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
     const coins = Math.floor(Math.random()*1000)+500;
     if (!TEST_IDS.has(message.author.id)) {
@@ -3613,7 +3646,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version }))); saveDB(db);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version }))); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -5369,7 +5402,7 @@ function getMerchantPlantByRarity(rarity) {
   const allPlants = Object.entries(meta.plantVersions || {}).map(([name, maxV]) => ({ name, maxV }));
   if (!allPlants.length) return null;
   const picked = allPlants[Math.floor(Math.random() * allPlants.length)];
-  const version = Math.max(1, Math.ceil(Math.random() * Math.min(picked.maxV, 50)));
+  const version = getAvailableVersion(picked.name, loadDB()); recordVersionHighWater(picked.name, version);
   const rarityEmojis = { Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎' };
   return {
     name: picked.name, rarity, version,
