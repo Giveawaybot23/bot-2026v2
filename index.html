@@ -1264,6 +1264,52 @@
   .merchant-body { padding: 24px 16px; }
   .merchant-hero { padding: 40px 20px 36px; }
 }
+
+/* ── ELECTRIC BORDER (Secret rarity) ── */
+.electric-border-wrap {
+  position: relative;
+  border-radius: inherit;
+}
+.electric-border-wrap .eb-canvas-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+.electric-border-wrap .eb-glow-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 9;
+  border: 2px solid rgba(156,95,255,0.6);
+  filter: blur(1px);
+  box-sizing: border-box;
+}
+.electric-border-wrap .eb-glow-ring-2 {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 9;
+  border: 2px solid rgba(156,95,255,1);
+  filter: blur(4px);
+  box-sizing: border-box;
+}
+.electric-border-wrap .eb-bg-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  transform: scale(1.1);
+  filter: blur(32px);
+  opacity: 0.3;
+  background: linear-gradient(-30deg, #c89fff, transparent, #9c5fff);
+}
+
 </style>
 </head>
 <body>
@@ -3276,7 +3322,7 @@ function renderMarket() {
   }
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
-    return `<div class="market-card${item.boosted ? ' boosted' : ''}" data-rarity="${item.rarity}" style="position:relative">
+    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? ' secret-electric' : ''}" data-rarity="${item.rarity}" style="position:relative">
       ${item.boosted ? `<div class="market-boost-badge">📌 Boosted</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
@@ -3464,7 +3510,7 @@ async function loadAuctionData() {
       const badge = rarityBadgeColor[a.plant.rarity] || '#999';
       const isV1 = a.plant.version === 1;
       return `
-        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}">
+        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? ' secret-electric' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}">
           ${isV1 ? `<div class="auction-v1-crown">👑 v1 · First Copy</div>` : ''}
           <div class="auction-card-live">LIVE</div>
           <div class="market-card-rarity-bar" style="background:${color}"></div>
@@ -4253,7 +4299,7 @@ function renderInventoryPage() {
     const isSecret = p.rarity === 'Secret' && !window._unlockedSecrets?.has(p.name);
     if (isSecret) {
       return `
-        <div class="market-card" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:hidden">
+        <div class="market-card secret-electric" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:hidden">
           <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#4a0080,#9c5fff,#4a0080);box-shadow:0 0 10px #9c5fff88,0 0 20px #9c5fff44"></div>
           <div style="width:64px;height:64px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;background:rgba(156,95,255,0.08);border-radius:12px;border:1px solid rgba(156,95,255,0.2)">
             <span style="font-size:28px;opacity:0.5;filter:blur(1px)">?</span>
@@ -4808,7 +4854,7 @@ for (let i = 0; i < SLOTS; i++) {
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
     const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
-    html += `<div style="aspect-ratio:1;min-height:96px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden">
+    html += `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="aspect-ratio:1;min-height:96px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden">
       <img src="${p.image||''}" onerror="this.style.display='none'" style="width:68px;height:68px;object-fit:contain;flex-shrink:0">
       <div style="font-size:10px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
       <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:center">
@@ -5741,6 +5787,185 @@ async function deletePriceAlert(alertId) {
 }
 
 
+</script>
+
+<script>
+// ── ELECTRIC BORDER ENGINE ──────────────────────────────────────────────────
+(function() {
+  const COLOR = '#9c5fff';
+  const SPEED = 0.7;
+  const CHAOS = 0.12;
+  const BORDER_OFFSET = 60;
+  const DISPLACEMENT = 60;
+  const OCTAVES = 10;
+  const LACUNARITY = 1.6;
+  const GAIN = 0.7;
+  const FREQUENCY = 10;
+
+  function rand(x) { return ((Math.sin(x * 12.9898) * 43758.5453) % 1 + 1) % 1; }
+
+  function noise2D(x, y) {
+    const i = Math.floor(x), j = Math.floor(y);
+    const fx = x - i, fy = y - j;
+    const a = rand(i + j * 57), b = rand(i + 1 + j * 57);
+    const c = rand(i + (j + 1) * 57), d = rand(i + 1 + (j + 1) * 57);
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    return a*(1-ux)*(1-uy) + b*ux*(1-uy) + c*(1-ux)*uy + d*ux*uy;
+  }
+
+  function octNoise(x, octaves, lac, gain, amp, freq, time, seed) {
+    let y = 0, amplitude = amp * 0, frequency = freq;
+    amplitude = amp;
+    for (let i = 0; i < octaves; i++) {
+      const oa = i === 0 ? amplitude * 0 : amplitude;
+      y += oa * noise2D(frequency * x + seed * 100, time * frequency * 0.3);
+      frequency *= lac;
+      amplitude *= gain;
+    }
+    return y;
+  }
+
+  function octNoiseReal(x, time, seed) {
+    let y = 0, amplitude = CHAOS, frequency = FREQUENCY;
+    for (let i = 0; i < OCTAVES; i++) {
+      const oa = i === 0 ? amplitude * 0 : amplitude;
+      y += oa * noise2D(frequency * x + seed * 100, time * frequency * 0.3);
+      frequency *= LACUNARITY;
+      amplitude *= GAIN;
+    }
+    return y;
+  }
+
+  function cornerPoint(cx, cy, r, startAngle, arcLen, progress) {
+    const angle = startAngle + progress * arcLen;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  }
+
+  function getRoundedRectPoint(t, left, top, width, height, radius) {
+    const sw = width - 2 * radius, sh = height - 2 * radius;
+    const ca = (Math.PI * radius) / 2;
+    const perim = 2 * sw + 2 * sh + 4 * ca;
+    const dist = t * perim;
+    let acc = 0;
+    if (dist <= acc + sw) return { x: left + radius + (dist-acc)/sw * sw, y: top };
+    acc += sw;
+    if (dist <= acc + ca) return cornerPoint(left+width-radius, top+radius, radius, -Math.PI/2, Math.PI/2, (dist-acc)/ca);
+    acc += ca;
+    if (dist <= acc + sh) return { x: left+width, y: top+radius+(dist-acc)/sh*sh };
+    acc += sh;
+    if (dist <= acc + ca) return cornerPoint(left+width-radius, top+height-radius, radius, 0, Math.PI/2, (dist-acc)/ca);
+    acc += ca;
+    if (dist <= acc + sw) return { x: left+width-radius-(dist-acc)/sw*sw, y: top+height };
+    acc += sw;
+    if (dist <= acc + ca) return cornerPoint(left+radius, top+height-radius, radius, Math.PI/2, Math.PI/2, (dist-acc)/ca);
+    acc += ca;
+    if (dist <= acc + sh) return { x: left, y: top+height-radius-(dist-acc)/sh*sh };
+    acc += sh;
+    return cornerPoint(left+radius, top+radius, radius, Math.PI, Math.PI/2, (dist-acc)/ca);
+  }
+
+  function initElectricBorder(container) {
+    if (container._ebInit) return;
+    container._ebInit = true;
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'eb-canvas';
+    const wrap = document.createElement('div');
+    wrap.className = 'eb-canvas-container';
+    wrap.appendChild(canvas);
+
+    const glow1 = document.createElement('div'); glow1.className = 'eb-glow-ring';
+    const glow2 = document.createElement('div'); glow2.className = 'eb-glow-ring-2';
+    const bgGlow = document.createElement('div'); bgGlow.className = 'eb-bg-glow';
+
+    container.appendChild(wrap);
+    container.appendChild(glow1);
+    container.appendChild(glow2);
+    container.appendChild(bgGlow);
+
+    const ctx = canvas.getContext('2d');
+    let timeRef = 0, lastFrame = 0, raf;
+
+    const borderRadius = parseFloat(getComputedStyle(container).borderRadius) || 14;
+
+    function resize() {
+      const rect = container.getBoundingClientRect();
+      const w = rect.width + BORDER_OFFSET * 2;
+      const h = rect.height + BORDER_OFFSET * 2;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(dpr, dpr);
+      return { w, h };
+    }
+
+    let { w, h } = resize();
+
+    function draw(now) {
+      const dt = (now - lastFrame) / 1000;
+      timeRef += dt * SPEED;
+      lastFrame = now;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(dpr, dpr);
+
+      ctx.strokeStyle = COLOR;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const left = BORDER_OFFSET, top = BORDER_OFFSET;
+      const bw = w - 2*BORDER_OFFSET, bh = h - 2*BORDER_OFFSET;
+      const maxR = Math.min(bw, bh) / 2;
+      const r = Math.min(borderRadius, maxR);
+      const perim = 2*(bw+bh) + 2*Math.PI*r;
+      const samples = Math.floor(perim / 2);
+
+      ctx.beginPath();
+      for (let i = 0; i <= samples; i++) {
+        const p = i / samples;
+        const pt = getRoundedRectPoint(p, left, top, bw, bh, r);
+        const xn = octNoiseReal(p * 8, timeRef, 0) * DISPLACEMENT;
+        const yn = octNoiseReal(p * 8, timeRef, 1) * DISPLACEMENT;
+        if (i === 0) ctx.moveTo(pt.x + xn, pt.y + yn);
+        else ctx.lineTo(pt.x + xn, pt.y + yn);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      raf = requestAnimationFrame(draw);
+    }
+
+    raf = requestAnimationFrame(t => { lastFrame = t; draw(t); });
+
+    const ro = new ResizeObserver(() => { const s = resize(); w = s.w; h = s.h; });
+    ro.observe(container);
+    container._ebCleanup = () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }
+
+  // Apply to all existing .secret-electric elements, and watch for new ones
+  function applyToAll() {
+    document.querySelectorAll('.secret-electric').forEach(el => {
+      if (!el.classList.contains('electric-border-wrap')) {
+        el.classList.add('electric-border-wrap');
+      }
+      initElectricBorder(el);
+    });
+  }
+
+  // Run on DOM ready and watch for dynamic content
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyToAll);
+  } else {
+    applyToAll();
+  }
+
+  const mo = new MutationObserver(applyToAll);
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 </script>
 </body>
 </html>
