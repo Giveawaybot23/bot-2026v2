@@ -5342,13 +5342,11 @@ app.post('/api/merchant/restock', async (req, res) => {
 // Add new item IDs here when you add them to the pool.
 // Placeholder IDs are commented out until implemented.
 const MERCHANT_ITEM_PRICES = {
-  drop_boost: 800, coin_magnet: 600, lucky_clover: 1200, xp_boost: 500,
-  reroll_ticket: 1500, cooldown_skip: 2000, version_charm: 2500, vault_pass: 700,
+  xp_boost: 500,
   mystery_box: 1000,
   rainbow_tag: 6000,
   sprint_boost: 3000,
   listing_boost: 2000,
-  price_alert: 500,
 };
 
 const MERCHANT_CRATE_POOLS = {
@@ -5406,7 +5404,6 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
       { id: 'rainbow_tag',   name: 'Rainbow Nametag' },
       { id: 'sprint_boost',  name: 'Sprint Boost' },
       { id: 'listing_boost', name: 'Listing Boost' },
-      { id: 'price_alert',   name: 'Price Alert' },
     ];
     const won = ACTIVE_ITEMS[Math.floor(Math.random() * ACTIVE_ITEMS.length)];
     extraData.wonItemId = won.id;
@@ -5445,11 +5442,6 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   } else if (itemId === 'listing_boost') {
     // 24-hour listing boost: seller's listings float to top of market
     user.listingBoost = { expiresAt: now + 24 * 60 * 60 * 1000 };
-
-  } else if (itemId === 'price_alert') {
-    // Handled separately via /api/merchant/price-alert/set
-    // This purchase just deducts coins and confirms intent — the alert details come from a second call
-    extraData.needsSetup = true;
 
   } else if (type === 'seed') {
     const rarityMap = { seed_common:'Common', seed_uncommon:'Uncommon', seed_rare:'Rare', seed_epic:'Epic', seed_legendary:'Legendary' };

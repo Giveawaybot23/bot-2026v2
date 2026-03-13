@@ -620,7 +620,10 @@
   .shop-filters, [style*="display:flex;gap:12px;flex-wrap:wrap"] { gap: 8px; }
   .shop-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
   .auction-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .merchant-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .merchant-grid { gap: 12px; }
+  .merchant-featured-layout { flex-direction: column; }
+  .merchant-main-card { max-width: 100%; width: 100%; }
+  .merchant-side-card { width: 100%; }
   .market-card { padding: 14px; }
   .market-card-emoji { font-size: 28px; }
   .auction-card { padding: 14px; }
@@ -650,7 +653,7 @@
   .auction-detail { padding: 10px 10px 60px; }
   .shop-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .auction-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .merchant-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .merchant-grid { gap: 10px; }
   #pk-shop-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .market-card-name { font-size: 13px; }
   .market-card-price { font-size: 13px; }
@@ -1154,13 +1157,44 @@
 
 .merchant-body { padding: 40px 48px; }
 
-/* Item grid */
+/* Item grid — now a featured single-item layout */
 .merchant-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
   margin-bottom: 48px;
 }
+
+.merchant-featured-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.merchant-main-card {
+  flex: 1;
+  max-width: 420px;
+}
+
+.merchant-side-card {
+  width: 210px;
+  flex-shrink: 0;
+  border: 1.5px dashed rgba(255,215,0,0.35);
+  background: rgba(255,215,0,0.03);
+  position: relative;
+}
+
+.merchant-side-card::before {
+  content: '🎲 Side Offer';
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a84c;
+  background: var(--card);
+  padding: 0 6px;
+}
+
 
 .merchant-item-card {
   background: var(--card); border-radius: 16px;
@@ -5532,20 +5566,22 @@ function seededRand(seed, n) {
 // All possible items Guildwald can offer. 4 are picked per 30-minute window.
 // Add new items here as the game grows — they'll automatically rotate in.
 const MERCHANT_POOL = [
-  // ── Active items ──
-  { id:'xp_boost',      icon:'📚', name:'XP Tome',              tag:'XP',      tagColor:'#2196F3', price:500,
+  // ── Active items (1 shown per window, mystery box appears separately) ──
+  { id:'xp_boost',      icon:'📚', name:'XP Tome',         tag:'XP',      tagColor:'#2196F3', price:500,
     desc:'+200% XP on all actions for 20 minutes.' },
-  { id:'mystery_box',   icon:'📦', name:'Mystery Box',          tag:'Gamble',  tagColor:'#FFD700', price:1000,
-    desc:"A mystery item from the shop — could be anything. Could be great. Could be... a Reroll Ticket." },
-  { id:'rainbow_tag',   icon:'🌈', name:'Rainbow Nametag',      tag:'Cosmetic',tagColor:'#FF6B6B', price:6000,
+  { id:'rainbow_tag',   icon:'🌈', name:'Rainbow Nametag', tag:'Cosmetic', tagColor:'#FF6B6B', price:6000,
     desc:'Your username shimmers with a rainbow gradient on all leaderboards for 4 hours. Pure flex.' },
-  { id:'sprint_boost',  icon:'🏃', name:'Sprint Boost',         tag:'Boost',   tagColor:'#FF9800', price:3000,
+  { id:'sprint_boost',  icon:'🏃', name:'Sprint Boost',    tag:'Boost',   tagColor:'#FF9800', price:3000,
     desc:'Every plant you claim counts twice toward the daily & weekly leaderboard for 1 hour.' },
-  { id:'listing_boost', icon:'📌', name:'Listing Boost',        tag:'Market',  tagColor:'#00BCD4', price:2000,
-    desc:'All your market listings are pinned to the top of the market feed for 24 hours.' },
-  { id:'price_alert',   icon:'🔔', name:'Price Alert',          tag:'Market',  tagColor:'#00BCD4', price:500,
-    desc:'Set a rarity + max price. Get a Discord DM the moment a matching plant is listed. Up to 5 active alerts.' },
+  { id:'listing_boost', icon:'📌', name:'Listing Boost',   tag:'Market',  tagColor:'#9c5fff', price:2000,
+    desc:'All your market and auction listings are pinned to the top for 24 hours.' },
 ];
+
+const MYSTERY_BOX_ITEM = { id:'mystery_box', icon:'📦', name:'Mystery Box', tag:'Gamble', tagColor:'#FFD700', price:1000,
+  desc:"A mystery item — could be anything. One random boost, activated instantly." };
+
+// 35% chance the mystery box appears as a side item each window
+const MYSTERY_BOX_CHANCE = 0.35;
 
 // ── STATE ──
 const _merchantPurchased = JSON.parse(localStorage.getItem('merchant_purchased') || '{}');
@@ -5570,49 +5606,83 @@ function saveMerchantState() {
 function renderMerchantPage(seedOverride) {
   const seed = seedOverride !== undefined ? seedOverride : (window._merchantRestockOverride !== undefined ? window._merchantRestockOverride : dailySeed());
 
-  // Shuffle pool and pick 4 for this 30-min window
+  // Pick 1 main item from the pool using the seed
   const pool = [...MERCHANT_POOL];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(seededRand(seed, i + 7) * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  const slots = pool.slice(0, 4).filter(item => item !== undefined && item.id !== undefined);
+  const mainItem = pool[0];
+
+  // 35% chance mystery box appears this window (seed-deterministic)
+  const showMystery = seededRand(seed, 99) < MYSTERY_BOX_CHANCE;
 
   const grid = document.getElementById('merchant-main-grid');
   if (!grid) return;
-  grid.innerHTML = slots.map((item, i) => {
+
+  function buildCard(item, isSide) {
     const stockKey = item.id + '_' + seed;
     if (_merchantStockLeft[stockKey] === undefined) _merchantStockLeft[stockKey] = 3;
     const left = _merchantStockLeft[stockKey];
     const isSoldOut = left <= 0;
     const stockClass = left === 1 ? 'low' : left === 2 ? 'medium' : '';
+
+    if (isSide) {
+      return `
+      <div class="merchant-item-card merchant-side-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:0.1s">
+        <div class="merchant-item-top-bar" style="background:${item.tagColor}"></div>
+        <div class="merchant-item-stock ${stockClass}">${left} left</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:28px;line-height:1">${item.icon}</span>
+          <div>
+            <div class="merchant-item-category" style="color:${item.tagColor};margin-bottom:2px">${item.tag}</div>
+            <div class="merchant-item-name" style="font-size:14px">${item.name}</div>
+          </div>
+        </div>
+        <div class="merchant-item-desc" style="font-size:12px;min-height:0;margin-bottom:14px">${item.desc}</div>
+        <div class="merchant-item-footer">
+          <div class="merchant-item-price" style="font-size:16px">${item.price.toLocaleString()}<small>coins</small></div>
+          <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg)"
+            ${isSoldOut ? 'disabled' : ''}
+            onclick="merchantBuy('consumable','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.desc)}')">
+            Buy
+          </button>
+        </div>
+      </div>`;
+    }
+
     return `
-    <div class="merchant-item-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:${i*0.07}s">
+    <div class="merchant-item-card merchant-main-card reveal${isSoldOut ? ' sold-out' : ''}" style="animation-delay:0s">
       <div class="merchant-item-top-bar" style="background:${item.tagColor}"></div>
       <div class="merchant-item-stock ${stockClass}">${left} left</div>
-      <span class="merchant-item-icon">${item.icon}</span>
+      <span class="merchant-item-icon" style="font-size:52px;margin-bottom:18px">${item.icon}</span>
       <div class="merchant-item-category" style="color:${item.tagColor}">${item.tag}</div>
-      <div class="merchant-item-name">${item.name}</div>
-      <div class="merchant-item-desc">${item.desc}</div>
+      <div class="merchant-item-name" style="font-size:20px;margin-bottom:8px">${item.name}</div>
+      <div class="merchant-item-desc" style="font-size:14px;margin-bottom:22px">${item.desc}</div>
       <div class="merchant-item-footer">
         <div class="merchant-item-price">${item.price.toLocaleString()}<small>coins</small></div>
-        <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg)"
+        <button class="merchant-item-buy-btn" style="background:var(--ink);color:var(--bg);padding:10px 28px;font-size:14px"
           ${isSoldOut ? 'disabled' : ''}
           onclick="merchantBuy('consumable','${item.id}','${encodeURIComponent(item.name)}','${item.price}','${encodeURIComponent(item.icon)}','${encodeURIComponent(item.desc)}')">
           Buy
         </button>
       </div>
     </div>`;
-  }).join('');
+  }
+
+  grid.innerHTML = `
+    <div class="merchant-featured-layout">
+      ${buildCard(mainItem, false)}
+      ${showMystery ? buildCard(MYSTERY_BOX_ITEM, true) : ''}
+    </div>`;
 
   updateMerchantCountdown();
   if (window._merchantCountdownInterval) clearInterval(window._merchantCountdownInterval);
   window._merchantCountdownInterval = setInterval(updateMerchantCountdown, 1000);
 
-  // Trigger reveal after a short delay to ensure DOM is painted
   setTimeout(() => {
     document.querySelectorAll('#merchant-main-grid .reveal').forEach((el, i) => {
-      setTimeout(() => el.classList.add('visible'), i * 70);
+      setTimeout(() => el.classList.add('visible'), i * 80);
     });
   }, 60);
 }
@@ -5761,10 +5831,6 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
         // Listing Boost
         else if (itemId === 'listing_boost') {
           showToast(`📌 Listing Boost activated! All your market and auction listings are pinned to the top for 24 hours.`);
-        }
-        // Price Alert — show setup modal
-        else if (itemId === 'price_alert') {
-          openPriceAlertSetupModal();
         }
         else {
           showToast(`✅ Purchased ${name}!`);
