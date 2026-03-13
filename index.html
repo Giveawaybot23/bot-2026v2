@@ -5793,8 +5793,8 @@ async function deletePriceAlert(alertId) {
   const COLOR = '#9c5fff';
   const SPEED = 1.2;
   const CHAOS = 0.18;
-  const BORDER_OFFSET = 12;
-  const DISPLACEMENT = 12;
+  const BORDER_OFFSET = 14;
+  const DISPLACEMENT = 17;
   const OCTAVES = 8;
   const LACUNARITY = 1.6;
   const GAIN = 0.7;
@@ -5858,7 +5858,7 @@ async function deletePriceAlert(alertId) {
     const ctx = canvas.getContext('2d');
 
     let timeRef = 0, lastFrame = performance.now(), raf;
-    const borderRadius = 14;
+    const borderRadius = 18;
 
     function draw(now) {
       const dt = (now - lastFrame) / 1000;
