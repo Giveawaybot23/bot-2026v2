@@ -1165,13 +1165,12 @@
 .merchant-featured-layout {
   display: flex;
   align-items: flex-start;
-  justify-content: center;
   gap: 16px;
 }
 
 .merchant-main-card {
-  width: 380px;
-  flex-shrink: 0;
+  flex: 1;
+  max-width: 420px;
 }
 
 .merchant-side-card {
@@ -5582,7 +5581,7 @@ const MYSTERY_BOX_ITEM = { id:'mystery_box', icon:'📦', name:'Mystery Box', ta
   desc:"A mystery item — could be anything. One random boost, activated instantly." };
 
 // 35% chance the mystery box appears as a side item each window
-const MYSTERY_BOX_CHANCE = 0.35;
+const MYSTERY_BOX_CHANCE = 0.20;
 
 // ── STATE ──
 const _merchantPurchased = JSON.parse(localStorage.getItem('merchant_purchased') || '{}');
