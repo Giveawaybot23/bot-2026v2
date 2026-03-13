@@ -648,8 +648,12 @@ function generateClaimsLBImage(entries, title, subtitle) {
     // Username
     ctx.textAlign = 'left';
     ctx.font = i < 3 ? 'bold 17px Arial' : '15px Arial';
-    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
-    ctx.fillText(e.username, 58, mid);
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 58, mid);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.78)';
+      ctx.fillText(e.username, 58, mid);
+    }
 
     // Count pill — right side
     const countTxt = `${e.count} claims`;
@@ -1267,6 +1271,19 @@ function drawRowGlow(ctx, y, rowH, W, rank) {
   ctx.fillStyle = rankHex; ctx.fillRect(0, y, 4, rowH); ctx.restore();
 }
 
+function drawRainbowText(ctx, text, x, y) {
+  const colors = ['#ff0000','#ff6600','#ffcc00','#00cc44','#0099ff','#9933ff'];
+  const totalW = ctx.measureText(text).width;
+  const grad = ctx.createLinearGradient(x, y, x + totalW, y);
+  colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c));
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(180,100,255,0.4)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 function drawLBFooter(ctx, W, H, PADDING, label) {
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, H - PADDING); ctx.lineTo(W, H - PADDING); ctx.stroke();
@@ -1425,7 +1442,12 @@ async function generateLevelLBImage(entries) {
     if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
     else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
     ctx.font = '18px Arial'; ctx.textAlign = 'left'; ctx.fillText(e.rankEmoji, 54, mid - 1);
-    ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
+    ctx.font = 'bold 16px Arial';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 80, mid);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
+    }
     ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#7986CB'; ctx.fillText(`Lv. ${e.level}`, W - 170, mid);
     const barX = W - 120, barW = 90, barH = 8, barY = mid - barH / 2;
     ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 4); ctx.fill();
@@ -1982,7 +2004,12 @@ function generateMoneyLBImage(entries) {
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
     else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 58, mid);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
+    }
     ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#00C853' : 'rgba(255,255,255,0.7)';
     ctx.textAlign = 'right'; ctx.fillText(`${e.currency.toLocaleString()} coins`, W-16, mid); ctx.textAlign = 'left';
     const barX = W-170, barW = 100, barH = 5, barY = mid+10;
@@ -3039,9 +3066,11 @@ if (cmd === 'web') {
 
   if (cmd === 'dailylb' || cmd === 'dlb') {
     const lb = loadClaimsLB();
+    const db = loadDB();
+    const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
     const sorted = lb
-      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, DAY), userId: e.userId }))
+      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, DAY), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -3053,9 +3082,11 @@ if (cmd === 'web') {
 
   if (cmd === 'weeklylb' || cmd === 'wlb') {
     const lb = loadClaimsLB();
+    const db = loadDB();
+    const now = Date.now();
     const WEEK = 167 * 60 * 60 * 1000;
     const sorted = lb
-      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, WEEK), userId: e.userId }))
+      .map(e => ({ username: e.username, count: getClaimsInWindow(e.claims, WEEK), userId: e.userId, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) }))
       .filter(e => e.count > 0 && !TEST_IDS.has(e.userId))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -3068,8 +3099,9 @@ if (cmd === 'web') {
   // ── !moneylb / !mlb ───────────────────────────────────────────────────────
   if (cmd === 'moneylb' || cmd === 'mlb') {
     const db = loadDB();
+    const now = Date.now();
     const sorted = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, currency: u.currency||0 })).sort((a,b) => b.currency-a.currency).slice(0, 10);
-    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency }; }));
+    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency, rainbowTag: !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now) }; }));
     const imgBuf = generateMoneyLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'moneylb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://moneylb.png').setFooter({ text: `Top ${entries.length} Richest  ·  !mlb` }).setColor(0x00C853)], files: [att] });
@@ -5345,31 +5377,16 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   let extraData = {};
 
   if (itemId === 'mystery_box') {
-    // 10% chance to reroll the entire merchant shop
-    if (Math.random() < 0.10) {
-      extraData.wonItemId = 'merchant_reroll';
-      extraData.reroll = true;
-      // Bump the restock seed so the client re-renders with new items
-      extraData.restockToken = Date.now();
-    } else {
-      // Only items that are fully implemented and active in the shop
-      const ACTIVE_MERCHANT_ITEMS = [
-        { id: 'xp_boost',      name: 'XP Tome' },
-        { id: 'rainbow_tag',   name: 'Rainbow Nametag' },
-        { id: 'sprint_boost',  name: 'Sprint Boost' },
-        { id: 'listing_boost', name: 'Listing Boost' },
-        { id: 'price_alert',   name: 'Price Alert' },
-      ];
-      const won = ACTIVE_MERCHANT_ITEMS[Math.floor(Math.random() * ACTIVE_MERCHANT_ITEMS.length)];
-      user.merchantConsumables = user.merchantConsumables || [];
-      user.merchantConsumables.push({ itemId: won.id, name: won.name, purchasedAt: now, used: false });
-      extraData.wonItemId = won.id;
-      extraData.wonName = won.name;
-    }
+    // Pick a random item from the consumable pool (excluding mystery_box itself)
+    const pool = Object.keys(MERCHANT_ITEM_PRICES).filter(k => k !== 'mystery_box' && k !== 'rainbow_tag' && k !== 'sprint_boost' && k !== 'listing_boost' && k !== 'price_alert');
+    const won = pool[Math.floor(Math.random() * pool.length)];
+    user.merchantConsumables = user.merchantConsumables || [];
+    user.merchantConsumables.push({ itemId: won, name: won.replace(/_/g,' '), purchasedAt: now, used: false });
+    extraData.wonItemId = won;
 
   } else if (itemId === 'rainbow_tag') {
-    // 7-day rainbow tag on leaderboard
-    user.rainbowTag = { expiresAt: now + 7 * 24 * 60 * 60 * 1000 };
+    // 4-hour rainbow tag on leaderboard
+    user.rainbowTag = { expiresAt: now + 4 * 60 * 60 * 1000 };
 
   } else if (itemId === 'sprint_boost') {
     // 1-hour sprint: claims count double toward leaderboard
