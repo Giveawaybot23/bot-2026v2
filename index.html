@@ -5548,12 +5548,12 @@ if (msg.type === 'leaderboard_update') {
 // ── MERCHANT / GUILDWALD'S EMPORIUM ──────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 
-// Seed based on 30-minute windows
+// Seed based on 15-minute windows
 function dailySeed() {
   const d = new Date();
-  // Each 30-min block gets a unique seed: date * 100 + half-hour index
-  const halfHour = Math.floor(d.getHours() * 240 + Math.floor(d.getMinutes() * 4 + d.getSeconds() / 15));
-  return (d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate()) * 100 + halfHour;
+  // Each 15-min block gets a unique seed: date * 10000 + quarter-hour index (0–95 per day)
+  const quarterHour = Math.floor(d.getHours() * 4 + d.getMinutes() / 15);
+  return (d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate()) * 10000 + quarterHour;
 }
 function seededRand(seed, n) {
   let s = seed ^ (n * 2654435761);
@@ -5691,13 +5691,16 @@ function updateMerchantCountdown() {
   const el = document.getElementById('merchant-countdown');
   if (!el) return;
   const now = new Date();
-  // Time until the next 30-min boundary
-  const minsLeft = 0;
-  const secsLeft = 14 - (now.getSeconds() % 15);
-  el.textContent = `${String(minsLeft).padStart(2,'0')}:${String(secsLeft).padStart(2,'0')}`;
+  // Time until the next 15-min boundary
+  const totalSecsInWindow = 15 * 60;
+  const secsElapsed = (now.getMinutes() % 15) * 60 + now.getSeconds();
+  const secsLeft = totalSecsInWindow - secsElapsed - 1;
+  const minsLeft = Math.floor(secsLeft / 60);
+  const sLeft    = secsLeft % 60;
+  el.textContent = `${String(minsLeft).padStart(2,'0')}:${String(sLeft).padStart(2,'0')}`;
 
   // When the window flips, re-render
-  if (minsLeft === 0 && secsLeft === 0) {
+  if (secsLeft <= 0) {
     clearInterval(window._merchantCountdownInterval);
     window._merchantCountdownInterval = null;
     setTimeout(renderMerchantPage, 1000);
