@@ -755,7 +755,8 @@ async function resolveTarget(message, argIdOrMention) {
 function addXP(db, userId, amount) {
   const u = getUser(db, userId);
   const before = getLevelFromXP(u.xp);
-  u.xp += amount;
+  const boosted = u.xpBoost && u.xpBoost.expiresAt > Date.now();
+  u.xp += boosted ? amount * 2 : amount;
   const after = getLevelFromXP(u.xp);
   return after > before ? after : null;
 }
@@ -5390,9 +5391,15 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
     user.merchantConsumables.push({ itemId: won, name: won.replace(/_/g,' '), purchasedAt: now, used: false });
     extraData.wonItemId = won;
 
+  } else if (itemId === 'xp_boost') {
+    // 30-minute 2x XP boost — activates immediately, stacks time if already active
+    const existing = user.xpBoost && user.xpBoost.expiresAt > now ? user.xpBoost.expiresAt : now;
+    user.xpBoost = { expiresAt: existing + 30 * 60 * 1000 };
+    extraData.xpBoostExpiresAt = user.xpBoost.expiresAt;
+
   } else if (itemId === 'rainbow_tag') {
-    // 7-day rainbow tag on leaderboard
-    user.rainbowTag = { expiresAt: now + 7 * 24 * 60 * 60 * 1000 };
+    // 6-hour rainbow tag on leaderboard
+    user.rainbowTag = { expiresAt: now + 6 * 60 * 60 * 1000 };
 
   } else if (itemId === 'sprint_boost') {
     // 1-hour sprint: claims count double toward leaderboard
@@ -5477,6 +5484,21 @@ app.get('/api/merchant/price-alert', (req, res) => {
   const db = loadDB();
   const user = getUser(db, req.user.id);
   res.json(user.priceAlerts || []);
+});
+
+app.get('/api/merchant/boost-status', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const db = loadDB();
+  const user = getUser(db, req.user.id);
+  const now = Date.now();
+  res.json({
+    xpBoost: user.xpBoost && user.xpBoost.expiresAt > now
+      ? { active: true, expiresAt: user.xpBoost.expiresAt, msLeft: user.xpBoost.expiresAt - now }
+      : { active: false },
+    rainbowTag: user.rainbowTag && user.rainbowTag.expiresAt > now
+      ? { active: true, expiresAt: user.rainbowTag.expiresAt, msLeft: user.rainbowTag.expiresAt - now }
+      : { active: false },
+  });
 });
 
 app.delete('/api/merchant/price-alert/:id', (req, res) => {

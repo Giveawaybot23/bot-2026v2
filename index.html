@@ -2329,6 +2329,7 @@ function pkBurst(x,y,color,count=24){
     </div>
 
     <div class="merchant-body">
+      <div id="merchant-active-boosts" style="display:none;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"></div>
       <div class="merchant-grid" id="merchant-main-grid"></div>
     </div>
 
@@ -2476,7 +2477,7 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'packs') initPackPage();
   if (name === 'inventory') loadInventoryPage();
   if (name === 'trade') loadTradePage();
-  if (name === 'merchant') renderMerchantPage();
+  if (name === 'merchant') { renderMerchantPage(); loadBoostStatus(); }
   if (name === 'market' || name === 'auctions' || name === 'auction-detail' || name === 'trade' || name === 'merchant' || name === 'packs') {
     document.getElementById('nav-shop-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
@@ -5532,7 +5533,7 @@ const MERCHANT_POOL = [
   { id:'mystery_box',   icon:'📦', name:'Mystery Box',          tag:'Gamble',  tagColor:'#FFD700', price:1000,
     desc:"A mystery item from the shop — could be anything. Could be great. Could be... a Reroll Ticket." },
   { id:'rainbow_tag',   icon:'🌈', name:'Rainbow Nametag',      tag:'Cosmetic',tagColor:'#FF6B6B', price:6000,
-    desc:'Your username shimmers with a rainbow gradient on all leaderboards for 7 days. Pure flex.' },
+    desc:'Your username shimmers with a rainbow gradient on all leaderboards for 4 hours. Pure flex.' },
   { id:'sprint_boost',  icon:'🏃', name:'Sprint Boost',         tag:'Boost',   tagColor:'#FF9800', price:3000,
     desc:'Every plant you claim counts twice toward the daily & weekly leaderboard for 1 hour.' },
   { id:'listing_boost', icon:'📌', name:'Listing Boost',        tag:'Market',  tagColor:'#00BCD4', price:2000,
@@ -5658,6 +5659,29 @@ async function merchantAdminRestock() {
 }
 
 // ── BUY FLOW ──
+async function loadBoostStatus() {
+  try {
+    const res = await fetch('/api/merchant/boost-status', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const container = document.getElementById('merchant-active-boosts');
+    if (!container) return;
+    container.innerHTML = '';
+    let hasAny = false;
+    if (data.xpBoost && data.xpBoost.active) {
+      hasAny = true;
+      const mins = Math.ceil(data.xpBoost.msLeft / 60000);
+      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(33,150,243,0.12);border:1.5px solid rgba(33,150,243,0.35);color:#64b5f6;font-size:13px;font-weight:700">📚 2x XP Active — ${mins} min left</div>`;
+    }
+    if (data.rainbowTag && data.rainbowTag.active) {
+      hasAny = true;
+      const hrs = Math.ceil(data.rainbowTag.msLeft / 3600000);
+      container.innerHTML += `<div style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:100px;background:rgba(180,100,255,0.12);border:1.5px solid rgba(180,100,255,0.35);color:#ce93d8;font-size:13px;font-weight:700">🌈 Rainbow Tag Active — ${hrs}h left</div>`;
+    }
+    container.style.display = hasAny ? 'flex' : 'none';
+  } catch {}
+}
+
 function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc) {
   const name = decodeURIComponent(encodedName);
   const icon = decodeURIComponent(encodedIcon);
@@ -5711,6 +5735,11 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
             showToast(`📦 Mystery Box opened! You got: ${wonName}!`);
           }
         }
+        // XP Boost — show time remaining
+        else if (itemId === 'xp_boost') {
+          const mins = 30;
+          showToast(`📚 2x XP Boost activated! Every XP you earn is doubled for ${mins} minutes.`);
+        }
         // Price Alert — show setup modal
         else if (itemId === 'price_alert') {
           openPriceAlertSetupModal();
@@ -5718,8 +5747,9 @@ function merchantBuy(type, itemId, encodedName, price, encodedIcon, encodedDesc)
         else {
           showToast(`✅ Purchased ${name}!`);
         }
-        // Refresh the page to update stock
+        // Refresh the page to update stock and active boosts
         renderMerchantPage();
+        loadBoostStatus();
       } catch(e) {
         errEl.style.display = 'block';
         errEl.textContent = 'Network error — try again.';
