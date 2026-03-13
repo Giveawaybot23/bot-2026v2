@@ -1384,9 +1384,13 @@ async function generateInvLBImage(entries) {
 
     // Username
     ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
-    ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(e.username, 130, mid - 8);
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
 
     // Tier name
     ctx.font = '12px Arial'; ctx.fillStyle = tierHex;
@@ -1461,7 +1465,6 @@ async function generateLevelLBImage(entries) {
 
 async function buildLevelLBData(db, page = 1) {
   const PER_PAGE = 10;
-  const now = Date.now();
   const sorted   = Object.entries(db).map(([id, u]) => ({ id, xp: u.xp || 0 })).sort((a, b) => b.xp - a.xp);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
   const slice      = sorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -1470,8 +1473,7 @@ async function buildLevelLBData(db, page = 1) {
     const level = getLevelFromXP(e.xp); const rank = getRank(level); const { pct } = xpToNextLevel(e.xp);
     let username = `User#${e.id.slice(-4)}`;
     try { const u = await client.users.fetch(e.id); username = u.username; } catch {}
-    const rainbowTag = !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now);
-    return { globalRank, username, level, rankEmoji: rank.emoji, rankName: rank.name, xp: e.xp, pct, rainbowTag };
+    return { globalRank, username, level, rankEmoji: rank.emoji, rankName: rank.name, xp: e.xp, pct };
   }));
   return { entries, totalPages };
 }
@@ -1973,12 +1975,7 @@ function generateRaceLBImage(entries) {
     ctx.textAlign = 'center';
     if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
     else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 58, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
-    }
+    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
     ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#FFAA00' : 'rgba(255,255,255,0.7)';
     ctx.textAlign = 'right'; ctx.fillText(msToStr(e.bestTime), W-16, mid); ctx.textAlign = 'left';
     const barX = W-170, barW = 100, barH = 5, barY = mid+10;
@@ -2964,7 +2961,7 @@ if (cmd === 'web') {
         let username = `User#${id.slice(-4)}`;
         let avatarURL = null;
         try { const discordUser = await client.users.fetch(id); username = discordUser.username; avatarURL = discordUser.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
-        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL };
+        return { id, score, username, plantCount: (u.collection || []).length, tier: getGardenTier(score), avatarURL, rainbowTag: !!(u.rainbowTag && u.rainbowTag.expiresAt > Date.now()) };
       })
     );
     const sorted = scored.filter(e => e.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
@@ -3066,9 +3063,7 @@ if (cmd === 'web') {
   if (cmd === 'racelb' || cmd === 'rlb') {
     const lb = loadRaceLB().slice(0, 10);
     if (!lb.length) return message.reply('No race times yet!');
-    const db = loadDB();
-    const now = Date.now();
-    const imgBuf = generateRaceLBImage(lb.map(e => ({ username: e.username, bestTime: e.bestTime, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })));
+    const imgBuf = generateRaceLBImage(lb.map(e => ({ username: e.username, bestTime: e.bestTime })));
     const att    = new AttachmentBuilder(imgBuf, { name: 'racelb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://racelb.png').setFooter({ text: `Top ${lb.length} Racers  ·  !rlb` }).setColor(0xFFAA00)], files: [att] });
   }
