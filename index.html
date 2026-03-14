@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap"></noscript>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -6133,6 +6134,106 @@ async function deletePriceAlert(alertId) {
 }
 
 
+</script>
+
+<script>
+// ── HERO TITLE SPLIT TEXT ANIMATION ─────────────────────────────────────────
+(function () {
+  function splitHeroTitle() {
+    const el = document.querySelector('.hero-title');
+    if (!el || el._splitDone) return;
+    el._splitDone = true;
+
+    // Walk child nodes, wrapping each character in a <span>
+    // Preserves <br> and <em> structure
+    function wrapChars(parent, targetArray) {
+      const nodes = Array.from(parent.childNodes);
+      parent.innerHTML = '';
+
+      nodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          node.textContent.split('').forEach(ch => {
+            if (ch === ' ') {
+              parent.appendChild(document.createTextNode(' '));
+            } else {
+              const span = document.createElement('span');
+              span.textContent = ch;
+              span.style.cssText = 'display:inline-block;will-change:transform,opacity;';
+              parent.appendChild(span);
+              targetArray.push(span);
+            }
+          });
+        } else if (node.nodeName === 'BR') {
+          parent.appendChild(document.createElement('br'));
+        } else if (node.nodeName === 'EM') {
+          const em = document.createElement('em');
+          wrapChars(node, targetArray);           // recurse into <em>
+          Array.from(node.childNodes).forEach(c => em.appendChild(c.cloneNode(true)));
+          // re-collect the spans we just made inside <em>
+          em.querySelectorAll('span').forEach(s => targetArray.push(s));
+          parent.appendChild(em);
+        }
+      });
+    }
+
+    const chars = [];
+    // Clone the original node so we can recurse properly
+    const clone = el.cloneNode(true);
+    el.innerHTML = '';
+
+    Array.from(clone.childNodes).forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        node.textContent.split('').forEach(ch => {
+          if (ch === ' ') {
+            el.appendChild(document.createTextNode(' '));
+          } else {
+            const span = document.createElement('span');
+            span.textContent = ch;
+            span.style.cssText = 'display:inline-block;will-change:transform,opacity;';
+            el.appendChild(span);
+            chars.push(span);
+          }
+        });
+      } else if (node.nodeName === 'BR') {
+        el.appendChild(document.createElement('br'));
+      } else if (node.nodeName === 'EM') {
+        const em = document.createElement('em');
+        Array.from(node.childNodes).forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            child.textContent.split('').forEach(ch => {
+              if (ch === ' ') {
+                em.appendChild(document.createTextNode(' '));
+              } else {
+                const span = document.createElement('span');
+                span.textContent = ch;
+                span.style.cssText = 'display:inline-block;will-change:transform,opacity;';
+                em.appendChild(span);
+                chars.push(span);
+              }
+            });
+          }
+        });
+        el.appendChild(em);
+      }
+    });
+
+    // Animate all character spans
+    gsap.fromTo(
+      chars,
+      { opacity: 0, y: 40 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 1.25,
+        ease: 'power3.out',
+        stagger: 0.05,
+        force3D: true
+      }
+    );
+  }
+
+  document.fonts.ready.then(splitHeroTitle);
+})();
 </script>
 
 <script>
