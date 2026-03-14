@@ -108,7 +108,7 @@ function applyAutosellRules(user, userId, newPlants) {
       }
       usedIndexes.add(i);
       candidates.push(i);
-      totalEarned += p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      totalEarned += getLiveSellValue(p);
       break;
     }
   }
@@ -269,7 +269,7 @@ function calcWeightedGardenScore(collection) {
   // Sort by effective value descending
   const sorted = [...collection]
     .map(p => {
-      const base = p.sellValue || getRarityConfig(p.rarity).sellPrice;
+      const base = getLiveSellValue(p);
       const bonus = RARITY_WEIGHT_BONUS[p.rarity] || 1.0;
       return base * bonus;
     })
@@ -377,9 +377,8 @@ function calcSellValue(plant, rarity, mutation, version) {
   const base      = rarity.sellPrice;
   const dropBonus = plant.dropOnly ? (rarity.name === 'Secret' ? 1.15 : 1.80) : 1.0;
   const verMult   = getVersionMultiplier(version);
-  const mktMult   = getMarketMultiplier(plant.name);
   const mutMult   = mutation ? mutation.multiplier : 1.0;
-  return Math.max(1, Math.round(base * dropBonus * verMult * mktMult * mutMult));
+  return Math.max(1, Math.round(base * dropBonus * verMult * mutMult));
 }
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
@@ -907,8 +906,17 @@ function recordVersionHighWater(plantName, version) {
 }
 
 // ─── Inventory value calculator (legacy, used for display only) ───────────────
+function getLiveSellValue(storedPlant) {
+  const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
+  const rarity   = getRarityConfig(storedPlant.rarity);
+  const mutDef   = storedPlant.mutation
+    ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
+    : null;
+  return calcSellValue(plantDef, rarity, mutDef, storedPlant.version || 1);
+}
+
 function calcInventoryValue(collection) {
-  return collection.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+  return collection.reduce((sum, p) => sum + getLiveSellValue(p), 0);
 }
 
 // ─── Mutation display ─────────────────────────────────────────────────────────
@@ -2364,7 +2372,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
       if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
       user.collection.splice(index, 1);
-      const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
+      const price = getLiveSellValue(plant);
       user.currency += price;
       // remove locks for plants no longer owned
       const remaining = loadLocks(message.author.id).filter(l => {
@@ -2408,7 +2416,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     if (!user.collection.length) return message.reply('You have no plants to sell.');
     const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
-    const totalVal = sellable.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+    const totalVal = sellable.reduce((sum, p) => sum + getLiveSellValue(p), 0);
     const count = sellable.length;
     const meta = loadMeta();
     for (const p of sellable) {
@@ -3213,7 +3221,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const ls = sl.map((plant, i) => {
         const rCfg = getRarityConfig(plant.rarity), mutBadge = plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : '', verStr = plant.version === 1 ? '`v1` 🔖' : `\`v${plant.version || '?'}\``;
         const num = (p - 1) * PER_PAGE + i + 1;
-        const sellVal = plant.sellValue || rCfg.sellPrice;
+        const sellVal = getLiveSellValue(plant);
         const lockBadge = isLocked(message.author.id, plant) ? ' `[L]`' : '';
         return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${sellVal.toLocaleString()}`;
       });
@@ -3337,10 +3345,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       candidates = candidates.filter(({ p }) => !isLocked(message.author.id, p));
       if (!candidates.length) return message.reply(`All copies of **${plantName}** are locked.`);
       const rCfg      = getRarityConfig(candidates[0].p.rarity);
-      const totalVal  = candidates.reduce((sum, { p }) => sum + (p.sellValue || rCfg.sellPrice), 0);
+      const totalVal  = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
       const lines     = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        const val    = p.sellValue || rCfg.sellPrice;
+        const val    = getLiveSellValue(p);
         return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       // Store all indices for the confirm handler
@@ -3380,7 +3388,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     // Single match — confirm
     if (isLocked(message.author.id, candidates[0].p)) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
     const { p: plant, i: index } = candidates[0];
-    const price = plant.sellValue || getRarityConfig(plant.rarity).sellPrice;
+    const price = getLiveSellValue(plant);
     const rCfg  = getRarityConfig(plant.rarity);
     pendingSells[message.author.id] = { plant, plantName: plant.name, plantVersion: plant.version };
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
@@ -3465,7 +3473,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
 
     // Tally up
-    const totalCoins = candidates.reduce((sum, { p }) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+    const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
 
     // Build a summary grouped by rarity
     const byRarity = {};
@@ -4095,6 +4103,31 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const lines = trending.map(p => { const r = getRarityConfig(p.rarity); const arrow = p.mult > 1.1 ? '📈' : p.mult < 0.9 ? '📉' : '📊'; return `${arrow} ${r.emoji} **${p.name}** — ×${p.mult.toFixed(2)}`; });
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('📊 Plant Market — Trending').setDescription(lines.join('\n') + '\n\n*Use `!m <plant>` to see version owners*').setColor(0x4CAF50)] });
     }
+  }
+
+  if (cmd === 'fixsellvalues') {
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
+    const db = loadDB();
+    let fixed = 0;
+    let skipped = 0;
+    for (const userData of Object.values(db)) {
+      for (const p of (userData.collection || [])) {
+        const plantDef = PLANTS.find(pl => pl.name === p.name) || { name: p.name, dropOnly: false };
+        const rarity   = getRarityConfig(p.rarity);
+        const mutDef   = p.mutation
+          ? MUTATIONS.find(m => m.name === p.mutation.name) || p.mutation
+          : null;
+        const correct  = calcSellValue(plantDef, rarity, mutDef, p.version || 1);
+        if (p.sellValue !== correct) {
+          p.sellValue = correct;
+          fixed++;
+        } else {
+          skipped++;
+        }
+      }
+    }
+    saveDB(db);
+    return message.reply(`✅ Sell values fixed.\n**Updated:** ${fixed} plants\n**Already correct:** ${skipped} plants`);
   }
 
   if (cmd === 'fixdupes' || cmd === 'currentdupes') {
@@ -4903,7 +4936,7 @@ function pushCollectionUpdate(userId) {
         version:   p.version,
         mutation:  p.mutation || null,
         image:     base.display || '',
-        sellPrice: Math.round((base.baseValue || 10) * (p.version || 1) * (p.mutation ? 1.5 : 1)),
+        sellPrice: getLiveSellValue(p),
       };
     });
     pushToUser(userId, { type: 'collection_update', collection });
