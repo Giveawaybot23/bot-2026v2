@@ -1370,7 +1370,7 @@
     <div class="nav-dropdown-wrap" id="nav-play-wrap">
       <a class="nav-dropdown-trigger" id="nav-play-trigger">Play ▾</a>
       <div class="nav-dropdown">
-        <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Pack Opening</a>
+        <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Crate Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
@@ -2005,8 +2005,8 @@
 <div id="pk-particles"></div>
 
 <div id="pack-scene">
-  <div id="pk-title">Guildwald's <span>Pack Shop</span></div>
-  <div id="pk-sub">Open packs · Collect plants · Build your garden</div>
+  <div id="pk-title">Guildwald's <span>Crate Shop</span></div>
+  <div id="pk-sub">Open crates · Collect plants · Build your garden</div>
 
   <!-- SHOP GRID -->
   <div id="pk-shop-grid"></div>
@@ -2038,19 +2038,19 @@
 <script>
 // ─── PACK DEFINITIONS — prices/cards/minLevel mirror CRATES in index.js ──────
 const PK_PACKS = [
-  { id:'bronze',   crateKey:'bronze',   name:'Bronze Crate',  tier:'bronze',   icon:'📦', price:750,   minLevel:5,  cards:10,
+  { id:'bronze',   crateKey:'bronze',   name:'Bronze Crate',  tier:'bronze',   img:'/images/1478192003274510508.webp', price:750,   minLevel:5,  cards:10,
     color1:'#3d2000', color2:'#7a4010', accent:'#CD7F32', gemColor:'#CD7F32',
     desc:'A humble crate. Common finds await.', odds:{ Common:74, Uncommon:17, Rare:5, Epic:3, Legendary:0.1, Mythic:0.02, Secret:0 } },
-  { id:'silver',   crateKey:'silver',   name:'Silver Crate',  tier:'silver',   icon:'🥈', price:2500,  minLevel:10, cards:10,
+  { id:'silver',   crateKey:'silver',   name:'Silver Crate',  tier:'silver',   img:'/images/1478191961931517982.webp', price:2500,  minLevel:10, cards:10,
     color1:'#1a1a2e', color2:'#2d2d4a', accent:'#9E9E9E', gemColor:'#C0C0C0',
     desc:'Better odds. A reliable choice.', odds:{ Common:60, Uncommon:18, Rare:9, Epic:12, Legendary:0.4, Mythic:0.03, Secret:0 } },
-  { id:'gold',     crateKey:'gold',     name:'Gold Crate',    tier:'gold',     icon:'✨', price:5500,  minLevel:15, cards:10,
+  { id:'gold',     crateKey:'gold',     name:'Gold Crate',    tier:'gold',     img:'/images/1478191922718703726.webp', price:5500,  minLevel:15, cards:10,
     color1:'#1a0a00', color2:'#3d2200', accent:'#FFD700', gemColor:'#FFD700',
     desc:'Glittering with possibility.', odds:{ Common:45, Uncommon:17, Rare:12, Epic:24, Legendary:1.2, Mythic:0.14, Secret:0.001 } },
-  { id:'platinum', crateKey:'diamond',  name:'Diamond Crate', tier:'platinum', icon:'💠', price:14000, minLevel:30, cards:10,
+  { id:'platinum', crateKey:'diamond',  name:'Diamond Crate', tier:'platinum', img:'/images/1478191131841007829.webp', price:14000, minLevel:30, cards:10,
     color1:'#001a2e', color2:'#003050', accent:'#00BFFF', gemColor:'#80dfff',
     desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Secret:0.008 } },
-  { id:'ruby',     crateKey:'ruby',     name:'Ruby Crate',    tier:'ruby',     icon:'💎', price:32000, minLevel:40, cards:10,
+  { id:'ruby',     crateKey:'ruby',     name:'Ruby Crate',    tier:'ruby',     img:'/images/1477667927854682254.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
     desc:'The rarest drops. The highest stakes.', odds:{ Common:6, Uncommon:9, Rare:13, Epic:16, Legendary:10, Mythic:3.5, Secret:0.01 } },
 ];
@@ -2061,19 +2061,63 @@ const PK_RARITY_WEIGHT = { Secret:7,Mythic:6,Legendary:5,Epic:4,Rare:3,Uncommon:
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let _pkPack=[], _pkIdx=0, _pkPhase='idle', _pkCurrentTier=null, _pkAllPlants=[];
-let _pkCooldowns = {}; // crateKey -> ms remaining
+let _pkCooldownEnds = {}; // crateKey -> timestamp when cooldown expires
+let _pkCooldownTimer = null;
+
+function _pkCdMs(crateKey) {
+  const ends = _pkCooldownEnds[crateKey] || 0;
+  return Math.max(0, ends - Date.now());
+}
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function initPackPage(){
   // Fetch cooldowns if logged in
   try {
     const r = await fetch('/api/crate/cooldowns', { credentials:'include' });
-    if (r.ok) _pkCooldowns = await r.json();
-  } catch(e) { _pkCooldowns = {}; }
+    if (r.ok) {
+      const data = await r.json();
+      const now = Date.now();
+      _pkCooldownEnds = {};
+      for (const [key, ms] of Object.entries(data)) {
+        if (ms > 0) _pkCooldownEnds[key] = now + ms;
+      }
+    }
+  } catch(e) { _pkCooldownEnds = {}; }
   renderPackShop();
+  _pkStartCooldownTicker();
   if(!_pkAllPlants.length){
     try{ const r=await fetch('/api/plants'); _pkAllPlants=await r.json(); }catch(e){ _pkAllPlants=[]; }
   }
+}
+
+function _pkStartCooldownTicker() {
+  if (_pkCooldownTimer) clearInterval(_pkCooldownTimer);
+  _pkCooldownTimer = setInterval(() => {
+    let anyActive = false;
+    for (const p of PK_PACKS) {
+      const ms = _pkCdMs(p.crateKey);
+      const btn = document.querySelector(`[data-cratekey="${p.crateKey}"] .pk-pack-btn`);
+      const card = document.querySelector(`[data-cratekey="${p.crateKey}"]`);
+      if (!btn || !card) continue;
+      if (ms > 0) {
+        anyActive = true;
+        const secs = Math.ceil(ms / 1000);
+        const cdStr = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
+        btn.textContent = `⏳ ${cdStr}`;
+      } else if (btn.disabled) {
+        // Cooldown just expired — re-enable
+        btn.disabled = false;
+        btn.textContent = 'Open Crate';
+        card.style.opacity = '';
+        card.style.cursor = '';
+        card.onclick = () => pkOpenModal(p.id);
+      }
+    }
+    if (!anyActive) {
+      clearInterval(_pkCooldownTimer);
+      _pkCooldownTimer = null;
+    }
+  }, 1000);
 }
 
 // ─── SHOP ────────────────────────────────────────────────────────────────────
@@ -2081,14 +2125,16 @@ function renderPackShop(){
   const grid=document.getElementById('pk-shop-grid');
   if(!grid)return;
   grid.innerHTML=PK_PACKS.map(p=>{
-    const cdMs = _pkCooldowns[p.crateKey] || 0;
+    const cdMs = _pkCdMs(p.crateKey);
     const onCd = cdMs > 0;
     const cdSecs = Math.ceil(cdMs / 1000);
     const cdStr = cdSecs >= 60 ? `${Math.floor(cdSecs/60)}m ${cdSecs%60}s` : `${cdSecs}s`;
     const btnLabel = onCd ? `⏳ ${cdStr}` : 'Open Crate';
     return `
-    <div class="pk-pack-card ${p.tier}" onclick="${onCd ? '' : `pkOpenModal('${p.id}')`}" style="${onCd ? 'opacity:0.7;cursor:default' : ''}">
-      <div style="font-size:2.8rem;line-height:1;filter:drop-shadow(0 0 12px ${p.accent}66)">${p.icon}</div>
+    <div class="pk-pack-card ${p.tier}" data-cratekey="${p.crateKey}"
+      onclick="${onCd ? '' : `pkOpenModal('${p.id}')`}"
+      style="${onCd ? 'opacity:0.7;cursor:default' : ''}">
+      <img src="${p.img}" alt="${p.name}" style="width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 4px 12px ${p.accent}66)">
       <div class="pk-pack-name">${p.name}</div>
       <div class="pk-pack-desc">${p.desc}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:-4px">Lv.${p.minLevel}+ · ${p.cards} plants</div>
@@ -2098,7 +2144,8 @@ function renderPackShop(){
         `).join('')}
       </div>
       <div class="pk-pack-price">${p.price.toLocaleString()}<small>coins</small></div>
-      <button class="pk-pack-btn" ${onCd ? 'disabled' : ''} onclick="event.stopPropagation();${onCd ? '' : `pkOpenModal('${p.id}')`}">${btnLabel}</button>
+      <button class="pk-pack-btn" ${onCd ? 'disabled' : ''}
+        onclick="event.stopPropagation();${onCd ? '' : `pkOpenModal('${p.id}')`}">${btnLabel}</button>
     </div>`;
   }).join('');
 }
@@ -2137,9 +2184,9 @@ function renderPackVisual(pack){
       <div class="pk-gem br" style="background:${pack.gemColor};box-shadow:0 0 6px ${pack.gemColor}"></div>
       <div class="pk-scan-line"></div><div class="pk-scan-line"></div><div class="pk-scan-line"></div>
       <div class="pk-pv-icon">
-        <div class="pk-pv-icon-main">${pack.icon}</div>
+        <img src="${pack.img}" alt="${pack.name}" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(255,255,255,.4));animation:pkIconPulse 2.5s ease-in-out infinite;margin-bottom:8px">
         <div class="pk-pv-label" style="color:${pack.accent}">${pack.name.toUpperCase()}</div>
-        <div class="pk-pv-sub">${pack.cards} CARDS INSIDE</div>
+        <div class="pk-pv-sub">${pack.cards} PLANTS INSIDE</div>
       </div>
       <div class="pk-rarity-strip" style="background:linear-gradient(90deg,transparent,${pack.accent},transparent)"></div>
     </div>
@@ -2188,7 +2235,8 @@ async function pkDoOpen(){
       document.getElementById('pk-pack-visual-wrap').innerHTML='';
       renderPackVisual(pack);
       if(data.cooldownMs){
-        _pkCooldowns[pack.crateKey] = data.cooldownMs;
+        _pkCooldownEnds[pack.crateKey] = Date.now() + data.cooldownMs;
+        _pkStartCooldownTicker();
         const secs = Math.ceil(data.cooldownMs/1000);
         const cdStr = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
         showToast(`⏳ Cooldown — ${cdStr} remaining.`, true);
@@ -2221,7 +2269,10 @@ async function pkDoOpen(){
   _pkIdx=0;
 
   // Set cooldown locally so shop re-renders correctly
-  _pkCooldowns[pack.crateKey] = data.cooldownMs || 0;
+  if (data.cooldownMs > 0) {
+    _pkCooldownEnds[pack.crateKey] = Date.now() + data.cooldownMs;
+    _pkStartCooldownTicker();
+  }
 
   setTimeout(()=>{
     document.getElementById('pk-pack-visual-wrap').innerHTML='';
