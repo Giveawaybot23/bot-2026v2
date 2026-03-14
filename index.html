@@ -136,11 +136,52 @@
   .btn-secondary:hover { background: var(--ink); color: var(--bg); }
 
   /* ── HERO RIGHT — PLANT CARDS ── */
+  /* ── ORBIT HERO VISUAL ── */
   .hero-visual {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    transform: rotate(2deg);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 340px;
+  }
+  .orbit-container {
+    position: relative;
+    width: 500px;
+    height: 340px;
+    flex-shrink: 0;
+  }
+  .orbit-rotation-wrapper {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-8deg);
+    transform-origin: center center;
+    position: relative;
+  }
+  .orbit-item {
+    position: absolute;
+    will-change: offset-distance;
+    user-select: none;
+  }
+  .orbit-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: rotate(8deg);
+    filter: drop-shadow(0 6px 18px rgba(0,0,0,0.18));
+    transition: transform 0.2s, filter 0.2s;
+    pointer-events: auto;
+  }
+  .orbit-item img:hover {
+    filter: drop-shadow(0 8px 24px rgba(45,106,79,0.45));
+    transform: rotate(8deg) scale(1.15);
+  }
+  .orbit-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(ellipse 70% 40% at 50% 50%, rgba(82,183,136,0.10) 0%, transparent 70%);
+    pointer-events: none;
   }
 
   .plant-card {
@@ -1421,29 +1462,11 @@
     </div>
 
     <div class="hero-visual">
-      <div class="plant-card">
-       <img src="/images/bamboo2-removebg-preview.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:8px" onerror="this.style.display='none'">
-        <div class="plant-card-name">Bamboo</div>
-        <span class="plant-card-rarity rarity-legendary">Legendary</span>
-        <div class="plant-card-version" style="color:#FFD700;font-weight:700;text-shadow:0 0 8px rgba(255,215,0,0.8),0 0 16px rgba(255,215,0,0.4)">✨ v1 · First Copy</div>
-      </div>
-      <div class="plant-card">
-        <img src="/images/dawn-blossom.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:8px" onerror="this.style.display='none'">
-        <div class="plant-card-name">Dawn Blossom</div>
-        <span class="plant-card-rarity rarity-mythic">Mythic</span>
-        <div class="plant-card-version"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,0,0.1);border:1px solid rgba(255,255,0,0.35);border-radius:100px;padding:3px 10px;color:#FFE033;font-weight:700;box-shadow:0 0 8px rgba(255,255,0,0.25)">⭐ Starstruck</span> v3</div>
-      </div>
-      <div class="plant-card">
-      <img src="/images/cherry2-removebg-preview.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:8px" onerror="this.style.display='none'">
-        <div class="plant-card-name">Cherry</div>
-        <span class="plant-card-rarity rarity-legendary">Legendary</span>
-        <div class="plant-card-version"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,153,255,0.1);border:1px solid rgba(0,153,255,0.35);border-radius:100px;padding:3px 10px;color:#33aaff;font-weight:700;box-shadow:0 0 8px rgba(0,153,255,0.25)">🌊 Flooded</span> v7</div>
-      </div>
-      <div class="plant-card">
-       <img src="/images/starvine2-removebg-preview.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:8px" onerror="this.style.display='none'">
-        <div class="plant-card-name">Starvine</div>
-        <span class="plant-card-rarity rarity-secret">Secret</span>
-        <div class="plant-card-version"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(180,0,255,0.1);border:1px solid rgba(180,0,255,0.35);border-radius:100px;padding:3px 10px;color:#cc44ff;font-weight:700;box-shadow:0 0 8px rgba(180,0,255,0.3)">💎 Ultra Rare</span> v2</div>
+      <div class="orbit-container" id="hero-orbit">
+        <div class="orbit-glow"></div>
+        <div class="orbit-rotation-wrapper" id="orbit-rotation-wrapper">
+          <!-- orbit items injected by JS -->
+        </div>
       </div>
     </div>
   </section>
@@ -6233,6 +6256,92 @@ async function deletePriceAlert(alertId) {
   }
 
   document.fonts.ready.then(splitHeroTitle);
+})();
+</script>
+
+<script>
+// ── ORBIT IMAGES ENGINE ─────────────────────────────────────────────────────
+// Vanilla JS port of the OrbitImages React Bits component.
+// Uses CSS Motion Path (offset-path / offset-distance) — same technique
+// as the original Framer Motion implementation.
+(function () {
+  const IMAGES = [
+    '/images/firefern-removebg-preview.png',
+    '/images/glowvein2-removebg-preview.png',
+    '/images/glowcorn2-removebg-preview.png',
+    '/images/dawnfruit2-removebg-preview.png',
+    '/images/mango2-removebg-preview.png',
+    '/images/Starvine2-removebg-preview.png',
+  ];
+
+  // Design-space dimensions (matches container 500×340)
+  const CX = 250, CY = 170, RX = 215, RY = 105;
+  // SVG ellipse path (two arcs = full ellipse, same as generateEllipsePath)
+  const PATH = `M ${CX - RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX + RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX - RX} ${CY}`;
+
+  const ITEM_SIZE   = 82;   // px — image bounding box
+  const DURATION_MS = 40000; // 40 s per full revolution (matches duration=40)
+  const WRAPPER_ROT = -8;   // degrees — matches rotation=-8 prop
+
+  function init() {
+    const wrapper = document.getElementById('orbit-rotation-wrapper');
+    if (!wrapper) return;
+
+    const items = IMAGES.map((src, i) => {
+      const div = document.createElement('div');
+      div.className = 'orbit-item';
+      div.style.cssText = [
+        `width:${ITEM_SIZE}px`,
+        `height:${ITEM_SIZE}px`,
+        `offset-path:path("${PATH}")`,
+        `offset-rotate:0deg`,
+        `offset-anchor:center center`,
+        `offset-distance:0%`,
+      ].join(';');
+
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = `Plant ${i + 1}`;
+      img.draggable = false;
+      // Counter-rotate image so it stays upright despite wrapper tilt
+      img.style.cssText = `width:100%;height:100%;object-fit:contain;transform:rotate(${-WRAPPER_ROT}deg);filter:drop-shadow(0 6px 18px rgba(0,0,0,0.18));transition:transform 0.2s,filter 0.2s;`;
+      img.addEventListener('mouseenter', () => {
+        img.style.filter = 'drop-shadow(0 8px 26px rgba(45,106,79,0.5))';
+        img.style.transform = `rotate(${-WRAPPER_ROT}deg) scale(1.18)`;
+      });
+      img.addEventListener('mouseleave', () => {
+        img.style.filter = 'drop-shadow(0 6px 18px rgba(0,0,0,0.18))';
+        img.style.transform = `rotate(${-WRAPPER_ROT}deg) scale(1)`;
+      });
+
+      div.appendChild(img);
+      wrapper.appendChild(div);
+      return div;
+    });
+
+    let startTime = null;
+
+    function tick(ts) {
+      if (!startTime) startTime = ts;
+      const baseProgress = ((ts - startTime) % DURATION_MS) / DURATION_MS; // 0→1
+
+      items.forEach((item, i) => {
+        // Spread items evenly: each offset by (i / total) around the loop
+        const pct = ((baseProgress + i / items.length) % 1) * 100;
+        item.style.offsetDistance = `${pct.toFixed(3)}%`;
+      });
+
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
 </script>
 
