@@ -59,14 +59,53 @@
     text-decoration: none;
   }
   .nav-logo span { color: var(--green); }
-  .nav-links { display: flex; gap: 8px; align-items: center; overflow: visible; position: relative; }
+  .nav-links {
+    display: flex; gap: 3px; align-items: stretch;
+    overflow: visible; position: relative;
+    background: rgba(14,13,11,0.06);
+    border-radius: 9999px;
+    padding: 3px;
+    height: 42px;
+  }
   .nav-links > a {
     font-size: 14px; font-weight: 500; color: var(--ink2);
-    text-decoration: none; padding: 8px 16px; border-radius: 8px;
-    transition: all 0.2s;
+    text-decoration: none; padding: 0 16px; border-radius: 9999px;
     cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    background: transparent;
+    white-space: nowrap; line-height: 0;
+    transition: none;
   }
-  .nav-links > a:hover, .nav-links > a.active { background: var(--ink); color: var(--bg); }
+  .nav-links > a:hover, .nav-links > a.active { background: transparent; color: var(--ink2); }
+  .nav-links > a.active::after {
+    content: '';
+    position: absolute; bottom: 2px; left: 50%;
+    transform: translateX(-50%);
+    width: 10px; height: 3px;
+    background: var(--ink); border-radius: 100px; z-index: 4;
+  }
+
+  /* ── PILL ANIMATION ELEMENTS ── */
+  .pill-hover-circle {
+    position: absolute; left: 50%; bottom: 0;
+    border-radius: 50%; background: var(--ink);
+    z-index: 1; display: block; pointer-events: none;
+    will-change: transform;
+  }
+  .pill-label-stack {
+    position: relative; display: inline-block;
+    line-height: 1; z-index: 2;
+  }
+  .pill-lbl {
+    position: relative; display: inline-block;
+    will-change: transform;
+  }
+  .pill-lbl-hover {
+    position: absolute; left: 0; top: 0;
+    color: var(--bg); display: inline-block;
+    will-change: transform, opacity;
+  }
 
   /* ── PAGES ── */
   .page { display: none; min-height: 100vh; padding-top: 64px; }
@@ -816,14 +855,21 @@
     position: fixed; top: 64px; left: 0; right: 0;
     background: var(--bg); border-bottom: 1px solid var(--border);
     padding: 12px 16px; gap: 4px; z-index: 99;
+    border-radius: 0; height: auto;
   }
   #coin-display { display: none !important; }
   #nav-username { max-width: 60px; }
   .nav-logo { font-size: 15px; }
 
-  .nav-links > a { width: 100%; padding: 12px 16px; }
+  .nav-links > a { width: 100%; padding: 12px 16px; height: auto; overflow: visible; line-height: 1.2; }
+  .nav-links > a .pill-hover-circle { display: none; }
+  .nav-links > a .pill-lbl-hover { display: none; }
+  .nav-links > a .pill-lbl { position: static; }
   .nav-dropdown-wrap { width: 100%; }
-  .nav-dropdown-trigger { width: 100%; padding: 12px 16px; }
+  .nav-dropdown-trigger { width: 100%; padding: 12px 16px; height: auto; overflow: visible; line-height: 1.2; }
+  .nav-dropdown-trigger .pill-hover-circle { display: none; }
+  .nav-dropdown-trigger .pill-lbl-hover { display: none; }
+  .nav-dropdown-trigger .pill-lbl { position: static; }
   .nav-dropdown {
     position: static; transform: none;
     box-shadow: none; border: none;
@@ -993,14 +1039,16 @@
 }
 .nav-dropdown-trigger {
   font-size: 14px; font-weight: 500; color: var(--ink2);
-  padding: 8px 16px; border-radius: 8px;
-  transition: all 0.2s; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  user-select: none; white-space: nowrap;
+  padding: 0 16px; border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 100%; position: relative; overflow: hidden;
+  background: transparent; user-select: none; white-space: nowrap;
+  line-height: 0; transition: none;
 }
 .nav-dropdown-wrap:hover .nav-dropdown-trigger,
 .nav-dropdown-trigger.active {
-  background: var(--ink); color: var(--bg);
+  background: transparent; color: var(--ink2);
 }
 .nav-dropdown {
   position: absolute;
@@ -1590,24 +1638,42 @@
 <nav>
   <a class="nav-logo" href="#" onclick="showPage('home');return false;">🌿 <span>Sprout</span> App</a>
   <div class="nav-links">
-    <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
-    <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
+    <a onclick="showPage('leaderboards')" id="nav-leaderboards">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Leaderboards</span><span class="pill-lbl-hover" aria-hidden="true">Leaderboards</span></span>
+    </a>
+    <a onclick="showPage('profiles')" id="nav-profiles">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Profiles</span><span class="pill-lbl-hover" aria-hidden="true">Profiles</span></span>
+    </a>
     <div class="nav-dropdown-wrap" id="nav-market-wrap">
-      <a class="nav-dropdown-trigger" id="nav-market-trigger">Market ▾</a>
+      <a class="nav-dropdown-trigger" id="nav-market-trigger">
+        <span class="pill-hover-circle" aria-hidden="true"></span>
+        <span class="pill-label-stack"><span class="pill-lbl">Market ▾</span><span class="pill-lbl-hover" aria-hidden="true">Market ▾</span></span>
+      </a>
       <div class="nav-dropdown">
         <a onclick="showPage('market')" class="nav-dropdown-item" id="nav-market">🛒 Browse</a>
         <a onclick="showPage('auctions')" class="nav-dropdown-item" id="nav-auctions">🔨 Auctions</a>
       </div>
     </div>
     <div class="nav-dropdown-wrap" id="nav-play-wrap">
-      <a class="nav-dropdown-trigger" id="nav-play-trigger">Play ▾</a>
+      <a class="nav-dropdown-trigger" id="nav-play-trigger">
+        <span class="pill-hover-circle" aria-hidden="true"></span>
+        <span class="pill-label-stack"><span class="pill-lbl">Play ▾</span><span class="pill-lbl-hover" aria-hidden="true">Play ▾</span></span>
+      </a>
       <div class="nav-dropdown">
         <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Crate Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
-    <a onclick="showPage('trade')" id="nav-trade">Trade</a>
-    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Collection</a>
+    <a onclick="showPage('trade')" id="nav-trade">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Trade</span><span class="pill-lbl-hover" aria-hidden="true">Trade</span></span>
+    </a>
+    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Collection</span><span class="pill-lbl-hover" aria-hidden="true">Collection</span></span>
+    </a>
   </div>
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
@@ -6838,6 +6904,105 @@ async function deletePriceAlert(alertId) {
 
   const mo = new MutationObserver(applyToAll);
   mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+<script>
+// ── PILL NAV ANIMATION (ReactBits PillNav – vanilla port) ──────────────────
+(function () {
+  const EASE = 'power3.out';
+  const pillEls   = [];
+  const circleEls = [];
+  const tlRefs    = [];
+  const tweenRefs = [];
+
+  function collectPills() {
+    pillEls.length = 0;
+    circleEls.length = 0;
+
+    // Direct <a> links inside .nav-links
+    document.querySelectorAll('.nav-links > a').forEach(a => {
+      const c = a.querySelector('.pill-hover-circle');
+      if (c) { pillEls.push(a); circleEls.push(c); }
+    });
+    // Dropdown triggers
+    document.querySelectorAll('.nav-dropdown-trigger').forEach(a => {
+      const c = a.querySelector('.pill-hover-circle');
+      if (c) { pillEls.push(a); circleEls.push(c); }
+    });
+  }
+
+  function layout() {
+    pillEls.forEach((pill, i) => {
+      const circle = circleEls[i];
+      if (!circle) return;
+
+      const rect = pill.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      if (!w || !h) return;
+
+      const R     = (w * w / 4 + h * h) / (2 * h);
+      const D     = Math.ceil(2 * R) + 2;
+      const delta = Math.ceil(R - Math.sqrt(Math.max(0, R * R - w * w / 4))) + 1;
+      const originY = D - delta;
+
+      circle.style.width  = D + 'px';
+      circle.style.height = D + 'px';
+      circle.style.bottom = -delta + 'px';
+
+      gsap.set(circle, { xPercent: -50, scale: 0, transformOrigin: '50% ' + originY + 'px' });
+
+      const label = pill.querySelector('.pill-lbl');
+      const hover = pill.querySelector('.pill-lbl-hover');
+
+      if (label) gsap.set(label, { y: 0 });
+      if (hover)  gsap.set(hover,  { y: Math.ceil(h + 100), opacity: 0 });
+
+      tlRefs[i]?.kill();
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to(circle, { scale: 1.2, xPercent: -50, duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+      if (label) tl.to(label, { y: -(h + 8), duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+      if (hover)  tl.to(hover,  { y: 0, opacity: 1, duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+
+      tlRefs[i] = tl;
+    });
+  }
+
+  function attachEvents() {
+    pillEls.forEach((pill, i) => {
+      pill.addEventListener('mouseenter', () => {
+        const tl = tlRefs[i]; if (!tl) return;
+        tweenRefs[i]?.kill();
+        tweenRefs[i] = tl.tweenTo(tl.duration(), { duration: 0.3, ease: EASE, overwrite: 'auto' });
+      });
+      pill.addEventListener('mouseleave', () => {
+        const tl = tlRefs[i]; if (!tl) return;
+        tweenRefs[i]?.kill();
+        tweenRefs[i] = tl.tweenTo(0, { duration: 0.2, ease: EASE, overwrite: 'auto' });
+      });
+    });
+  }
+
+  function init() {
+    collectPills();
+    layout();
+    attachEvents();
+
+    // Load-in animation: nav-links width expand
+    const navItems = document.querySelector('.nav-links');
+    if (navItems) {
+      gsap.from(navItems, { scaleX: 0.6, opacity: 0, duration: 0.55, ease: EASE, transformOrigin: 'center center' });
+    }
+
+    window.addEventListener('resize', layout);
+    if (document.fonts?.ready) document.fonts.ready.then(layout).catch(() => {});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
 </script>
 </body>
