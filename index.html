@@ -135,25 +135,44 @@
   .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--border); }
   .btn-secondary:hover { background: var(--ink); color: var(--bg); }
 
-  /* ── HERO RIGHT — PLANT CARDS ── */
   /* ── ORBIT HERO VISUAL ── */
   .hero-visual {
     position: relative;
     display: flex;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  /* Tall card filling the right column */
+  .orbit-stage {
+    position: relative;
+    width: 100%;
+    min-height: 500px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    min-height: 340px;
+    overflow: visible;
+    box-shadow: 0 2px 24px rgba(14,13,11,0.04);
   }
+  .orbit-stage::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: 28px;
+    background: radial-gradient(ellipse 80% 55% at 50% 50%, rgba(82,183,136,0.07) 0%, transparent 68%);
+    pointer-events: none;
+  }
+
   .orbit-container {
     position: relative;
-    width: 500px;
-    height: 340px;
+    width: 440px;
+    height: 290px;
     flex-shrink: 0;
   }
   .orbit-rotation-wrapper {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     transform: rotate(-8deg);
     transform-origin: center center;
     position: relative;
@@ -164,8 +183,7 @@
     user-select: none;
   }
   .orbit-item img {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     object-fit: contain;
     transform: rotate(8deg);
     filter: drop-shadow(0 6px 18px rgba(0,0,0,0.18));
@@ -173,16 +191,135 @@
     pointer-events: auto;
   }
   .orbit-item img:hover {
-    filter: drop-shadow(0 8px 24px rgba(45,106,79,0.45));
-    transform: rotate(8deg) scale(1.15);
+    filter: drop-shadow(0 8px 26px rgba(45,106,79,0.5));
+    transform: rotate(8deg) scale(1.18);
   }
   .orbit-glow {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(ellipse 70% 40% at 50% 50%, rgba(82,183,136,0.10) 0%, transparent 70%);
+    position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(ellipse 70% 40% at 50% 50%, rgba(82,183,136,0.13) 0%, transparent 70%);
     pointer-events: none;
   }
+
+  /* ── Floating info badges ── */
+  .orbit-badge {
+    position: absolute;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 4px 20px rgba(14,13,11,0.07);
+    pointer-events: none; z-index: 10;
+    animation: badgeFloat 5s ease-in-out infinite;
+  }
+  .orbit-badge:nth-child(2) { animation-delay: -1.6s; }
+  .orbit-badge:nth-child(3) { animation-delay: -3.1s; }
+  .orbit-badge:nth-child(4) { animation-delay: -4.5s; }
+  @keyframes badgeFloat {
+    0%,100% { transform: translateY(0px); }
+    50%      { transform: translateY(-7px); }
+  }
+  .orbit-badge-icon { font-size: 22px; line-height: 1; }
+  .orbit-badge-label {
+    font-size: 11px; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.09em;
+    line-height: 1; margin-bottom: 4px;
+  }
+  .orbit-badge-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px; color: var(--ink);
+    line-height: 1; letter-spacing: -0.02em;
+  }
+  .orbit-badge-value em {
+    font-style: normal; color: var(--green);
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    font-weight: 600; margin-left: 4px;
+  }
+  .orbit-badge--tl { top: 24px;  left: 20px; }
+  .orbit-badge--tr { top: 24px;  right: 20px; }
+  .orbit-badge--bl { bottom: 24px; left: 20px; }
+  .orbit-badge--br { bottom: 24px; right: 20px; }
+  .rarity-dots { display: flex; gap: 5px; margin-top: 6px; }
+  .rarity-dot  { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── PLANT MARQUEE TICKER ── */
+  .marquee-strip {
+    overflow: hidden; white-space: nowrap;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 14px 0;
+  }
+  .marquee-inner {
+    display: inline-flex; gap: 0;
+    animation: marqueeScroll 28s linear infinite;
+  }
+  .marquee-strip:hover .marquee-inner { animation-play-state: paused; }
+  @keyframes marqueeScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .marquee-item {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 0 28px; font-size: 13px; font-weight: 500; color: var(--ink2);
+    flex-shrink: 0;
+  }
+  .marquee-item::after {
+    content: "·"; color: var(--ink3); margin-left: 28px;
+  }
+  .marquee-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── HOW TO PLAY ── */
+  .how-section {
+    padding: 80px 48px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+  .how-steps { display: flex; flex-direction: column; gap: 32px; margin-top: 40px; }
+  .how-step {
+    display: flex; gap: 20px; align-items: flex-start;
+    padding: 24px; border-radius: var(--radius);
+    border: 1px solid transparent;
+    transition: all 0.25s; cursor: default;
+  }
+  .how-step:hover {
+    background: var(--card);
+    border-color: var(--border);
+    box-shadow: 0 4px 20px rgba(14,13,11,0.05);
+    transform: translateX(4px);
+  }
+  .how-step-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px; color: var(--green-light);
+    line-height: 1; flex-shrink: 0; width: 44px;
+    letter-spacing: -0.03em;
+  }
+  .how-step-title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .how-step-desc  { font-size: 14px; color: var(--ink2); line-height: 1.65; }
+
+  .how-visual-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .how-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: all 0.25s;
+    animation: floatCard 5s ease-in-out infinite;
+  }
+  .how-card:nth-child(2) { animation-delay: -1.4s; margin-top: 20px; }
+  .how-card:nth-child(3) { animation-delay: -2.8s; }
+  .how-card:nth-child(4) { animation-delay: -4.2s; margin-top: 20px; }
+  .how-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(14,13,11,0.07); }
+  .how-card-top { display: flex; align-items: center; justify-content: space-between; }
+  .how-card-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .how-card-img  { font-size: 32px; line-height: 1; }
+  .how-card-stat { font-size: 12px; color: var(--ink3); font-weight: 400; }
+  .how-card-bar  { height: 4px; border-radius: 2px; background: var(--bg2); overflow: hidden; }
+  .how-card-bar-fill { height: 100%; border-radius: 2px; }
 
   .plant-card {
     background: var(--card);
@@ -1462,14 +1599,111 @@
     </div>
 
     <div class="hero-visual">
-      <div class="orbit-container" id="hero-orbit">
-        <div class="orbit-glow"></div>
-        <div class="orbit-rotation-wrapper" id="orbit-rotation-wrapper">
-          <!-- orbit items injected by JS -->
+      <div class="orbit-stage">
+
+        <!-- TL: plant count -->
+        <div class="orbit-badge orbit-badge--tl">
+          <div class="orbit-badge-icon">&#127807;</div>
+          <div>
+            <div class="orbit-badge-label">Collection</div>
+            <div class="orbit-badge-value">39<em>plants</em></div>
+          </div>
         </div>
+
+        <!-- TR: rarity -->
+        <div class="orbit-badge orbit-badge--tr">
+          <div class="orbit-badge-icon">&#128142;</div>
+          <div>
+            <div class="orbit-badge-label">Rarities</div>
+            <div class="orbit-badge-value">7<em>tiers</em></div>
+            <div class="rarity-dots">
+              <div class="rarity-dot" style="background:#9e9e9e"></div>
+              <div class="rarity-dot" style="background:#4caf50"></div>
+              <div class="rarity-dot" style="background:#2196f3"></div>
+              <div class="rarity-dot" style="background:#9c27b0"></div>
+              <div class="rarity-dot" style="background:#c9a84c"></div>
+              <div class="rarity-dot" style="background:#ea2222"></div>
+              <div class="rarity-dot" style="background:#0e0d0b"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BL: mutations -->
+        <div class="orbit-badge orbit-badge--bl">
+          <div class="orbit-badge-icon">&#129516;</div>
+          <div>
+            <div class="orbit-badge-label">Mutations</div>
+            <div class="orbit-badge-value">6<em>types</em></div>
+          </div>
+        </div>
+
+        <!-- BR: live status -->
+        <div class="orbit-badge orbit-badge--br">
+          <div class="orbit-badge-icon">&#9889;</div>
+          <div>
+            <div class="orbit-badge-label">Status</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--green);font-family:'DM Sans',sans-serif">
+              <span style="width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;animation:pulse 2s ease-in-out infinite"></span>
+              Live on Discord
+            </div>
+          </div>
+        </div>
+
+        <!-- Orbit -->
+        <div class="orbit-container" id="hero-orbit">
+          <div class="orbit-glow"></div>
+          <div class="orbit-rotation-wrapper" id="orbit-rotation-wrapper">
+            <!-- orbit items injected by JS -->
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
+
+  <!-- ── PLANT MARQUEE ── -->
+  <div class="marquee-strip">
+    <div class="marquee-inner" id="marquee-inner">
+      <!-- duplicated set A -->
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Bamboo</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Dawn Blossom</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Fire Fern</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Glow Vein</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Glow Corn</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Dawn Fruit</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#4caf50"></span>Mango</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#0e0d0b"></span>Starvine</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Blue Rose</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#4caf50"></span>Banana</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Beetroot</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Radiant Petal</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Lablush Berry</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Cherry</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Frostbloom</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9e9e9e"></span>Dandelion</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Ember Lily</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#0e0d0b"></span>Shadow Thorn</span>
+      <!-- duplicated set B (for seamless loop) -->
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Bamboo</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Dawn Blossom</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Fire Fern</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Glow Vein</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Glow Corn</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Dawn Fruit</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#4caf50"></span>Mango</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#0e0d0b"></span>Starvine</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Blue Rose</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#4caf50"></span>Banana</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Beetroot</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Radiant Petal</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9c27b0"></span>Lablush Berry</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#c9a84c"></span>Cherry</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#2196f3"></span>Frostbloom</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#9e9e9e"></span>Dandelion</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#ea2222"></span>Ember Lily</span>
+      <span class="marquee-item"><span class="marquee-dot" style="background:#0e0d0b"></span>Shadow Thorn</span>
+    </div>
+  </div>
 
   <div class="stats-row">
     <div class="stat-item reveal">
@@ -1485,6 +1719,77 @@
       <div class="stat-label">Mutation types</div>
     </div>
   </div>
+
+  <!-- ── HOW TO PLAY ── -->
+  <section class="how-section">
+    <div>
+      <div class="section-eyebrow">How it works</div>
+      <h2 class="section-title">From drop to <em style="font-style:italic;color:var(--green)">legend</em></h2>
+      <p class="section-sub">Everything happens inside Discord. No app, no wallet — just speed, strategy, and a little luck.</p>
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="how-step-num">01</div>
+          <div>
+            <div class="how-step-title">Catch the drop</div>
+            <div class="how-step-desc">A random plant drops in the Discord channel. Solve the captcha faster than everyone else to claim it. Rarer plants appear less often.</div>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">02</div>
+          <div>
+            <div class="how-step-title">Build your collection</div>
+            <div class="how-step-desc">Open crates for bulk plants, hit the market to buy what you need, or trade directly with other collectors to fill the gaps.</div>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">03</div>
+          <div>
+            <div class="how-step-title">Climb the ranks</div>
+            <div class="how-step-desc">Your Garden Score weights every plant by rarity and mutation. Stack rare versions, collect mutations, and rise from Iron to Celestial.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="how-visual-grid">
+      <div class="how-card">
+        <div class="how-card-top">
+          <span class="how-card-img">&#127807;</span>
+          <span class="plant-card-rarity rarity-legendary">Legendary</span>
+        </div>
+        <div class="how-card-name">Bamboo</div>
+        <div class="how-card-stat">v1 · First Copy</div>
+        <div class="how-card-bar"><div class="how-card-bar-fill" style="width:88%;background:var(--gold)"></div></div>
+      </div>
+      <div class="how-card">
+        <div class="how-card-top">
+          <span class="how-card-img">&#127826;</span>
+          <span class="plant-card-rarity rarity-mythic">Mythic</span>
+        </div>
+        <div class="how-card-name">Dawn Blossom</div>
+        <div class="how-card-stat">&#11088; Starstruck · v3</div>
+        <div class="how-card-bar"><div class="how-card-bar-fill" style="width:96%;background:#ea2222"></div></div>
+      </div>
+      <div class="how-card">
+        <div class="how-card-top">
+          <span class="how-card-img">&#127814;</span>
+          <span class="plant-card-rarity rarity-epic">Epic</span>
+        </div>
+        <div class="how-card-name">Fire Fern</div>
+        <div class="how-card-stat">&#128293; Scorched · v2</div>
+        <div class="how-card-bar"><div class="how-card-bar-fill" style="width:72%;background:#9c27b0"></div></div>
+      </div>
+      <div class="how-card">
+        <div class="how-card-top">
+          <span class="how-card-img">&#127815;</span>
+          <span class="plant-card-rarity rarity-secret">Secret</span>
+        </div>
+        <div class="how-card-name">Starvine</div>
+        <div class="how-card-stat">&#128142; Ultra Rare · v7</div>
+        <div class="how-card-bar"><div class="how-card-bar-fill" style="width:100%;background:var(--ink)"></div></div>
+      </div>
+    </div>
+  </section>
 
   <section class="section" style="padding-top:56px">
 
@@ -6279,12 +6584,12 @@ async function deletePriceAlert(alertId) {
     '/images/Lablushberry2-removebg-preview.png',
   ];
 
-  // Design-space dimensions (matches container 500×340)
-  const CX = 250, CY = 170, RX = 215, RY = 105;
+  // Design-space dimensions (matches container 440×290)
+  const CX = 220, CY = 145, RX = 190, RY = 90;
   // SVG ellipse path (two arcs = full ellipse, same as generateEllipsePath)
   const PATH = `M ${CX - RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX + RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX - RX} ${CY}`;
 
-  const ITEM_SIZE   = 120;   // px — image bounding box
+  const ITEM_SIZE   = 95;   // px — image bounding box
   const DURATION_MS = 40000; // 40 s per full revolution (matches duration=40)
   const WRAPPER_ROT = -8;   // degrees — matches rotation=-8 prop
 
@@ -6308,6 +6613,8 @@ async function deletePriceAlert(alertId) {
       img.src = src;
       img.alt = `Plant ${i + 1}`;
       img.draggable = false;
+      // Silently hide the orbit slot if the image 404s (e.g. Lablushberry not yet on server)
+      img.onerror = () => { div.style.visibility = 'hidden'; };
       // Counter-rotate image so it stays upright despite wrapper tilt
       img.style.cssText = `width:100%;height:100%;object-fit:contain;transform:rotate(${-WRAPPER_ROT}deg);filter:drop-shadow(0 6px 18px rgba(0,0,0,0.18));transition:transform 0.2s,filter 0.2s;`;
       img.addEventListener('mouseenter', () => {
