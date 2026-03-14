@@ -341,7 +341,7 @@ const RARITIES = [
 
 // ─── Base plant sell prices (version-weighted) ────────────────────────────────
 const VERSION_MULTIPLIERS = { 
-  1: 3.50,   // keep exactly as-is — the scaling you like
+  1: 3.50,   
   2: 2.20, 
   3: 1.70, 
   4: 1.40, 
@@ -1045,8 +1045,8 @@ function startDropLoop() {
 }
 
 // ─── Payout Config ────────────────────────────────────────────────────────────
-const DAILY_PAYOUTS  = [250000, 175000, 100000];
-const WEEKLY_PAYOUTS = [1500000, 1000000, 750000];
+const DAILY_PAYOUTS  = [200000, 135000, 75000];
+const WEEKLY_PAYOUTS = [900000, 600000, 350000];
 
 const PAYOUT_FILE = `${DATA_DIR}/payouts.json`;
 function loadPayoutState() {
