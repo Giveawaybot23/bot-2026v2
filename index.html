@@ -2111,6 +2111,7 @@ function _pkStartCooldownTicker() {
         card.style.opacity = '';
         card.style.cursor = '';
         card.onclick = () => pkOpenModal(p.id);
+        btn.onclick = (e) => { e.stopPropagation(); pkOpenModal(p.id); };
       }
     }
     if (!anyActive) {
