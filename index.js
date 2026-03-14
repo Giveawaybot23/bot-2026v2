@@ -476,6 +476,16 @@ const PLANTS = [
 
 const processedMessages = new Set(); const claimingDaily = new Set(); const claimingWeekly = new Set();
 
+// ─── Per-user async queue ─────────────────────────────────────────────────────
+const userQueues = {};
+
+function queueForUser(userId, fn) {
+  if (!userQueues[userId]) userQueues[userId] = Promise.resolve();
+  const result = userQueues[userId].then(() => fn());
+  userQueues[userId] = result.catch(() => {});
+  return result;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeDrops  = {};
 let activeRaces  = {};
@@ -2195,40 +2205,42 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     drop.claimers.push({ userId: message.author.id, username: message.author.username, time: elapsed });
     if (drop.claimers.length === 1) {
       delete activeDrops[message.channel.id];
-      const db      = loadDB();
-      const user    = getUser(db, message.author.id);
-      touchActivity(db, message.author.id, message.author);
-      const version   = getAvailableVersion(drop.plant.name, db);
-      recordVersionHighWater(drop.plant.name, version);
-      const rCfg     = drop.rarity, mutation = drop.mutation;
-      const sellValue = calcSellValue(drop.plant, rCfg, mutation, version);
-      if (!TEST_IDS.has(message.author.id)) {
-        user.collection.push({ name: drop.plant.name, image: drop.plant.display, rarity: drop.rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue, claimedAt: new Date().toISOString() });
-        user.claimed++;
-      }
+      await queueForUser(message.author.id, async () => {
+        const db      = loadDB();
+        const user    = getUser(db, message.author.id);
+        touchActivity(db, message.author.id, message.author);
+        const version   = getAvailableVersion(drop.plant.name, db);
+        recordVersionHighWater(drop.plant.name, version);
+        const rCfg     = drop.rarity, mutation = drop.mutation;
+        const sellValue = calcSellValue(drop.plant, rCfg, mutation, version);
+        if (!TEST_IDS.has(message.author.id)) {
+          user.collection.push({ name: drop.plant.name, image: drop.plant.display, rarity: drop.rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue, claimedAt: new Date().toISOString() });
+          user.claimed++;
+        }
 
-      
-      const isTester = TEST_IDS.has(message.author.id);
-      let lvlUp = null, newAch = [];
-      if (!user.claimCooldowns) user.claimCooldowns = {};
-      if (!isTester) {
-        lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
-      newAch = checkAchievements(user);
-      user.claimCooldowns[drop.rarity.name] = Date.now();
-      const claimNewPlants = [{ name: drop.plant.name, version }];
-      applyAutosellRules(user, message.author.id, claimNewPlants);
-      saveDB(db);
-        recordClaim(message.author.id, message.author.username);
-      }
-      const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
-      await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${rCfg.emoji} **${drop.plant.name}** \`v${version}\` claimed by <@${message.author.id}>!${mutLine}`).setColor(mutation ? mutation.color : rCfg.color)] });
+        const isTester = TEST_IDS.has(message.author.id);
+        let lvlUp = null, newAch = [];
+        if (!user.claimCooldowns) user.claimCooldowns = {};
+        if (!isTester) {
+          lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
+          newAch = checkAchievements(user);
+          user.claimCooldowns[drop.rarity.name] = Date.now();
+          const claimNewPlants = [{ name: drop.plant.name, version }];
+          applyAutosellRules(user, message.author.id, claimNewPlants);
+          saveDB(db);
+          recordClaim(message.author.id, message.author.username);
+        }
 
-      if (version === 1) {
-        const vPingChId = vPingChannels[message.guild?.id];
-        if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(drop.plant.display).setColor(mutation ? mutation.color : rCfg.color)] }).catch(console.error); } }
-      }
-      if (lvlUp) await message.channel.send(`<@${message.author.id}> levelled up to **Level ${lvlUp}**! ${getRank(lvlUp).emoji}`);
-      if (newAch.length) { const achLines = newAch.map(k => `${ACHIEVEMENTS[k].emoji} **${ACHIEVEMENTS[k].name}** — *${ACHIEVEMENTS[k].description}*`).join('\n'); await message.channel.send({ embeds: [new EmbedBuilder().setTitle('Achievement Unlocked!').setDescription(achLines).setColor(0xFFD700)] }); }
+        const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
+        await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${rCfg.emoji} **${drop.plant.name}** \`v${version}\` claimed by <@${message.author.id}>!${mutLine}`).setColor(mutation ? mutation.color : rCfg.color)] });
+
+        if (version === 1) {
+          const vPingChId = vPingChannels[message.guild?.id];
+          if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(drop.plant.display).setColor(mutation ? mutation.color : rCfg.color)] }).catch(console.error); } }
+        }
+        if (lvlUp) await message.channel.send(`<@${message.author.id}> levelled up to **Level ${lvlUp}**! ${getRank(lvlUp).emoji}`);
+        if (newAch.length) { const achLines = newAch.map(k => `${ACHIEVEMENTS[k].emoji} **${ACHIEVEMENTS[k].name}** — *${ACHIEVEMENTS[k].description}*`).join('\n'); await message.channel.send({ embeds: [new EmbedBuilder().setTitle('Achievement Unlocked!').setDescription(achLines).setColor(0xFFD700)] }); }
+      });
     }
     return;
   }
@@ -3714,36 +3726,58 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const unixTimestamp = Math.floor((Date.now() + remaining) / 1000);
       return message.reply(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
     }
-    const results = openCrate(crateKey, db, message.author.id);
-    const addedPlants = [];
-    if (!TEST_IDS.has(message.author.id)) {
-      user.currency -= crate.price;
-      user.crateCooldowns[crateKey] = Date.now();
-      const crateMeta = loadMeta();
-      for (const p of results) {
-        const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
-        if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
-        const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
-        const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
-        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
-          user.collection.push(entry);
-          addedPlants.push(entry);
-        } else {
-          console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
-        }
-        db[message.author.id] = user;
+    return queueForUser(message.author.id, async () => {
+      const db = loadDB();
+      const user = getUser(db, message.author.id);
+
+      if (user.currency < crate.price)
+        return message.channel.send(`❌ Not enough coins — need ${fmt(crate.price)}.`);
+
+      if (!user.crateCooldowns) user.crateCooldowns = {};
+      const lastUsedInner = user.crateCooldowns[crateKey] || 0;
+      const remainingInner = (CRATE_COOLDOWNS[crateKey] || 0) - (Date.now() - lastUsedInner);
+      if (remainingInner > 0) {
+        const unixTimestamp = Math.floor((Date.now() + remainingInner) / 1000);
+        return message.channel.send(`⏳ **${crate.name}** cooldown ends <t:${unixTimestamp}:R>`);
       }
-      saveMeta(crateMeta);
-      user.cratesOpened = (user.cratesOpened||0) + 1;
-      addXP(db, message.author.id, XP_REWARDS.crate_open); checkAchievements(user); autoEarned = applyAutosellRules(user, message.author.id, addedPlants); saveDB(db);
-    }
-    const spoilerLines = addedPlants.map(p =>
-      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
-    );
-    const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
-    const cratePnl = crateValue - crate.price;
-    const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
+
+      const results = openCrate(crateKey, db, message.author.id);
+      const addedPlants = [];
+      let autoEarned = 0;
+
+      if (!TEST_IDS.has(message.author.id)) {
+        user.currency -= crate.price;
+        user.crateCooldowns[crateKey] = Date.now();
+        const crateMeta = loadMeta();
+        for (const p of results) {
+          const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
+          if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
+          const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+          const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
+          if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+            user.collection.push(entry);
+            addedPlants.push(entry);
+          } else {
+            console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
+          }
+          db[message.author.id] = user;
+        }
+        saveMeta(crateMeta);
+        user.cratesOpened = (user.cratesOpened||0) + 1;
+        addXP(db, message.author.id, XP_REWARDS.crate_open);
+        checkAchievements(user);
+        autoEarned = applyAutosellRules(user, message.author.id, addedPlants);
+        saveDB(db);
+      }
+
+      const spoilerLines = addedPlants.map(p =>
+        `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+      );
+      const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
+      const cratePnl = crateValue - crate.price;
+      const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
+    });
   }
 
   // ── !equip / !unequip ─────────────────────────────────────────────────────
@@ -4937,69 +4971,68 @@ function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, nul
 
 // ── CRATE OPEN API (web) — mirrors !buy [crate] exactly ──────────────────────
 app.post('/api/crate/open', express.json(), async (req, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-    const { crateId } = req.body;
-    if (!crateId || !CRATES[crateId]) return res.status(400).json({ error: 'Unknown crate' });
-    const crate = CRATES[crateId];
-    const db    = loadDB();
-    const user  = getUser(db, req.user.id);
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const { crateId } = req.body;
+  return queueForUser(req.user.id, async () => {
+    try {
+      if (!crateId || !CRATES[crateId]) return res.status(400).json({ error: 'Unknown crate' });
+      const crate = CRATES[crateId];
+      const db    = loadDB();
+      const user  = getUser(db, req.user.id);
 
-    // Level check
-    const userLevel = getLevelFromXP(user.xp || 0);
-    if (userLevel < crate.minLevel)
-      return res.status(400).json({ error: `You need to be Level ${crate.minLevel} to open the ${crate.name}. You're currently Level ${userLevel}.` });
+      const userLevel = getLevelFromXP(user.xp || 0);
+      if (userLevel < crate.minLevel)
+        return res.status(400).json({ error: `You need to be Level ${crate.minLevel} to open the ${crate.name}. You're currently Level ${userLevel}.` });
 
-    // Cooldown check
-    if (!user.crateCooldowns) user.crateCooldowns = {};
-    const lastUsed  = user.crateCooldowns[crateId] || 0;
-    const cdMs      = CRATE_COOLDOWNS[crateId] || 0;
-    const remaining = cdMs - (Date.now() - lastUsed);
-    if (remaining > 0)
-      return res.status(400).json({ error: 'On cooldown', cooldownMs: remaining });
+      if (!user.crateCooldowns) user.crateCooldowns = {};
+      const lastUsed  = user.crateCooldowns[crateId] || 0;
+      const cdMs      = CRATE_COOLDOWNS[crateId] || 0;
+      const remaining = cdMs - (Date.now() - lastUsed);
+      if (remaining > 0)
+        return res.status(400).json({ error: 'On cooldown', cooldownMs: remaining });
 
-    // Coin check
-    if ((user.currency || 0) < crate.price)
-      return res.status(400).json({ error: `Not enough coins — need ${crate.price.toLocaleString()}` });
+      if ((user.currency || 0) < crate.price)
+        return res.status(400).json({ error: `Not enough coins — need ${crate.price.toLocaleString()}` });
 
-    // Open
-    const results  = openCrate(crateId, db, req.user.id);
-    const addedPlants = [];
-    user.currency -= crate.price;
-    user.crateCooldowns[crateId] = Date.now();
-    const crateMeta = loadMeta();
-    for (const p of results) {
-      const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
-      if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
-      const sv    = calcSellValue(p, p.rarityConfig, p.mutation, ver);
-      const entry = {
-        name: p.name, image: p.display, rarity: p.rarity,
-        mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
-        version: ver, sellValue: sv, claimedAt: new Date().toISOString(),
-      };
-      if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
-        user.collection.push(entry);
-        addedPlants.push(entry);
+      const results     = openCrate(crateId, db, req.user.id);
+      const addedPlants = [];
+      user.currency -= crate.price;
+      user.crateCooldowns[crateId] = Date.now();
+
+      const crateMeta = loadMeta();
+      for (const p of results) {
+        const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
+        if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
+        const sv    = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+        const entry = {
+          name: p.name, image: p.display, rarity: p.rarity,
+          mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
+          version: ver, sellValue: sv, claimedAt: new Date().toISOString(),
+        };
+        if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+          user.collection.push(entry);
+          addedPlants.push(entry);
+        }
+        db[req.user.id] = user;
       }
-      db[req.user.id] = user;
-    }
-    saveMeta(crateMeta);
-    user.cratesOpened = (user.cratesOpened || 0) + 1;
-    addXP(db, req.user.id, XP_REWARDS.crate_open);
-    checkAchievements(user);
-    const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
-    saveDB(db);
-    pushCoinUpdate(req.user.id, user.currency);
-    pushCollectionUpdate(req.user.id);
+      saveMeta(crateMeta);
+      user.cratesOpened = (user.cratesOpened || 0) + 1;
+      addXP(db, req.user.id, XP_REWARDS.crate_open);
+      checkAchievements(user);
+      const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
+      saveDB(db);
+      pushCoinUpdate(req.user.id, user.currency);
+      pushCollectionUpdate(req.user.id);
 
-    res.json({
-      ok: true,
-      plants: addedPlants,
-      newBalance: user.currency,
-      autoSold: autoEarned,
-      cooldownMs: CRATE_COOLDOWNS[crateId] || 0,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+      return res.json({
+        ok: true,
+        plants: addedPlants,
+        newBalance: user.currency,
+        autoSold: autoEarned,
+        cooldownMs: CRATE_COOLDOWNS[crateId] || 0,
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
 });
 
 // ── CRATE COOLDOWN STATUS (web) ───────────────────────────────────────────────
