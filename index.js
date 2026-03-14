@@ -3823,7 +3823,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     const plant = PLANTS.find(p => p.name.toLowerCase() === plantName.toLowerCase());
     if (!plant) return message.reply(`❌ Plant **${plantName}** not found. Check spelling.`);
-    if (plant.dropOnly) return message.reply(`❌ **${plant.name}** can only be obtained through drops.`);
+    if (plant.dropOnly && !isBotAdmin(message.author.id)) return message.reply(`❌ **${plant.name}** can only be obtained through drops.`);
 
     const db = loadDB();
     const user = getUser(db, target.id);
@@ -3842,7 +3842,15 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     let version;
     if (vMatch) {
       version = parseInt(vMatch[1]);
-      recordVersionHighWater(plant.name, version);
+      // Directly write the version without going through getAvailableVersion,
+      // so admin can restore an exact version even if meta thinks it's taken.
+      const meta = loadMeta();
+      if (!meta.plantVersions) meta.plantVersions = {};
+      if ((meta.plantVersions[plant.name] || 0) < version) {
+        meta.plantVersions[plant.name] = version;
+        meta.totalDrops = (meta.totalDrops || 0) + 1;
+      }
+      saveMeta(meta);
     } else {
       version = getAvailableVersion(plant.name, db);
       recordVersionHighWater(plant.name, version);
@@ -3869,6 +3877,82 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       .setDescription(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
       .setThumbnail(plant.display)
       .setColor(mutation ? mutation.color : rarity.color)
+    ]});
+  }
+
+  // ── !bulkadd — restore many plants to a user at once ─────────────────────
+  // Usage: !bulkadd @user
+  // Then paste JSON on the next line, e.g.:
+  // [{"name":"Glowflower","version":1},{"name":"Firefern","version":3,"mutation":"Starstruck"}]
+  if (cmd === 'bulkadd') {
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]);
+    if (!target) return message.reply('Usage: `!bulkadd @user` then paste JSON array on same line after the mention.\nExample: `!bulkadd @user [{"name":"Glowflower","version":1},{"name":"Firefern","version":3}]`');
+
+    // JSON starts after the mention/id token
+    const jsonStart = content.indexOf('[');
+    if (jsonStart === -1) return message.reply('❌ No JSON array found. Include `[{...}]` in the same message.');
+
+    let entries;
+    try {
+      entries = JSON.parse(content.slice(jsonStart));
+    } catch (e) {
+      return message.reply(`❌ Invalid JSON: ${e.message}`);
+    }
+    if (!Array.isArray(entries) || !entries.length) return message.reply('❌ JSON must be a non-empty array.');
+
+    const db   = loadDB();
+    const user = getUser(db, target.id);
+    const meta = loadMeta();
+    if (!meta.plantVersions) meta.plantVersions = {};
+
+    const added = [], skipped = [];
+
+    for (const entry of entries) {
+      const plant = PLANTS.find(p => p.name.toLowerCase() === (entry.name || '').toLowerCase());
+      if (!plant) { skipped.push(`Unknown plant: ${entry.name}`); continue; }
+
+      const rarity = entry.rarity ? getRarityConfig(entry.rarity) : getRarityConfig(plant.rarity);
+
+      let mutation = null;
+      if (entry.mutation) {
+        mutation = MUTATIONS.find(m => m.name.toLowerCase() === entry.mutation.toLowerCase());
+        if (!mutation) { skipped.push(`Unknown mutation: ${entry.mutation} on ${plant.name}`); continue; }
+      }
+
+      let version;
+      if (entry.version) {
+        version = parseInt(entry.version);
+        if ((meta.plantVersions[plant.name] || 0) < version) {
+          meta.plantVersions[plant.name] = version;
+          meta.totalDrops = (meta.totalDrops || 0) + 1;
+        }
+      } else {
+        version = getAvailableVersionFromMeta(plant.name, db, meta);
+      }
+
+      const sellValue = calcSellValue(plant, rarity, mutation, version);
+      user.collection.push({
+        name: plant.name,
+        image: plant.display,
+        rarity: rarity.name,
+        mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null,
+        version,
+        sellValue,
+        claimedAt: new Date().toISOString(),
+      });
+      added.push(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutation ? ` ${mutation.emoji} ${mutation.name}` : ''}`);
+    }
+
+    saveMeta(meta);
+    saveDB(db);
+
+    const desc = (added.length ? `**Added (${added.length}):**\n${added.join('\n')}` : '') +
+                 (skipped.length ? `\n\n**Skipped (${skipped.length}):**\n${skipped.map(s=>`• ${s}`).join('\n')}` : '');
+    return message.channel.send({ embeds: [new EmbedBuilder()
+      .setTitle(`✅ Bulk Add — ${target.username}`)
+      .setDescription(desc.slice(0, 4000))
+      .setColor(added.length ? 0x00C853 : 0xFF6600)
     ]});
   }
 
