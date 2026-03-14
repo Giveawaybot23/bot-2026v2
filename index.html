@@ -541,10 +541,9 @@
   .market-card.boosted { box-shadow: 0 0 0 2px #9c5fff, 0 8px 24px rgba(156,95,255,0.22); }
   .auction-card.boosted { box-shadow: 0 0 0 2px #9c5fff, 0 8px 24px rgba(156,95,255,0.22); }
   .market-boost-badge {
-    position: absolute; top: 10px; left: 10px;
-    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-    background: rgba(156,95,255,0.18); color: #ce93d8; padding: 2px 7px; border-radius: 100px;
-    border: 1px solid rgba(156,95,255,0.45);
+    position: absolute; top: 10px; right: 10px;
+    font-size: 14px; line-height: 1;
+    opacity: 0.75;
   }
 
   /* ── TRADE WAITING DOTS ── */
@@ -3510,8 +3509,8 @@ function renderMarket() {
   }
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
-    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? ' secret-electric' : ''}" data-rarity="${item.rarity}" style="position:relative;background:color-mix(in srgb, ${color} 12%, var(--card))">
-      ${item.boosted ? `<div class="market-boost-badge">✦ Boosted Listing</div>` : ''}
+    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? ' secret-electric' : ''}" data-rarity="${item.rarity}" style="position:relative">
+      ${item.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
         ? `<img src="${item.localImage}" loading="lazy" style="width:56px;height:56px;object-fit:contain;margin-bottom:12px;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="market-card-emoji" style="display:none">${item.emoji || '🌿'}</span>`
@@ -3782,8 +3781,8 @@ async function loadAuctionData() {
       const badge = rarityBadgeColor[a.plant.rarity] || '#999';
       const isV1 = a.plant.version === 1;
       return `
-        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? ' secret-electric' : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative;background:color-mix(in srgb, ${color} 12%, var(--card))">
-          ${a.boosted ? `<div class="market-boost-badge">✦ Boosted Listing</div>` : ''}
+        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? ' secret-electric' : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
+          ${a.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
           ${isV1 ? `<div class="auction-v1-crown">👑 v1 · First Copy</div>` : ''}
           <div class="auction-card-live">LIVE</div>
           <div class="market-card-rarity-bar" style="background:${color}"></div>
