@@ -3511,6 +3511,7 @@ function renderMarket() {
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
     return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? ' secret-electric' : ''}" data-rarity="${item.rarity}" style="position:relative">
+      <div style="position:absolute;inset:0;border-radius:14px;background:${color};opacity:0.12;pointer-events:none;z-index:0"></div>
       ${item.boosted ? `<div class="market-boost-badge">✦ Boosted Listing</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
@@ -3783,6 +3784,7 @@ async function loadAuctionData() {
       const isV1 = a.plant.version === 1;
       return `
         <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? ' secret-electric' : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
+          <div style="position:absolute;inset:0;border-radius:14px;background:${color};opacity:0.12;pointer-events:none;z-index:0"></div>
           ${a.boosted ? `<div class="market-boost-badge">✦ Boosted Listing</div>` : ''}
           ${isV1 ? `<div class="auction-v1-crown">👑 v1 · First Copy</div>` : ''}
           <div class="auction-card-live">LIVE</div>
