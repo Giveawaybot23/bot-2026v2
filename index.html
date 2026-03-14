@@ -170,6 +170,56 @@
     font-weight: 500;
   }
 
+  .hero-steps {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-left: 1.5px solid var(--border);
+    padding-left: 24px;
+  }
+  .hero-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .hero-step:last-child { border-bottom: none; }
+
+  /* dot on the left border */
+  .hero-step::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 20px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--border);
+  }
+  .hero-step:hover::before {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  .hero-step-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    color: var(--ink3);
+    letter-spacing: 0.04em;
+    min-width: 24px;
+    padding-top: 1px;
+  }
+  .hero-step-title {
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    margin-bottom: 3px;
+  }
+  .hero-step-desc {
+    font-size: 13px; color: var(--ink3); line-height: 1.5;
+  }
+
   /* ── HERO RIGHT — PLANT SPOTLIGHT ── */
   .hero-right {
     display: flex;
@@ -1599,6 +1649,30 @@
       <div class="hero-actions">
         <button class="btn btn-primary" onclick="showPage('leaderboards')">View Leaderboards →</button>
         <button class="btn btn-secondary" onclick="showPage('profiles')" style="display:none">Browse Profiles</button>
+      </div>
+
+      <div class="hero-steps">
+        <div class="hero-step">
+          <div class="hero-step-num">01</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">A plant drops in Discord</div>
+            <div class="hero-step-desc">Random plants appear in your server's drop channel at any time.</div>
+          </div>
+        </div>
+        <div class="hero-step">
+          <div class="hero-step-num">02</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">Type the code first</div>
+            <div class="hero-step-desc">A captcha appears — fastest fingers claim it. No second chances.</div>
+          </div>
+        </div>
+        <div class="hero-step">
+          <div class="hero-step-num">03</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">Build your collection</div>
+            <div class="hero-step-desc">Trade, sell, open crates, and climb the leaderboard.</div>
+          </div>
+        </div>
       </div>
     </div>
 
