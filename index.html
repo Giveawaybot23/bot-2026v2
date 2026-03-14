@@ -79,11 +79,10 @@
   /* ── HERO ── */
   .hero {
     min-height: calc(100vh - 64px);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     padding: 80px 48px;
-    gap: 64px;
     position: relative;
     overflow: hidden;
   }
@@ -134,55 +133,6 @@
   .btn-primary:hover { background: var(--green); transform: translateY(-1px); }
   .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--border); }
   .btn-secondary:hover { background: var(--ink); color: var(--bg); }
-
-  /* ── HERO RIGHT — PLANT CARDS ── */
-  /* ── ORBIT HERO VISUAL ── */
-  .hero-visual {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 340px;
-  }
-  .orbit-container {
-    position: relative;
-    width: 500px;
-    height: 340px;
-    flex-shrink: 0;
-  }
-  .orbit-rotation-wrapper {
-    width: 100%;
-    height: 100%;
-    transform: rotate(-8deg);
-    transform-origin: center center;
-    position: relative;
-  }
-  .orbit-item {
-    position: absolute;
-    will-change: offset-distance;
-    user-select: none;
-  }
-  .orbit-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    transform: rotate(8deg);
-    filter: drop-shadow(0 6px 18px rgba(0,0,0,0.18));
-    transition: transform 0.2s, filter 0.2s;
-    pointer-events: auto;
-  }
-  .orbit-item img:hover {
-    filter: drop-shadow(0 8px 24px rgba(45,106,79,0.45));
-    transform: rotate(8deg) scale(1.15);
-  }
-  .orbit-glow {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(ellipse 70% 40% at 50% 50%, rgba(82,183,136,0.10) 0%, transparent 70%);
-    pointer-events: none;
-  }
 
   .plant-card {
     background: var(--card);
@@ -643,7 +593,6 @@
   .hamburger { display: flex !important; }
 
   .hero { grid-template-columns: 1fr; padding: 40px 16px; }
-  .hero-visual { display: none; }
   .stats-row { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
   .lb-grid { grid-template-columns: 1fr; }
@@ -1461,14 +1410,6 @@
       </div>
     </div>
 
-    <div class="hero-visual">
-      <div class="orbit-container" id="hero-orbit">
-        <div class="orbit-glow"></div>
-        <div class="orbit-rotation-wrapper" id="orbit-rotation-wrapper">
-          <!-- orbit items injected by JS -->
-        </div>
-      </div>
-    </div>
   </section>
 
   <div class="stats-row">
@@ -6256,97 +6197,6 @@ async function deletePriceAlert(alertId) {
   }
 
   document.fonts.ready.then(splitHeroTitle);
-})();
-</script>
-
-<script>
-// ── ORBIT IMAGES ENGINE ─────────────────────────────────────────────────────
-// Vanilla JS port of the OrbitImages React Bits component.
-// Uses CSS Motion Path (offset-path / offset-distance) — same technique
-// as the original Framer Motion implementation.
-(function () {
-  const IMAGES = [
-    '/images/firefern-removebg-preview.png',
-    '/images/glowvein2-removebg-preview.png',
-    '/images/glowcorn2-removebg-preview.png',
-    '/images/dawnfruit2-removebg-preview.png',
-    '/images/mango2-removebg-preview.png',
-    '/images/Starvine2-removebg-preview.png',
-    '/images/bluerose2-removebg-preview.png',
-    '/images/banana2-removebg-preview.png',
-    '/images/beetroot2-removebg-preview.png',
-    '/images/radiantpetal2-removebg-preview.png',
-    '/images/Lablushberry2-removebg-preview.png',
-  ];
-
-  // Design-space dimensions (matches container 500×340)
-  const CX = 250, CY = 170, RX = 215, RY = 105;
-  // SVG ellipse path (two arcs = full ellipse, same as generateEllipsePath)
-  const PATH = `M ${CX - RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX + RX} ${CY} A ${RX} ${RY} 0 1 0 ${CX - RX} ${CY}`;
-
-  const ITEM_SIZE   = 120;   // px — image bounding box
-  const DURATION_MS = 40000; // 40 s per full revolution (matches duration=40)
-  const WRAPPER_ROT = -8;   // degrees — matches rotation=-8 prop
-
-  function init() {
-    const wrapper = document.getElementById('orbit-rotation-wrapper');
-    if (!wrapper) return;
-
-    const items = IMAGES.map((src, i) => {
-      const div = document.createElement('div');
-      div.className = 'orbit-item';
-      div.style.cssText = [
-        `width:${ITEM_SIZE}px`,
-        `height:${ITEM_SIZE}px`,
-        `offset-path:path("${PATH}")`,
-        `offset-rotate:0deg`,
-        `offset-anchor:center center`,
-        `offset-distance:0%`,
-      ].join(';');
-
-      const img = document.createElement('img');
-      img.src = src;
-      img.alt = `Plant ${i + 1}`;
-      img.draggable = false;
-      // Counter-rotate image so it stays upright despite wrapper tilt
-      img.style.cssText = `width:100%;height:100%;object-fit:contain;transform:rotate(${-WRAPPER_ROT}deg);filter:drop-shadow(0 6px 18px rgba(0,0,0,0.18));transition:transform 0.2s,filter 0.2s;`;
-      img.addEventListener('mouseenter', () => {
-        img.style.filter = 'drop-shadow(0 8px 26px rgba(45,106,79,0.5))';
-        img.style.transform = `rotate(${-WRAPPER_ROT}deg) scale(1.18)`;
-      });
-      img.addEventListener('mouseleave', () => {
-        img.style.filter = 'drop-shadow(0 6px 18px rgba(0,0,0,0.18))';
-        img.style.transform = `rotate(${-WRAPPER_ROT}deg) scale(1)`;
-      });
-
-      div.appendChild(img);
-      wrapper.appendChild(div);
-      return div;
-    });
-
-    let startTime = null;
-
-    function tick(ts) {
-      if (!startTime) startTime = ts;
-      const baseProgress = ((ts - startTime) % DURATION_MS) / DURATION_MS; // 0→1
-
-      items.forEach((item, i) => {
-        // Spread items evenly: each offset by (i / total) around the loop
-        const pct = ((baseProgress + i / items.length) % 1) * 100;
-        item.style.offsetDistance = `${pct.toFixed(3)}%`;
-      });
-
-      requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(tick);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
 })();
 </script>
 
