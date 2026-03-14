@@ -2059,6 +2059,14 @@ const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Ep
 const PK_RARITY_ORDER  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 const PK_RARITY_WEIGHT = { Secret:7,Mythic:6,Legendary:5,Epic:4,Rare:3,Uncommon:2,Common:1 };
 
+// Mutation images — Sandy and Flooded use emojis, others have dedicated images
+const PK_MUTATION_IMG = {
+  Starstruck: '/images/starstruck.webp',
+  Shocked:    '/images/shocked.webp',
+  Soaked:     '/images/soaked.webp',
+  Snowy:      '/images/snowy.webp',
+};
+
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let _pkPack=[], _pkIdx=0, _pkPhase='idle', _pkCurrentTier=null, _pkAllPlants=[];
 let _pkCooldownEnds = {}; // crateKey -> timestamp when cooldown expires
@@ -2325,6 +2333,19 @@ function pkShowCard(){
     :card.rarity==='Uncommon'?`linear-gradient(135deg,#051505 0%,#0a2210 100%)`
     :`linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%)`;
 
+  const mutImg   = card.mutation ? PK_MUTATION_IMG[card.mutation.name] : null;
+  const mutColor = card.mutation ? mutationColor(card.mutation.name) : null;
+  const mutBadgeHtml = card.mutation ? (
+    mutImg
+      ? `<div style="position:absolute;top:6px;right:6px;z-index:3;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.55);border:1.5px solid ${mutColor}88;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px ${mutColor}66"><img src="${mutImg}" style="width:18px;height:18px;object-fit:contain"></div>`
+      : `<div style="position:absolute;top:6px;right:6px;z-index:3;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.55);border:1.5px solid ${mutColor}88;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 8px ${mutColor}66">${card.mutation.emoji}</div>`
+  ) : '';
+  const mutTypeHtml = card.mutation ? (
+    mutImg
+      ? `<img src="${mutImg}" style="width:11px;height:11px;object-fit:contain;vertical-align:middle;margin-right:2px"> ${card.mutation.name} · `
+      : `${card.mutation.emoji} ${card.mutation.name} · `
+  ) : '';
+
   const cardEl=document.createElement('div');
   cardEl.className='pk-card';
   cardEl.innerHTML=`
@@ -2334,10 +2355,11 @@ function pkShowCard(){
       <div class="pk-card-art">
         <div class="pk-card-art-bg" style="background:${artBg}"></div>
         ${card.image?`<img class="pk-card-img" src="${card.image}" loading="lazy" onerror="this.style.display='none'">`:`<div style="font-size:3rem;position:relative;z-index:1">🌿</div>`}
+        ${mutBadgeHtml}
       </div>
       <div class="pk-card-body">
         <div class="pk-card-name" style="color:${rc}">${card.name}${card.version ? ` <span style="font-size:.55rem;opacity:.7">v${card.version}</span>` : ''}</div>
-        <div class="pk-card-type" style="color:${rc}88">${card.mutation ? `${card.mutation.emoji} ${card.mutation.name} · ` : ''}${card.rarity} Plant</div>
+        <div class="pk-card-type" style="color:${mutColor||rc}88">${mutTypeHtml}${card.rarity} Plant</div>
         <div class="pk-card-divider" style="color:${rc}"></div>
       </div>
       <div class="pk-card-badge" style="background:${rc}22;color:${rc};border:1px solid ${rc}55">${card.rarity.toUpperCase()}</div>
