@@ -4936,6 +4936,89 @@ function loadListings() {
 }
 function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, null, 2)); }
 
+// ── CRATE OPEN API (web) — mirrors !buy [crate] exactly ──────────────────────
+app.post('/api/crate/open', express.json(), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+    const { crateId } = req.body;
+    if (!crateId || !CRATES[crateId]) return res.status(400).json({ error: 'Unknown crate' });
+    const crate = CRATES[crateId];
+    const db    = loadDB();
+    const user  = getUser(db, req.user.id);
+
+    // Level check
+    const userLevel = getLevelFromXP(user.xp || 0);
+    if (userLevel < crate.minLevel)
+      return res.status(400).json({ error: `You need to be Level ${crate.minLevel} to open the ${crate.name}. You're currently Level ${userLevel}.` });
+
+    // Cooldown check
+    if (!user.crateCooldowns) user.crateCooldowns = {};
+    const lastUsed  = user.crateCooldowns[crateId] || 0;
+    const cdMs      = CRATE_COOLDOWNS[crateId] || 0;
+    const remaining = cdMs - (Date.now() - lastUsed);
+    if (remaining > 0)
+      return res.status(400).json({ error: 'On cooldown', cooldownMs: remaining });
+
+    // Coin check
+    if ((user.currency || 0) < crate.price)
+      return res.status(400).json({ error: `Not enough coins — need ${crate.price.toLocaleString()}` });
+
+    // Open
+    const results  = openCrate(crateId, db, req.user.id);
+    const addedPlants = [];
+    user.currency -= crate.price;
+    user.crateCooldowns[crateId] = Date.now();
+    const crateMeta = loadMeta();
+    for (const p of results) {
+      const ver = getAvailableVersionFromMeta(p.name, db, crateMeta);
+      if ((crateMeta.plantVersions[p.name] || 0) < ver) crateMeta.plantVersions[p.name] = ver;
+      const sv    = calcSellValue(p, p.rarityConfig, p.mutation, ver);
+      const entry = {
+        name: p.name, image: p.display, rarity: p.rarity,
+        mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null,
+        version: ver, sellValue: sv, claimedAt: new Date().toISOString(),
+      };
+      if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
+        user.collection.push(entry);
+        addedPlants.push(entry);
+      }
+      db[req.user.id] = user;
+    }
+    saveMeta(crateMeta);
+    user.cratesOpened = (user.cratesOpened || 0) + 1;
+    addXP(db, req.user.id, XP_REWARDS.crate_open);
+    checkAchievements(user);
+    const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
+    saveDB(db);
+    pushCoinUpdate(req.user.id, user.currency);
+    pushCollectionUpdate(req.user.id);
+
+    res.json({
+      ok: true,
+      plants: addedPlants,
+      newBalance: user.currency,
+      autoSold: autoEarned,
+      cooldownMs: CRATE_COOLDOWNS[crateId] || 0,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── CRATE COOLDOWN STATUS (web) ───────────────────────────────────────────────
+app.get('/api/crate/cooldowns', (req, res) => {
+  if (!req.user) return res.json({});
+  const db   = loadDB();
+  const user = db[req.user.id];
+  if (!user) return res.json({});
+  const now    = Date.now();
+  const result = {};
+  for (const [key, cdMs] of Object.entries(CRATE_COOLDOWNS)) {
+    const lastUsed  = (user.crateCooldowns || {})[key] || 0;
+    const remaining = cdMs - (now - lastUsed);
+    result[key] = remaining > 0 ? remaining : 0;
+  }
+  res.json(result);
+});
+
 app.get('/api/plants', (req, res) => {
   try {
     const db = loadDB();
