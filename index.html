@@ -908,6 +908,8 @@
   .merchant-item-card { padding: 16px; }
   .merchant-hero { padding: 28px 16px 24px; }
   .merchant-body { padding: 16px; }
+  .merchant-body-inner { flex-direction: column; }
+  .merchant-sidebar { width: 100%; }
   .merchant-avatar { width: 64px; height: 64px; font-size: 28px; }
   .merchant-hero-title { font-size: 24px; }
   .lb-card-header { padding: 14px 16px 12px; }
@@ -1437,6 +1439,122 @@
 
 .merchant-body { padding: 40px 48px; }
 
+/* Two-column body layout */
+.merchant-body-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+}
+.merchant-body-left {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── MERCHANT SIDEBAR ── */
+.merchant-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.msb-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+}
+
+.msb-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.msb-panel-icon { font-size: 15px; line-height: 1; }
+.msb-panel-title {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink3);
+}
+
+/* Boosts list */
+.msb-boosts-list { display: flex; flex-direction: column; gap: 8px; }
+.msb-no-boosts {
+  font-size: 13px; color: var(--ink3); line-height: 1.5; text-align: center;
+  padding: 10px 0;
+}
+.msb-no-boosts span { font-size: 12px; color: var(--ink3); opacity: 0.7; }
+
+.msb-boost-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid;
+}
+.msb-boost-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  animation: msbPulse 2s ease-in-out infinite;
+}
+@keyframes msbPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.msb-boost-name {
+  font-size: 13px; font-weight: 600; color: var(--ink); flex: 1;
+}
+.msb-boost-timer {
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  font-family: 'DM Sans', monospace;
+}
+
+/* Quote panel */
+.msb-quote-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(45,106,79,0.06) 0%, rgba(201,168,76,0.04) 100%);
+  border-color: rgba(82,183,136,0.2);
+}
+.msb-quote-avatar {
+  font-size: 28px; line-height: 1; flex-shrink: 0;
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #1e3d2a, #2d6a4f);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(82,183,136,0.35);
+}
+.msb-quote-name {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #52b788; margin-bottom: 6px;
+}
+.msb-quote-text {
+  font-size: 13px; color: var(--ink2); line-height: 1.6;
+  font-style: italic;
+}
+
+/* Pool preview */
+.msb-pool-hint {
+  font-size: 11px; color: var(--ink3); margin-bottom: 12px; line-height: 1.4;
+}
+.msb-pool-list { display: flex; flex-direction: column; gap: 8px; }
+.msb-pool-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 10px;
+  background: var(--bg2); transition: background 0.15s;
+}
+.msb-pool-row:hover { background: var(--border); }
+.msb-pool-emoji { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.msb-pool-info { flex: 1; min-width: 0; }
+.msb-pool-item-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.msb-pool-item-price {
+  font-size: 11px; color: var(--ink3); font-weight: 500; margin-top: 1px;
+}
+.msb-pool-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 100px;
+  background: rgba(0,0,0,0.05);
+}
+
 /* Item grid — now a featured single-item layout */
 .merchant-grid {
   margin-bottom: 48px;
@@ -1583,6 +1701,8 @@
 
 @media (max-width: 768px) {
   .merchant-body { padding: 24px 16px; }
+  .merchant-body-inner { flex-direction: column; }
+  .merchant-sidebar { width: 100%; }
   .merchant-hero { padding: 40px 20px 36px; }
 }
 
@@ -2811,8 +2931,49 @@ function pkBurst(x,y,color,count=24){
     </div>
 
     <div class="merchant-body">
-      <div id="merchant-active-boosts" style="display:none;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"></div>
-      <div class="merchant-grid" id="merchant-main-grid"></div>
+      <div class="merchant-body-inner">
+
+        <!-- LEFT: main shop grid -->
+        <div class="merchant-body-left">
+          <div id="merchant-active-boosts" style="display:none;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"></div>
+          <div class="merchant-grid" id="merchant-main-grid"></div>
+        </div>
+
+        <!-- RIGHT: sidebar -->
+        <aside class="merchant-sidebar">
+
+          <!-- Active Boosts Panel -->
+          <div class="msb-panel" id="msb-boosts-panel">
+            <div class="msb-panel-header">
+              <span class="msb-panel-icon">⚡</span>
+              <span class="msb-panel-title">Active Boosts</span>
+            </div>
+            <div id="msb-boosts-list" class="msb-boosts-list">
+              <div class="msb-no-boosts">No active boosts.<br><span>Buy one below to power up!</span></div>
+            </div>
+          </div>
+
+          <!-- Guildwald Flavor Quote -->
+          <div class="msb-panel msb-quote-panel">
+            <div class="msb-quote-avatar">🧙</div>
+            <div class="msb-quote-body">
+              <div class="msb-quote-name">Guildwald says…</div>
+              <div class="msb-quote-text" id="msb-guildwald-quote"></div>
+            </div>
+          </div>
+
+          <!-- Pool Preview -->
+          <div class="msb-panel">
+            <div class="msb-panel-header">
+              <span class="msb-panel-icon">🔮</span>
+              <span class="msb-panel-title">Also in rotation</span>
+            </div>
+            <div class="msb-pool-hint">These items may appear in future windows.</div>
+            <div class="msb-pool-list" id="msb-pool-list"></div>
+          </div>
+
+        </aside>
+      </div>
     </div>
 
   </div>
@@ -7003,6 +7164,177 @@ async function deletePriceAlert(alertId) {
   } else {
     init();
   }
+})();
+</script>
+<script>
+// ── MERCHANT SIDEBAR ────────────────────────────────────────────────────────
+(function () {
+
+  // ── Guildwald quotes (one shown per restock window, seeded) ──
+  const QUOTES = [
+    "Ah, a visitor! These goods are rarer than a Secret-tier drop on a Monday.",
+    "I restock every quarter hour. Patience is a virtue — coins are better.",
+    "Bought the XP Tome twice last week. Still terrible at gardening.",
+    "The Mystery Box? Even I don't know what's inside. That's the beauty of it.",
+    "My listing boost has been known to sell a Common for Legendary prices. Bold strategy.",
+    "A Sprint Boost before a big drop event? Now you're thinking like a merchant.",
+    "The Rainbow Nametag is purely cosmetic. But respect? That's priceless.",
+    "Stock is limited for a reason. Scarcity builds character.",
+    "Come back in 15 minutes. I'll have something fresh — probably.",
+    "I once traded a Mystery Box for a Ruby-tier plant. The customer wept.",
+    "Between you and me, the XP Tome stacks. Don't tell the guild.",
+    "Every boost purchased funds my retirement to the Mythic Gardens.",
+  ];
+
+  function seededQuote(seed) {
+    const idx = Math.abs(seed) % QUOTES.length;
+    return QUOTES[idx];
+  }
+
+  function renderQuote() {
+    const el = document.getElementById('msb-guildwald-quote');
+    if (!el) return;
+    const seed = typeof dailySeed === 'function' ? dailySeed() : Date.now();
+    // Use minutes-window as additional entropy so it can change each restock
+    const windowSeed = seed + Math.floor(Date.now() / (15 * 60 * 1000));
+    el.textContent = '"' + seededQuote(windowSeed) + '"';
+  }
+
+  // ── Pool preview (show items not currently featured) ──
+  function renderPoolPreview(currentItemId) {
+    const el = document.getElementById('msb-pool-list');
+    if (!el || typeof MERCHANT_POOL === 'undefined') return;
+    const others = MERCHANT_POOL.filter(item => item.id !== currentItemId);
+    el.innerHTML = others.map(item => `
+      <div class="msb-pool-row">
+        <span class="msb-pool-emoji">${item.icon}</span>
+        <div class="msb-pool-info">
+          <div class="msb-pool-item-name">${item.name}</div>
+          <div class="msb-pool-item-price">${item.price.toLocaleString()} coins</div>
+        </div>
+        <span class="msb-pool-tag" style="color:${item.tagColor};background:${item.tagColor}18">${item.tag}</span>
+      </div>`).join('');
+  }
+
+  // ── Active boosts with live ticking timers ──
+  const BOOST_CONFIGS = [
+    { key: 'xpBoost',      icon: '📚', name: '2× XP Tome',      color: '#2196F3', bg: 'rgba(33,150,243,0.10)', border: 'rgba(33,150,243,0.30)' },
+    { key: 'sprintBoost',  icon: '🏃', name: 'Sprint Boost',     color: '#FF9800', bg: 'rgba(255,152,0,0.10)',  border: 'rgba(255,152,0,0.30)'  },
+    { key: 'listingBoost', icon: '📌', name: 'Listing Boost',    color: '#9c5fff', bg: 'rgba(156,95,255,0.10)',border: 'rgba(156,95,255,0.30)' },
+    { key: 'rainbowTag',   icon: '🌈', name: 'Rainbow Nametag',  color: '#e91e8c', bg: 'rgba(233,30,140,0.10)',border: 'rgba(233,30,140,0.30)' },
+  ];
+
+  // Active boost end-times: { key -> expiresAt ms }
+  let _boostExpiry = {};
+  let _boostTickInterval = null;
+
+  function msToHHMMSS(ms) {
+    if (ms <= 0) return '00:00';
+    const totalSecs = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function tickBoosts() {
+    const now = Date.now();
+    let anyActive = false;
+    BOOST_CONFIGS.forEach(cfg => {
+      const timerEl = document.getElementById('msb-timer-' + cfg.key);
+      if (!timerEl) return;
+      const exp = _boostExpiry[cfg.key];
+      if (!exp) return;
+      const left = exp - now;
+      if (left <= 0) {
+        timerEl.closest('.msb-boost-row')?.remove();
+        delete _boostExpiry[cfg.key];
+        if (!document.querySelector('.msb-boost-row')) renderNoBoosts();
+      } else {
+        anyActive = true;
+        timerEl.textContent = msToHHMMSS(left);
+      }
+    });
+    if (!anyActive) {
+      clearInterval(_boostTickInterval);
+      _boostTickInterval = null;
+    }
+  }
+
+  function renderNoBoosts() {
+    const list = document.getElementById('msb-boosts-list');
+    if (list) list.innerHTML = '<div class="msb-no-boosts">No active boosts.<br><span>Buy one below to power up!</span></div>';
+    const panel = document.getElementById('msb-boosts-panel');
+    // Keep panel visible but dim header slightly
+    if (panel) panel.style.opacity = '1';
+  }
+
+  function renderSidebarBoosts(data) {
+    const list = document.getElementById('msb-boosts-list');
+    if (!list) return;
+    _boostExpiry = {};
+    const now = Date.now();
+    const rows = [];
+
+    BOOST_CONFIGS.forEach(cfg => {
+      const boost = data[cfg.key];
+      if (boost && boost.active && boost.expiresAt > now) {
+        _boostExpiry[cfg.key] = boost.expiresAt;
+        const left = boost.expiresAt - now;
+        rows.push(`
+          <div class="msb-boost-row" style="background:${cfg.bg};border-color:${cfg.border}">
+            <span style="font-size:16px;line-height:1">${cfg.icon}</span>
+            <span class="msb-boost-dot" style="background:${cfg.color}"></span>
+            <span class="msb-boost-name">${cfg.name}</span>
+            <span class="msb-boost-timer" style="color:${cfg.color}" id="msb-timer-${cfg.key}">${msToHHMMSS(left)}</span>
+          </div>`);
+      }
+    });
+
+    if (rows.length === 0) {
+      renderNoBoosts();
+    } else {
+      list.innerHTML = rows.join('');
+      if (_boostTickInterval) clearInterval(_boostTickInterval);
+      _boostTickInterval = setInterval(tickBoosts, 1000);
+    }
+  }
+
+  // ── Hook into existing loadBoostStatus ──
+  // We wrap the existing function so our sidebar also updates when it's called.
+  const _origLoadBoostStatus = window.loadBoostStatus;
+  window.loadBoostStatus = async function () {
+    try {
+      const res = await fetch('/api/merchant/boost-status', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        renderSidebarBoosts(data);
+      }
+    } catch {}
+    if (_origLoadBoostStatus) return _origLoadBoostStatus.apply(this, arguments);
+  };
+
+  // ── Hook into renderMerchantPage to update pool & quote ──
+  const _origRenderMerchantPage = window.renderMerchantPage;
+  window.renderMerchantPage = function (seedOverride) {
+    if (_origRenderMerchantPage) _origRenderMerchantPage.apply(this, arguments);
+    // After the main render, figure out which item was picked and render sidebar
+    setTimeout(() => {
+      const seed = seedOverride !== undefined ? seedOverride
+        : (window._merchantRestockOverride !== undefined ? window._merchantRestockOverride
+        : (typeof dailySeed === 'function' ? dailySeed() : 0));
+      const pool = typeof MERCHANT_POOL !== 'undefined' ? [...MERCHANT_POOL] : [];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor((typeof seededRand === 'function' ? seededRand(seed, i + 7) : Math.random()) * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const currentId = pool[0]?.id;
+      renderPoolPreview(currentId);
+      renderQuote();
+    }, 10);
+  };
+
 })();
 </script>
 </body>
