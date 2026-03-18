@@ -59,14 +59,53 @@
     text-decoration: none;
   }
   .nav-logo span { color: var(--green); }
-  .nav-links { display: flex; gap: 8px; align-items: center; overflow: visible; position: relative; }
+  .nav-links {
+    display: flex; gap: 3px; align-items: stretch;
+    overflow: visible; position: relative;
+    background: rgba(14,13,11,0.06);
+    border-radius: 9999px;
+    padding: 3px;
+    height: 42px;
+  }
   .nav-links > a {
     font-size: 14px; font-weight: 500; color: var(--ink2);
-    text-decoration: none; padding: 8px 16px; border-radius: 8px;
-    transition: all 0.2s;
+    text-decoration: none; padding: 0 16px; border-radius: 9999px;
     cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    background: transparent;
+    white-space: nowrap; line-height: 0;
+    transition: none;
   }
-  .nav-links > a:hover, .nav-links > a.active { background: var(--ink); color: var(--bg); }
+  .nav-links > a:hover, .nav-links > a.active { background: transparent; color: var(--ink2); }
+  .nav-links > a.active::after {
+    content: '';
+    position: absolute; bottom: 2px; left: 50%;
+    transform: translateX(-50%);
+    width: 10px; height: 3px;
+    background: var(--ink); border-radius: 100px; z-index: 4;
+  }
+
+  /* ── PILL ANIMATION ELEMENTS ── */
+  .pill-hover-circle {
+    position: absolute; left: 50%; bottom: 0;
+    border-radius: 50%; background: var(--ink);
+    z-index: 1; display: block; pointer-events: none;
+    will-change: transform;
+  }
+  .pill-label-stack {
+    position: relative; display: inline-block;
+    line-height: 1; z-index: 2;
+  }
+  .pill-lbl {
+    position: relative; display: inline-block;
+    will-change: transform;
+  }
+  .pill-lbl-hover {
+    position: absolute; left: 0; top: 0;
+    color: var(--bg); display: inline-block;
+    will-change: transform, opacity;
+  }
 
   /* ── PAGES ── */
   .page { display: none; min-height: 100vh; padding-top: 64px; }
@@ -79,10 +118,11 @@
   /* ── HERO ── */
   .hero {
     min-height: calc(100vh - 64px);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
     padding: 80px 48px;
+    gap: 56px;
     position: relative;
     overflow: hidden;
   }
@@ -169,7 +209,247 @@
     font-weight: 500;
   }
 
-  /* ── STATS ROW ── */
+  .hero-steps {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-left: 1.5px solid var(--border);
+    padding-left: 24px;
+  }
+  .hero-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .hero-step:last-child { border-bottom: none; }
+
+  /* dot on the left border */
+  .hero-step::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 20px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--border);
+  }
+  .hero-step:hover::before {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  .hero-step-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    color: var(--ink3);
+    letter-spacing: 0.04em;
+    min-width: 24px;
+    padding-top: 1px;
+  }
+  .hero-step-title {
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    margin-bottom: 3px;
+  }
+  .hero-step-desc {
+    font-size: 13px; color: var(--ink3); line-height: 1.5;
+  }
+
+  /* ── HERO RIGHT — PLANT SPOTLIGHT ── */
+  .hero-right {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    position: relative;
+    align-self: stretch;
+  }
+
+  .spotlight-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    height: 100%;
+    min-height: 460px;
+  }
+
+  /* ambient background glow */
+  .spotlight-glow {
+    position: absolute;
+    inset: -60px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, var(--sp-color, rgba(82,183,136,0.2)) 0%, transparent 65%);
+    transition: background 1s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* card itself */
+  .spotlight-card {
+    position: absolute;
+    inset: 0;
+    border-radius: 24px;
+    background: var(--card);
+    border: 1.5px solid var(--sp-color, rgba(82,183,136,0.4));
+    box-shadow:
+      0 24px 64px rgba(0,0,0,0.1),
+      0 0 0 1px rgba(255,255,255,0.5) inset,
+      0 0 40px var(--sp-color, rgba(82,183,136,0.12));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    padding: 48px 24px 36px;
+    overflow: hidden;
+    transition: border-color 0.8s ease, box-shadow 0.8s ease;
+    z-index: 1;
+  }
+
+  /* subtle diagonal texture */
+  .spotlight-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      -55deg,
+      transparent, transparent 24px,
+      rgba(0,0,0,0.015) 24px, rgba(0,0,0,0.015) 25px
+    );
+    pointer-events: none;
+  }
+
+  /* rarity colour bar at top */
+  .spotlight-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--sp-color, #52b788);
+    transition: background 0.8s ease;
+    border-radius: 24px 24px 0 0;
+  }
+
+  /* plant image */
+  .spotlight-img-wrap {
+    position: relative;
+    width: 220px; height: 220px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .spotlight-img-wrap.fading {
+    opacity: 0;
+    transform: scale(0.88) translateY(8px);
+  }
+  .spotlight-img {
+    width: 200px; height: 200px;
+    object-fit: contain;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    filter: drop-shadow(0 0 24px var(--sp-color, rgba(82,183,136,0.6)));
+    transition: filter 0.8s ease;
+    position: relative; z-index: 1;
+  }
+  /* halo ring */
+  .spotlight-img-wrap::after {
+    content: '';
+    position: absolute;
+    width: 210px; height: 210px;
+    border-radius: 50%;
+    border: 1.5px solid var(--sp-color, rgba(82,183,136,0.3));
+    transition: border-color 0.8s ease;
+    animation: sp-ring 3s ease-in-out infinite;
+  }
+  @keyframes sp-ring {
+    0%,100% { transform: scale(1);   opacity: 0.5; }
+    50%      { transform: scale(1.1); opacity: 0.15; }
+  }
+
+  .spotlight-info {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: opacity 0.35s ease;
+    padding: 0 20px; text-align: center;
+    width: 100%;
+  }
+  .spotlight-info.fading { opacity: 0; }
+
+  .spotlight-rarity {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sp-color, #52b788);
+    background: rgba(0,0,0,0.04);
+    border: 1px solid var(--sp-color, rgba(82,183,136,0.3));
+    padding: 4px 12px; border-radius: 100px;
+    transition: color 0.8s ease, border-color 0.8s ease;
+    flex-shrink: 0;
+  }
+  .spotlight-rarity::before { content: '◆'; font-size: 7px; }
+
+  .spotlight-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(20px, 2.2vw, 28px);
+    letter-spacing: -0.02em;
+    color: var(--ink); line-height: 1.1;
+    word-break: break-word;
+  }
+
+  /* dots — flow inside the card, not absolute */
+  .spotlight-dots {
+    display: flex; justify-content: center; gap: 6px;
+  }
+  .sp-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--border);
+    transition: background 0.4s ease, transform 0.4s ease;
+  }
+  .sp-dot.active {
+    background: var(--sp-color, #52b788);
+    transform: scale(1.4);
+  }
+
+  /* counter badge top-right */
+  .spotlight-counter {
+    position: absolute;
+    top: 16px; right: 16px;
+    font-size: 11px; font-weight: 700; color: var(--ink3);
+    z-index: 2;
+  }
+
+  /* floating chips outside the card */
+  .sp-float {
+    position: absolute;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 7px 14px;
+    font-size: 12px; font-weight: 600; color: var(--ink2);
+    white-space: nowrap;
+    z-index: 4;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    animation: sp-float-drift 5s ease-in-out infinite;
+  }
+  .sp-float:nth-child(2) { animation-delay: -1.6s; }
+  .sp-float:nth-child(3) { animation-delay: -3.1s; }
+  .sp-float:nth-child(4) { animation-delay: -0.8s; }
+  @keyframes sp-float-drift {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(-7px); }
+  }
+  .sp-float-icon { font-size: 15px; line-height: 1; }
+  .sp-float-val  { color: var(--ink); font-weight: 700; }
+
+  /* position each chip */
+  .sp-float--tl { top: 24px;  left: -24px; }
+  .sp-float--tr { top: 80px;  right: -20px; }
+  .sp-float--bl { bottom: 80px; left: -20px; }
+  .sp-float--br { bottom: 28px; right: -16px; }
+
+  
+
+  @media (max-width: 860px) { .hero-right { display: none; } }
   .stats-row {
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 1px; background: var(--border);
@@ -575,14 +855,21 @@
     position: fixed; top: 64px; left: 0; right: 0;
     background: var(--bg); border-bottom: 1px solid var(--border);
     padding: 12px 16px; gap: 4px; z-index: 99;
+    border-radius: 0; height: auto;
   }
   #coin-display { display: none !important; }
   #nav-username { max-width: 60px; }
   .nav-logo { font-size: 15px; }
 
-  .nav-links > a { width: 100%; padding: 12px 16px; }
+  .nav-links > a { width: 100%; padding: 12px 16px; height: auto; overflow: visible; line-height: 1.2; }
+  .nav-links > a .pill-hover-circle { display: none; }
+  .nav-links > a .pill-lbl-hover { display: none; }
+  .nav-links > a .pill-lbl { position: static; }
   .nav-dropdown-wrap { width: 100%; }
-  .nav-dropdown-trigger { width: 100%; padding: 12px 16px; }
+  .nav-dropdown-trigger { width: 100%; padding: 12px 16px; height: auto; overflow: visible; line-height: 1.2; }
+  .nav-dropdown-trigger .pill-hover-circle { display: none; }
+  .nav-dropdown-trigger .pill-lbl-hover { display: none; }
+  .nav-dropdown-trigger .pill-lbl { position: static; }
   .nav-dropdown {
     position: static; transform: none;
     box-shadow: none; border: none;
@@ -593,6 +880,7 @@
   .hamburger { display: flex !important; }
 
   .hero { grid-template-columns: 1fr; padding: 40px 16px; }
+  .hero-right { display: none; }
   .stats-row { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
   .lb-grid { grid-template-columns: 1fr; }
@@ -620,6 +908,8 @@
   .merchant-item-card { padding: 16px; }
   .merchant-hero { padding: 28px 16px 24px; }
   .merchant-body { padding: 16px; }
+  .merchant-body-inner { flex-direction: column; }
+  .merchant-sidebar { width: 100%; }
   .merchant-avatar { width: 64px; height: 64px; font-size: 28px; }
   .merchant-hero-title { font-size: 24px; }
   .lb-card-header { padding: 14px 16px 12px; }
@@ -751,14 +1041,16 @@
 }
 .nav-dropdown-trigger {
   font-size: 14px; font-weight: 500; color: var(--ink2);
-  padding: 8px 16px; border-radius: 8px;
-  transition: all 0.2s; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  user-select: none; white-space: nowrap;
+  padding: 0 16px; border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 100%; position: relative; overflow: hidden;
+  background: transparent; user-select: none; white-space: nowrap;
+  line-height: 0; transition: none;
 }
 .nav-dropdown-wrap:hover .nav-dropdown-trigger,
 .nav-dropdown-trigger.active {
-  background: var(--ink); color: var(--bg);
+  background: transparent; color: var(--ink2);
 }
 .nav-dropdown {
   position: absolute;
@@ -1147,6 +1439,122 @@
 
 .merchant-body { padding: 40px 48px; }
 
+/* Two-column body layout */
+.merchant-body-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+}
+.merchant-body-left {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── MERCHANT SIDEBAR ── */
+.merchant-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.msb-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+}
+
+.msb-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.msb-panel-icon { font-size: 15px; line-height: 1; }
+.msb-panel-title {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink3);
+}
+
+/* Boosts list */
+.msb-boosts-list { display: flex; flex-direction: column; gap: 8px; }
+.msb-no-boosts {
+  font-size: 13px; color: var(--ink3); line-height: 1.5; text-align: center;
+  padding: 10px 0;
+}
+.msb-no-boosts span { font-size: 12px; color: var(--ink3); opacity: 0.7; }
+
+.msb-boost-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid;
+}
+.msb-boost-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  animation: msbPulse 2s ease-in-out infinite;
+}
+@keyframes msbPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.msb-boost-name {
+  font-size: 13px; font-weight: 600; color: var(--ink); flex: 1;
+}
+.msb-boost-timer {
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  font-family: 'DM Sans', monospace;
+}
+
+/* Quote panel */
+.msb-quote-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(45,106,79,0.06) 0%, rgba(201,168,76,0.04) 100%);
+  border-color: rgba(82,183,136,0.2);
+}
+.msb-quote-avatar {
+  font-size: 28px; line-height: 1; flex-shrink: 0;
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #1e3d2a, #2d6a4f);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(82,183,136,0.35);
+}
+.msb-quote-name {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #52b788; margin-bottom: 6px;
+}
+.msb-quote-text {
+  font-size: 13px; color: var(--ink2); line-height: 1.6;
+  font-style: italic;
+}
+
+/* Pool preview */
+.msb-pool-hint {
+  font-size: 11px; color: var(--ink3); margin-bottom: 12px; line-height: 1.4;
+}
+.msb-pool-list { display: flex; flex-direction: column; gap: 8px; }
+.msb-pool-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 10px;
+  background: var(--bg2); transition: background 0.15s;
+}
+.msb-pool-row:hover { background: var(--border); }
+.msb-pool-emoji { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.msb-pool-info { flex: 1; min-width: 0; }
+.msb-pool-item-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.msb-pool-item-price {
+  font-size: 11px; color: var(--ink3); font-weight: 500; margin-top: 1px;
+}
+.msb-pool-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 100px;
+  background: rgba(0,0,0,0.05);
+}
+
 /* Item grid — now a featured single-item layout */
 .merchant-grid {
   margin-bottom: 48px;
@@ -1293,6 +1701,8 @@
 
 @media (max-width: 768px) {
   .merchant-body { padding: 24px 16px; }
+  .merchant-body-inner { flex-direction: column; }
+  .merchant-sidebar { width: 100%; }
   .merchant-hero { padding: 40px 20px 36px; }
 }
 
@@ -1348,24 +1758,42 @@
 <nav>
   <a class="nav-logo" href="#" onclick="showPage('home');return false;">🌿 <span>Sprout</span> App</a>
   <div class="nav-links">
-    <a onclick="showPage('leaderboards')" id="nav-leaderboards">Leaderboards</a>
-    <a onclick="showPage('profiles')" id="nav-profiles">Profiles</a>
+    <a onclick="showPage('leaderboards')" id="nav-leaderboards">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Leaderboards</span><span class="pill-lbl-hover" aria-hidden="true">Leaderboards</span></span>
+    </a>
+    <a onclick="showPage('profiles')" id="nav-profiles">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Profiles</span><span class="pill-lbl-hover" aria-hidden="true">Profiles</span></span>
+    </a>
     <div class="nav-dropdown-wrap" id="nav-market-wrap">
-      <a class="nav-dropdown-trigger" id="nav-market-trigger">Market ▾</a>
+      <a class="nav-dropdown-trigger" id="nav-market-trigger">
+        <span class="pill-hover-circle" aria-hidden="true"></span>
+        <span class="pill-label-stack"><span class="pill-lbl">Market ▾</span><span class="pill-lbl-hover" aria-hidden="true">Market ▾</span></span>
+      </a>
       <div class="nav-dropdown">
         <a onclick="showPage('market')" class="nav-dropdown-item" id="nav-market">🛒 Browse</a>
         <a onclick="showPage('auctions')" class="nav-dropdown-item" id="nav-auctions">🔨 Auctions</a>
       </div>
     </div>
     <div class="nav-dropdown-wrap" id="nav-play-wrap">
-      <a class="nav-dropdown-trigger" id="nav-play-trigger">Play ▾</a>
+      <a class="nav-dropdown-trigger" id="nav-play-trigger">
+        <span class="pill-hover-circle" aria-hidden="true"></span>
+        <span class="pill-label-stack"><span class="pill-lbl">Play ▾</span><span class="pill-lbl-hover" aria-hidden="true">Play ▾</span></span>
+      </a>
       <div class="nav-dropdown">
         <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Crate Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
-    <a onclick="showPage('trade')" id="nav-trade">Trade</a>
-    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">Collection</a>
+    <a onclick="showPage('trade')" id="nav-trade">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Trade</span><span class="pill-lbl-hover" aria-hidden="true">Trade</span></span>
+    </a>
+    <a onclick="showPage('inventory')" id="nav-inventory" style="display:none">
+      <span class="pill-hover-circle" aria-hidden="true"></span>
+      <span class="pill-label-stack"><span class="pill-lbl">Collection</span><span class="pill-lbl-hover" aria-hidden="true">Collection</span></span>
+    </a>
   </div>
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
@@ -1407,6 +1835,55 @@
       <div class="hero-actions">
         <button class="btn btn-primary" onclick="showPage('leaderboards')">View Leaderboards →</button>
         <button class="btn btn-secondary" onclick="showPage('profiles')" style="display:none">Browse Profiles</button>
+      </div>
+
+      <div class="hero-steps">
+        <div class="hero-step">
+          <div class="hero-step-num">01</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">A plant drops in Discord</div>
+            <div class="hero-step-desc">Random plants appear in your server's drop channel at any time.</div>
+          </div>
+        </div>
+        <div class="hero-step">
+          <div class="hero-step-num">02</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">Type the code first</div>
+            <div class="hero-step-desc">A captcha appears — fastest fingers claim it. No second chances.</div>
+          </div>
+        </div>
+        <div class="hero-step">
+          <div class="hero-step-num">03</div>
+          <div class="hero-step-body">
+            <div class="hero-step-title">Build your collection</div>
+            <div class="hero-step-desc">Trade, sell, open crates, and climb the leaderboard.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="spotlight-wrap">
+        <div class="spotlight-glow" id="sp-glow"></div>
+
+        <!-- Floating info chips — update per plant -->
+        <div class="sp-float sp-float--tl"><span class="sp-float-icon">💰</span><span>Sells for <span class="sp-float-val" id="sp-sell">10</span> coins</span></div>
+        <div class="sp-float sp-float--tr"><span class="sp-float-icon">🎲</span><span><span class="sp-float-val" id="sp-drop-rate">1 in 2</span> drops</span></div>
+        <div class="sp-float sp-float--bl"><span class="sp-float-icon">⭐</span><span id="sp-rarity-label">Common rarity</span></div>
+        <div class="sp-float sp-float--br"><span class="sp-float-icon">📦</span><span id="sp-crate-hint">Bronze crate</span></div>
+
+        <div class="spotlight-card" id="sp-card">
+          <div class="spotlight-bar" id="sp-bar"></div>
+          <div class="spotlight-counter" id="sp-counter">1 / 41</div>
+          <div class="spotlight-img-wrap" id="sp-img-wrap">
+            <img class="spotlight-img" id="sp-img" src="" alt="" draggable="false">
+          </div>
+          <div class="spotlight-info" id="sp-info">
+            <div class="spotlight-rarity" id="sp-rarity"></div>
+            <div class="spotlight-name"  id="sp-name"></div>
+          </div>
+          <div class="spotlight-dots" id="sp-dots"></div>
+        </div>
       </div>
     </div>
 
@@ -2454,8 +2931,49 @@ function pkBurst(x,y,color,count=24){
     </div>
 
     <div class="merchant-body">
-      <div id="merchant-active-boosts" style="display:none;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"></div>
-      <div class="merchant-grid" id="merchant-main-grid"></div>
+      <div class="merchant-body-inner">
+
+        <!-- LEFT: main shop grid -->
+        <div class="merchant-body-left">
+          <div id="merchant-active-boosts" style="display:none;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap"></div>
+          <div class="merchant-grid" id="merchant-main-grid"></div>
+        </div>
+
+        <!-- RIGHT: sidebar -->
+        <aside class="merchant-sidebar">
+
+          <!-- Active Boosts Panel -->
+          <div class="msb-panel" id="msb-boosts-panel">
+            <div class="msb-panel-header">
+              <span class="msb-panel-icon">⚡</span>
+              <span class="msb-panel-title">Active Boosts</span>
+            </div>
+            <div id="msb-boosts-list" class="msb-boosts-list">
+              <div class="msb-no-boosts">No active boosts.<br><span>Buy one below to power up!</span></div>
+            </div>
+          </div>
+
+          <!-- Guildwald Flavor Quote -->
+          <div class="msb-panel msb-quote-panel">
+            <div class="msb-quote-avatar">🧙</div>
+            <div class="msb-quote-body">
+              <div class="msb-quote-name">Guildwald says…</div>
+              <div class="msb-quote-text" id="msb-guildwald-quote"></div>
+            </div>
+          </div>
+
+          <!-- Pool Preview -->
+          <div class="msb-panel">
+            <div class="msb-panel-header">
+              <span class="msb-panel-icon">🔮</span>
+              <span class="msb-panel-title">Also in rotation</span>
+            </div>
+            <div class="msb-pool-hint">These items may appear in future windows.</div>
+            <div class="msb-pool-list" id="msb-pool-list"></div>
+          </div>
+
+        </aside>
+      </div>
     </div>
 
   </div>
@@ -6213,6 +6731,179 @@ async function deletePriceAlert(alertId) {
 </script>
 
 <script>
+// ── PLANT SPOTLIGHT ENGINE ──────────────────────────────────────────────────
+(function () {
+  const PLANTS = [
+    { name:'Carrot',           src:'/images/carrot2-removebg-preview.png',           rarity:'Common',    color:'#8aab8a' },
+    { name:'Corn',             src:'/images/corn2-removebg-preview.png',             rarity:'Common',    color:'#8aab8a' },
+    { name:'Sunpetal',         src:'/images/sunpetal2-removebg-preview.png',         rarity:'Common',    color:'#8aab8a' },
+    { name:'Dandelion',        src:'/images/dandelion2-removebg-preview.png',        rarity:'Common',    color:'#8aab8a' },
+    { name:'Biohazard Melon',  src:'/images/biohazardmelon2-removebg-preview.png',   rarity:'Common',    color:'#8aab8a' },
+    { name:'Onion',            src:'/images/onion2-removebg-preview.png',            rarity:'Uncommon',  color:'#52b788' },
+    { name:'Mushroom',         src:'/images/mushroom2-removebg-preview.png',         rarity:'Uncommon',  color:'#52b788' },
+    { name:'Strawberry',       src:'/images/strawberry2-removebg-preview.png',       rarity:'Uncommon',  color:'#52b788' },
+    { name:'Goldenberry',      src:'/images/goldenberry2-removebg-preview.png',      rarity:'Uncommon',  color:'#52b788' },
+    { name:'Bell Pepper',      src:'/images/bellpepper2-removebg-preview.png',       rarity:'Uncommon',  color:'#52b788' },
+    { name:'Lablush Berry',    src:'/images/Lablushberry2-removebg-preview.png',     rarity:'Uncommon',  color:'#52b788' },
+    { name:'Beetroot',         src:'/images/beetroot2-removebg-preview.png',         rarity:'Rare',      color:'#2196f3' },
+    { name:'Tomato',           src:'/images/tomato2-removebg-preview.png',           rarity:'Rare',      color:'#2196f3' },
+    { name:'Rose',             src:'/images/rose2-removebg-preview.png',             rarity:'Rare',      color:'#2196f3' },
+    { name:'Apple',            src:'/images/apple2-removebg-preview.png',            rarity:'Rare',      color:'#2196f3' },
+    { name:'Amberpine',        src:'/images/amberpine2-removebg-preview.png',        rarity:'Rare',      color:'#2196f3' },
+    { name:'Titan Bloom',      src:'/images/titanbloom-removebg-preview.png',        rarity:'Rare',      color:'#2196f3' },
+    { name:'Wheat',            src:'/images/wheat.png',                              rarity:'Epic',      color:'#9c27b0' },
+    { name:'Banana',           src:'/images/banana2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
+    { name:'Potato',           src:'/images/potato2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
+    { name:'Plum',             src:'/images/plum2-removebg-preview.png',             rarity:'Epic',      color:'#9c27b0' },
+    { name:'Emberwood',        src:'/images/emberwood2-removebg-preview.png',        rarity:'Epic',      color:'#9c27b0' },
+    { name:'Orange',           src:'/images/orange2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
+    { name:'Radiant Petal',    src:'/images/radiantpetal2-removebg-preview.png',     rarity:'Epic',      color:'#9c27b0' },
+    { name:'Lostlight',        src:'/images/lostlight2-removebg-preview.png',        rarity:'Epic',      color:'#9c27b0' },
+    { name:'Glowcorn',         src:'/images/glowcorn2-removebg-preview.png',         rarity:'Epic',      color:'#9c27b0' },
+    { name:'Cabbage',          src:'/images/cabbage2-removebg-preview.png',          rarity:'Legendary', color:'#c9a84c' },
+    { name:'Cherry',           src:'/images/cherry2-removebg-preview.png',           rarity:'Legendary', color:'#c9a84c' },
+    { name:'Dawn Fruit',       src:'/images/dawnfruit2-removebg-preview.png',        rarity:'Legendary', color:'#c9a84c' },
+    { name:'Pomegranate',      src:'/images/pomegranate2-removebg-preview.png',      rarity:'Legendary', color:'#c9a84c' },
+    { name:'Mango',            src:'/images/mango2-removebg-preview.png',            rarity:'Legendary', color:'#c9a84c' },
+    { name:'Bamboo',           src:'/images/bamboo2-removebg-preview.png',           rarity:'Legendary', color:'#c9a84c' },
+    { name:'Octobranch',       src:'/images/octobranch2-removebg-preview.png',       rarity:'Legendary', color:'#c9a84c' },
+    { name:'Firefern',         src:'/images/firefern-removebg-preview.png',          rarity:'Legendary', color:'#c9a84c' },
+    { name:'Blue Rose',        src:'/images/bluerose2-removebg-preview.png',         rarity:'Legendary', color:'#c9a84c' },
+    { name:'Twisted Sunflower',src:'/images/Twistedsunflower-removebg-preview.png',  rarity:'Legendary', color:'#c9a84c' },
+    { name:'Dawn Blossom',     src:'/images/dawn-blossom.png',                       rarity:'Mythic',    color:'#ea2222' },
+    { name:'Olive',            src:'/images/olive2-removebg-preview.png',            rarity:'Mythic',    color:'#ea2222' },
+    { name:'Glowvein',         src:'/images/glowvein2-removebg-preview.png',         rarity:'Mythic',    color:'#ea2222' },
+    { name:'Starvine',         src:'/images/Starvine2-removebg-preview.png',         rarity:'Secret',    color:'#b0a090' },
+    { name:'Glowflower',       src:'/images/glowflower.png',                         rarity:'Secret',    color:'#b0a090' },
+  ];
+
+  const INTERVAL  = 2800;
+  const DOT_COUNT = 7;
+
+  const spGlow    = document.getElementById('sp-glow');
+  const spCard    = document.getElementById('sp-card');
+  const spBar     = document.getElementById('sp-bar');
+  const spImgWrap = document.getElementById('sp-img-wrap');
+  const spImg     = document.getElementById('sp-img');
+  const spInfo    = document.getElementById('sp-info');
+  const spRarity  = document.getElementById('sp-rarity');
+  const spName    = document.getElementById('sp-name');
+  const spCounter = document.getElementById('sp-counter');
+  const spDots    = document.getElementById('sp-dots');
+
+  if (!spCard) return;
+
+  // Build dot indicators
+  const dots = [];
+  for (let i = 0; i < DOT_COUNT; i++) {
+    const d = document.createElement('div');
+    d.className = 'sp-dot';
+    spDots.appendChild(d);
+    dots.push(d);
+  }
+
+  function updateDots() {
+    const mid = Math.floor(DOT_COUNT / 2);
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', i === mid);
+    });
+  }
+
+  function applyPlant(plant, animate) {
+    const color = plant.color;
+
+    spCard.style.setProperty('--sp-color', color + '55');
+    spGlow.style.setProperty('--sp-color', color + '30');
+    spBar.style.background = color;
+    spRarity.style.setProperty('--sp-color', color);
+    spCounter.textContent = `${qIdx + 1} / ${PLANTS.length}`;
+    updateDots();
+
+    if (!animate) {
+      spImg.src = plant.src;
+      spImg.alt = plant.name;
+      spImg.style.filter = `drop-shadow(0 0 24px ${color})`;
+      spRarity.textContent = plant.rarity;
+      spName.textContent   = plant.name;
+      refreshChips(plant);
+      return;
+    }
+
+    spImgWrap.classList.add('fading');
+    spInfo.classList.add('fading');
+
+    setTimeout(() => {
+      spImg.src = plant.src;
+      spImg.alt = plant.name;
+      spImg.style.filter = `drop-shadow(0 0 24px ${color})`;
+      spRarity.textContent = plant.rarity;
+      spName.textContent   = plant.name;
+      refreshChips(plant);
+      spImgWrap.classList.remove('fading');
+      spInfo.classList.remove('fading');
+    }, 370);
+  }
+
+  // Shuffled queue — guarantees rarity changes every step
+  function buildQueue() {
+    const arr = [...PLANTS].sort(() => Math.random() - 0.5);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i].rarity === arr[i - 1].rarity) {
+        for (let j = i + 1; j < arr.length; j++) {
+          if (arr[j].rarity !== arr[i - 1].rarity) {
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            break;
+          }
+        }
+      }
+    }
+    return arr;
+  }
+
+  let queue = buildQueue();
+  let qIdx  = 0;
+
+  function advance() {
+    const prevRarity = queue[qIdx].rarity;
+    qIdx++;
+    if (qIdx >= queue.length) { queue = buildQueue(); qIdx = 0; }
+    // Safety: skip if same rarity still snuck through
+    if (queue[qIdx].rarity === prevRarity) {
+      qIdx++;
+      if (qIdx >= queue.length) { queue = buildQueue(); qIdx = 0; }
+    }
+    applyPlant(queue[qIdx], true);
+  }
+
+  const spSell      = document.getElementById('sp-sell');
+  const spDropRate  = document.getElementById('sp-drop-rate');
+  const spRarityLbl = document.getElementById('sp-rarity-label');
+  const spCrateHint = document.getElementById('sp-crate-hint');
+
+  const RARITY_INFO = {
+    Common:    { sell: '10',      drop: '1 in 2',    crate: 'Bronze+ crate'   },
+    Uncommon:  { sell: '25',      drop: '1 in 4',    crate: 'Bronze+ crate'   },
+    Rare:      { sell: '75',      drop: '1 in 8',    crate: 'Silver+ crate'   },
+    Epic:      { sell: '2,000',   drop: '1 in 17',   crate: 'Gold+ crate'     },
+    Legendary: { sell: '10,000',  drop: '1 in 33',   crate: 'Diamond+ crate'  },
+    Mythic:    { sell: '25,000',  drop: '1 in 500',  crate: 'Ruby crate only' },
+    Secret:    { sell: '100,000', drop: '1 in 1000', crate: 'Drop only'       },
+  };
+
+  function refreshChips(plant) {
+    const info = RARITY_INFO[plant.rarity] || RARITY_INFO.Common;
+    if (spSell)      spSell.textContent      = info.sell;
+    if (spDropRate)  spDropRate.textContent  = info.drop;
+    if (spRarityLbl) spRarityLbl.textContent = `${plant.rarity} rarity`;
+    if (spCrateHint) spCrateHint.textContent = info.crate;
+  }
+
+  applyPlant(queue[qIdx], false);
+  setInterval(advance, INTERVAL);
+})();
+</script>
+
+<script>
 // ── ELECTRIC BORDER ENGINE ──────────────────────────────────────────────────
 (function() {
   const SPEED = 1.2;
@@ -6386,6 +7077,276 @@ async function deletePriceAlert(alertId) {
 
   const mo = new MutationObserver(applyToAll);
   mo.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+<script>
+// ── PILL NAV ANIMATION (ReactBits PillNav – vanilla port) ──────────────────
+(function () {
+  const EASE = 'power3.out';
+  const pillEls   = [];
+  const circleEls = [];
+  const tlRefs    = [];
+  const tweenRefs = [];
+
+  function collectPills() {
+    pillEls.length = 0;
+    circleEls.length = 0;
+
+    // Direct <a> links inside .nav-links
+    document.querySelectorAll('.nav-links > a').forEach(a => {
+      const c = a.querySelector('.pill-hover-circle');
+      if (c) { pillEls.push(a); circleEls.push(c); }
+    });
+    // Dropdown triggers
+    document.querySelectorAll('.nav-dropdown-trigger').forEach(a => {
+      const c = a.querySelector('.pill-hover-circle');
+      if (c) { pillEls.push(a); circleEls.push(c); }
+    });
+  }
+
+  function layout() {
+    pillEls.forEach((pill, i) => {
+      const circle = circleEls[i];
+      if (!circle) return;
+
+      const rect = pill.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      if (!w || !h) return;
+
+      const R     = (w * w / 4 + h * h) / (2 * h);
+      const D     = Math.ceil(2 * R) + 2;
+      const delta = Math.ceil(R - Math.sqrt(Math.max(0, R * R - w * w / 4))) + 1;
+      const originY = D - delta;
+
+      circle.style.width  = D + 'px';
+      circle.style.height = D + 'px';
+      circle.style.bottom = -delta + 'px';
+
+      gsap.set(circle, { xPercent: -50, scale: 0, transformOrigin: '50% ' + originY + 'px' });
+
+      const label = pill.querySelector('.pill-lbl');
+      const hover = pill.querySelector('.pill-lbl-hover');
+
+      if (label) gsap.set(label, { y: 0 });
+      if (hover)  gsap.set(hover,  { y: Math.ceil(h + 100), opacity: 0 });
+
+      tlRefs[i]?.kill();
+      const tl = gsap.timeline({ paused: true });
+
+      tl.to(circle, { scale: 1.2, xPercent: -50, duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+      if (label) tl.to(label, { y: -(h + 8), duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+      if (hover)  tl.to(hover,  { y: 0, opacity: 1, duration: 2, ease: EASE, overwrite: 'auto' }, 0);
+
+      tlRefs[i] = tl;
+    });
+  }
+
+  function attachEvents() {
+    pillEls.forEach((pill, i) => {
+      pill.addEventListener('mouseenter', () => {
+        const tl = tlRefs[i]; if (!tl) return;
+        tweenRefs[i]?.kill();
+        tweenRefs[i] = tl.tweenTo(tl.duration(), { duration: 0.3, ease: EASE, overwrite: 'auto' });
+      });
+      pill.addEventListener('mouseleave', () => {
+        const tl = tlRefs[i]; if (!tl) return;
+        tweenRefs[i]?.kill();
+        tweenRefs[i] = tl.tweenTo(0, { duration: 0.2, ease: EASE, overwrite: 'auto' });
+      });
+    });
+  }
+
+  function init() {
+    collectPills();
+    layout();
+    attachEvents();
+
+    // Load-in animation: nav-links width expand
+    const navItems = document.querySelector('.nav-links');
+    if (navItems) {
+      gsap.from(navItems, { scaleX: 0.6, opacity: 0, duration: 0.55, ease: EASE, transformOrigin: 'center center' });
+    }
+
+    window.addEventListener('resize', layout);
+    if (document.fonts?.ready) document.fonts.ready.then(layout).catch(() => {});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+<script>
+// ── MERCHANT SIDEBAR ────────────────────────────────────────────────────────
+(function () {
+
+  // ── Guildwald quotes (one shown per restock window, seeded) ──
+  const QUOTES = [
+    "Ah, a visitor! These goods are rarer than a Secret-tier drop on a Monday.",
+    "I restock every quarter hour. Patience is a virtue — coins are better.",
+    "Bought the XP Tome twice last week. Still terrible at gardening.",
+    "The Mystery Box? Even I don't know what's inside. That's the beauty of it.",
+    "My listing boost has been known to sell a Common for Legendary prices. Bold strategy.",
+    "A Sprint Boost before a big drop event? Now you're thinking like a merchant.",
+    "The Rainbow Nametag is purely cosmetic. But respect? That's priceless.",
+    "Stock is limited for a reason. Scarcity builds character.",
+    "Come back in 15 minutes. I'll have something fresh — probably.",
+    "I once traded a Mystery Box for a Ruby-tier plant. The customer wept.",
+    "Between you and me, the XP Tome stacks. Don't tell the guild.",
+    "Every boost purchased funds my retirement to the Mythic Gardens.",
+  ];
+
+  function seededQuote(seed) {
+    const idx = Math.abs(seed) % QUOTES.length;
+    return QUOTES[idx];
+  }
+
+  function renderQuote() {
+    const el = document.getElementById('msb-guildwald-quote');
+    if (!el) return;
+    const seed = typeof dailySeed === 'function' ? dailySeed() : Date.now();
+    // Use minutes-window as additional entropy so it can change each restock
+    const windowSeed = seed + Math.floor(Date.now() / (15 * 60 * 1000));
+    el.textContent = '"' + seededQuote(windowSeed) + '"';
+  }
+
+  // ── Pool preview (show items not currently featured) ──
+  function renderPoolPreview(currentItemId) {
+    const el = document.getElementById('msb-pool-list');
+    if (!el || typeof MERCHANT_POOL === 'undefined') return;
+    const others = MERCHANT_POOL.filter(item => item.id !== currentItemId);
+    el.innerHTML = others.map(item => `
+      <div class="msb-pool-row">
+        <span class="msb-pool-emoji">${item.icon}</span>
+        <div class="msb-pool-info">
+          <div class="msb-pool-item-name">${item.name}</div>
+          <div class="msb-pool-item-price">${item.price.toLocaleString()} coins</div>
+        </div>
+        <span class="msb-pool-tag" style="color:${item.tagColor};background:${item.tagColor}18">${item.tag}</span>
+      </div>`).join('');
+  }
+
+  // ── Active boosts with live ticking timers ──
+  const BOOST_CONFIGS = [
+    { key: 'xpBoost',      icon: '📚', name: '2× XP Tome',      color: '#2196F3', bg: 'rgba(33,150,243,0.10)', border: 'rgba(33,150,243,0.30)' },
+    { key: 'sprintBoost',  icon: '🏃', name: 'Sprint Boost',     color: '#FF9800', bg: 'rgba(255,152,0,0.10)',  border: 'rgba(255,152,0,0.30)'  },
+    { key: 'listingBoost', icon: '📌', name: 'Listing Boost',    color: '#9c5fff', bg: 'rgba(156,95,255,0.10)',border: 'rgba(156,95,255,0.30)' },
+    { key: 'rainbowTag',   icon: '🌈', name: 'Rainbow Nametag',  color: '#e91e8c', bg: 'rgba(233,30,140,0.10)',border: 'rgba(233,30,140,0.30)' },
+  ];
+
+  // Active boost end-times: { key -> expiresAt ms }
+  let _boostExpiry = {};
+  let _boostTickInterval = null;
+
+  function msToHHMMSS(ms) {
+    if (ms <= 0) return '00:00';
+    const totalSecs = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function tickBoosts() {
+    const now = Date.now();
+    let anyActive = false;
+    BOOST_CONFIGS.forEach(cfg => {
+      const timerEl = document.getElementById('msb-timer-' + cfg.key);
+      if (!timerEl) return;
+      const exp = _boostExpiry[cfg.key];
+      if (!exp) return;
+      const left = exp - now;
+      if (left <= 0) {
+        timerEl.closest('.msb-boost-row')?.remove();
+        delete _boostExpiry[cfg.key];
+        if (!document.querySelector('.msb-boost-row')) renderNoBoosts();
+      } else {
+        anyActive = true;
+        timerEl.textContent = msToHHMMSS(left);
+      }
+    });
+    if (!anyActive) {
+      clearInterval(_boostTickInterval);
+      _boostTickInterval = null;
+    }
+  }
+
+  function renderNoBoosts() {
+    const list = document.getElementById('msb-boosts-list');
+    if (list) list.innerHTML = '<div class="msb-no-boosts">No active boosts.<br><span>Buy one below to power up!</span></div>';
+    const panel = document.getElementById('msb-boosts-panel');
+    // Keep panel visible but dim header slightly
+    if (panel) panel.style.opacity = '1';
+  }
+
+  function renderSidebarBoosts(data) {
+    const list = document.getElementById('msb-boosts-list');
+    if (!list) return;
+    _boostExpiry = {};
+    const now = Date.now();
+    const rows = [];
+
+    BOOST_CONFIGS.forEach(cfg => {
+      const boost = data[cfg.key];
+      if (boost && boost.active && boost.expiresAt > now) {
+        _boostExpiry[cfg.key] = boost.expiresAt;
+        const left = boost.expiresAt - now;
+        rows.push(`
+          <div class="msb-boost-row" style="background:${cfg.bg};border-color:${cfg.border}">
+            <span style="font-size:16px;line-height:1">${cfg.icon}</span>
+            <span class="msb-boost-dot" style="background:${cfg.color}"></span>
+            <span class="msb-boost-name">${cfg.name}</span>
+            <span class="msb-boost-timer" style="color:${cfg.color}" id="msb-timer-${cfg.key}">${msToHHMMSS(left)}</span>
+          </div>`);
+      }
+    });
+
+    if (rows.length === 0) {
+      renderNoBoosts();
+    } else {
+      list.innerHTML = rows.join('');
+      if (_boostTickInterval) clearInterval(_boostTickInterval);
+      _boostTickInterval = setInterval(tickBoosts, 1000);
+    }
+  }
+
+  // ── Hook into existing loadBoostStatus ──
+  // We wrap the existing function so our sidebar also updates when it's called.
+  const _origLoadBoostStatus = window.loadBoostStatus;
+  window.loadBoostStatus = async function () {
+    try {
+      const res = await fetch('/api/merchant/boost-status', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        renderSidebarBoosts(data);
+      }
+    } catch {}
+    if (_origLoadBoostStatus) return _origLoadBoostStatus.apply(this, arguments);
+  };
+
+  // ── Hook into renderMerchantPage to update pool & quote ──
+  const _origRenderMerchantPage = window.renderMerchantPage;
+  window.renderMerchantPage = function (seedOverride) {
+    if (_origRenderMerchantPage) _origRenderMerchantPage.apply(this, arguments);
+    // After the main render, figure out which item was picked and render sidebar
+    setTimeout(() => {
+      const seed = seedOverride !== undefined ? seedOverride
+        : (window._merchantRestockOverride !== undefined ? window._merchantRestockOverride
+        : (typeof dailySeed === 'function' ? dailySeed() : 0));
+      const pool = typeof MERCHANT_POOL !== 'undefined' ? [...MERCHANT_POOL] : [];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor((typeof seededRand === 'function' ? seededRand(seed, i + 7) : Math.random()) * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const currentId = pool[0]?.id;
+      renderPoolPreview(currentId);
+      renderQuote();
+    }, 10);
+  };
+
 })();
 </script>
 </body>
