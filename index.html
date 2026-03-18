@@ -4931,31 +4931,30 @@ function showTradeResultToast(result) {
 }
 
 async function loadTradePage() {
-  const loginMsg = document.getElementById('trade-login-msg');
+  const loginMsg    = document.getElementById('trade-login-msg');
   const activePanel = document.getElementById('trade-active-panel');
-  const startPanel = document.getElementById('trade-start-panel');
-  if (!window._loggedInId) { loginMsg.style.display='block'; activePanel.style.display='none'; startPanel.style.display='none'; return; }
+  const startPanel  = document.getElementById('trade-start-panel');
+  if (!window._loggedInId) {
+    loginMsg.style.display = 'block'; activePanel.style.display = 'none'; startPanel.style.display = 'none'; return;
+  }
   loginMsg.style.display = 'none';
   try {
-    const res = await fetch('/api/trade/active/me', { credentials:'include' });
+    const res   = await fetch('/api/trade/active/me', { credentials: 'include' });
     const trade = await res.json();
     if (trade && trade.id) {
-  _tradeId = trade.id;
-  if (trade.initiatorId !== window._loggedInId && !_tradeAccepted) {
-    const senderName = trade.initiatorName || 'Someone';
-    showTradeRequestToast(senderName, trade.id);
-  } else {
-    // We are the initiator — only enter the trade panel if the waiting overlay is NOT visible
-    const overlay = document.getElementById('trade-waiting-overlay');
-    const isWaiting = overlay && overlay.style.display === 'flex';
-    if (isWaiting) {
-      startTradePoll(); // keep polling but don't enter the panel yet
+      _tradeId = trade.id;
+      if (trade.initiatorId !== window._loggedInId && !_tradeAccepted) {
+        showTradeRequestToast(trade.initiatorName || 'Someone', trade.id);
+        startPanel.style.display = 'block'; activePanel.style.display = 'none';
+      } else {
+        const overlay   = document.getElementById('trade-waiting-overlay');
+        const isWaiting = overlay && overlay.style.display === 'flex';
+        if (isWaiting) { startTradePoll(); }
+        else { renderActiveTrade(trade); startTradePoll(); }
+      }
     } else {
-      renderActiveTrade(trade); startTradePoll();
+      showTradeStartPanel();
     }
-  }
-}
-    else showTradeStartPanel();
   } catch(e) { showTradeStartPanel(); }
   try { const r = await fetch('/api/players'); _allPlayers = await r.json(); } catch(e) {}
 }
@@ -4963,8 +4962,12 @@ async function loadTradePage() {
 function showTradeStartPanel() {
   document.getElementById('trade-active-panel').style.display = 'none';
   document.getElementById('trade-start-panel').style.display = 'block';
+  document.getElementById('trade-login-msg').style.display = 'none';
+  const coinsInput = document.getElementById('trade-my-coins');
+  if (coinsInput) { coinsInput.value = 0; delete coinsInput.dataset.edited; }
   hideTradeWaitingOverlay();
-  stopTradePoll(); _tradeId = null; _tradeData = null; _tradeAccepted = false;
+  stopTradePoll();
+  _tradeId = null; _tradeData = null; _tradeAccepted = false; _tradeTargetId = null; _selfCancelled = false;
 }
 
 function searchTradePlayers(q) {
@@ -5219,14 +5222,23 @@ const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
 let _tradeRarityFilter = 'all';
 
 async function openAddPlantModal() {
-  if (!_tradeId||!_tradeData) return;
-  try { const res=await fetch(`/api/profile/${window._loggedInId}`); const d=await res.json(); _myTradeCollection=(d.collection||[]).filter(p=>TRADEABLE_RARITIES.includes(p.rarity)); } catch(e) { _myTradeCollection=[]; }
-  document.getElementById('trade-plant-modal').style.display='flex';
-  document.getElementById('trade-plant-search').value='';
+  if (!_tradeId) return;
+  try {
+    const res = await fetch(`/api/trade/${_tradeId}`, { credentials: 'include' });
+    if (res.ok) _tradeData = await res.json();
+  } catch(e) {}
+  if (!_tradeData) return;
+  try {
+    const res = await fetch(`/api/profile/${window._loggedInId}`);
+    const d   = await res.json();
+    _myTradeCollection = (d.collection || []).filter(p => TRADEABLE_RARITIES.includes(p.rarity));
+  } catch(e) { _myTradeCollection = []; }
+  document.getElementById('trade-plant-modal').style.display = 'flex';
+  document.getElementById('trade-plant-search').value = '';
   _tradeRarityFilter = 'all';
-  document.querySelectorAll('[id^="trade-filter-"]').forEach(b=>{ b.style.background='transparent'; });
+  document.querySelectorAll('[id^="trade-filter-"]').forEach(b => { b.style.background = 'transparent'; });
   const allBtn = document.getElementById('trade-filter-all');
-  if(allBtn){ allBtn.style.background='var(--ink)'; allBtn.style.color='var(--bg)'; }
+  if (allBtn) { allBtn.style.background = 'var(--ink)'; allBtn.style.color = 'var(--bg)'; }
   renderTradeCollectionList('');
 }
 function closeAddPlantModal() { document.getElementById('trade-plant-modal').style.display='none'; }
@@ -5469,16 +5481,16 @@ function startTradeNotifPoll() {
 
 async function checkPendingTradeNotif() {
   if (!window._loggedInId) return;
-  if (_pendingTradeId) return; // already handling a trade request
-  if (_tradeAccepted) return;  // already in a trade
+  if (_pendingTradeId) return;
+  if (_tradeAccepted) return;
+  if (_tradeId) return;
   try {
     const res = await fetch('/api/trade/active/me', { credentials: 'include' });
     if (!res.ok) return;
     const trade = await res.json();
-    if (trade && trade.id) {
-      // Navigate straight to the trade page — no repeated toast
+    if (trade && trade.id && trade.initiatorId !== window._loggedInId) {
       _pendingTradeId = trade.id;
-      showPage('trade');
+      showTradeRequestToast(trade.initiatorName || 'Someone', trade.id);
     }
   } catch(e) {}
 }
