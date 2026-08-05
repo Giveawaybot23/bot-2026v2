@@ -1,11 +1,24 @@
 require('dotenv').config();
+const ENABLE_WEB_DASHBOARD = false;
+
+// No-op stand-ins so Discord command handlers (!auction bid, trade confirm, etc.)
+// don't crash calling these when the web dashboard is disabled.
+let pushCoinUpdate = () => {};
+let pushToUser = () => {};
+let broadcastAll = () => {};
+let pushCollectionUpdate = () => {};
+let broadcastLeaderboardUpdate = () => {};
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
 const http  = require('http');
 
-registerFont('./Roboto-Bold.ttf', { family: 'Arial' });
+try {
+  registerFont('./Roboto-Bold.ttf', { family: 'Arial' });
+} catch (err) {
+  console.error('⚠️ Could not load Roboto-Bold.ttf — falling back to default font:', err.message);
+}
 
 
 function fetchImageBuffer(url) {
@@ -37,6 +50,7 @@ const DROP_COOLDOWN   = 2 * 60 * 1000;
 const ACTIVITY_WINDOW = 2 * 60 * 1000;
 
 const DATA_DIR        = process.env.DATA_DIR || './data';
+const IMAGES_DIR = `${__dirname}/images`;
 const DB_FILE         = `${DATA_DIR}/users.json`;
 const META_FILE       = `${DATA_DIR}/meta.json`;
 const RACE_LB_FILE    = `${DATA_DIR}/race_lb.json`;
@@ -51,7 +65,7 @@ const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
-const SERVER_NAME     = 'Horizon Hub';
+const SERVER_NAME     = 'GAG2';
 const WATERMARK       = 'LA';
 
 let auctionChannels = {};
@@ -73,6 +87,15 @@ function loadAuctions() {
   return JSON.parse(fs.readFileSync(AUCTION_FILE));
 }
 function saveAuctions(a) { fs.writeFileSync(AUCTION_FILE, JSON.stringify(a, null, 2)); }
+
+const LISTINGS_FILE = `${DATA_DIR}/market_listings.json`;
+function loadListings() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(LISTINGS_FILE)) fs.writeFileSync(LISTINGS_FILE, '[]');
+    return JSON.parse(fs.readFileSync(LISTINGS_FILE));
+  } catch { return []; }
+}
 
 function loadAutosellRules() {
   if (!fs.existsSync(AUTOSELL_FILE)) fs.writeFileSync(AUTOSELL_FILE, '{}');
@@ -140,13 +163,14 @@ const RACE_REACT_RECORD  = '⭐';
 
 // ─── Claim cooldowns per rarity (ms) ─────────────────────────────────────────
 const CLAIM_COOLDOWNS = {
-  Common:    1,
-  Uncommon:  1,
-  Rare:      1,
-  Epic:      1,
-  Legendary: 1,
-  Mythic:    1,
-  Secret:    1,
+  Common:    60 * 1000,
+  Uncommon:  60 * 1000,
+  Rare:      60 * 1000,
+  Epic:      60 * 1000,
+  Legendary: 60 * 1000,
+  Mythic:    60 * 1000,
+  Super:     60 * 1000,
+  Secret:    60 * 1000,
 };
 
 const CRATE_COOLDOWNS = {
@@ -155,6 +179,14 @@ const CRATE_COOLDOWNS = {
   gold:    40 * 1000,
   diamond: 50 * 1000,
   ruby:    60 * 1000,
+};
+
+const CRATE_PITY_THRESHOLD = {
+  bronze: 8,
+  silver: 7,
+  gold: 6,
+  diamond: 5,
+  ruby: 4,
 };
 
 const COOLDOWN_EXEMPT_IDS = [
@@ -172,7 +204,7 @@ function isBotAdmin(userId) {
 }
 
 const TEST_IDS = new Set([
-  '239725298403246081',
+  '',
 ]);
 
 // ─── Decay Config ─────────────────────────────────────────────────────────────
@@ -233,14 +265,14 @@ function xpToNextLevel(xp) {
 
 // ─── Ranks ────────────────────────────────────────────────────────────────────
 const RANKS = [
-  { minLevel: 1,   name: 'Seedling',   emoji: '🌱' },
-  { minLevel: 5,   name: 'Sprout',     emoji: '🌿' },
-  { minLevel: 10,  name: 'Gardener',   emoji: '🌾' },
-  { minLevel: 20,  name: 'Botanist',   emoji: '🌺' },
-  { minLevel: 35,  name: 'Florist',    emoji: '💐' },
-  { minLevel: 50,  name: 'Arborist',   emoji: '🌳' },
-  { minLevel: 75,  name: 'Naturalist', emoji: '🍃' },
-  { minLevel: 100, name: 'Verdant',    emoji: '✨' },
+  { minLevel: 1,   name: 'Unranked',  emoji: '🫥' },
+  { minLevel: 5,   name: 'Fresh',     emoji: '🔘' },
+  { minLevel: 10,  name: 'Familiar',  emoji: '👤' },
+  { minLevel: 20,  name: 'Notable',   emoji: '🎖️' },
+  { minLevel: 35,  name: 'Established', emoji: '💠' },
+  { minLevel: 50,  name: 'Heavy Hitter', emoji: '🏆' },
+  { minLevel: 75,  name: 'Feared',    emoji: '🌟' },
+  { minLevel: 100, name: 'Untouchable', emoji: '♾️' },
 ];
 function getRank(level) {
   let rank = RANKS[0];
@@ -282,18 +314,20 @@ function calcWeightedGardenScore(collection) {
   return Math.round(score);
 }
 
-// Garden Elo tiers — placeholders for custom icons
+// Garden Elo tiers — Grandmaster is the top VISIBLE tier. Secret is a true hidden
+// tier: it exists in this list (so getGardenTier/getNextGardenTier work correctly
+// once someone reaches it) but is deliberately excluded from any tier list shown
+// to players (see the GARDEN_TIERS.filter(...) in the !info help text) so nobody
+// knows it exists until someone actually hits 2,000,000 score.
 const GARDEN_TIERS = [
-  { name: 'Iron',        emoji: '🪨',                                              minScore: 10000,   color: 0x8B8B8B, ansi: 'gray'    },
-  { name: 'Bronze',      emoji: '<:bronze:1479474400574177312>',                   minScore: 25000,   color: 0xCD7F32, ansi: 'orange'  },
-  { name: 'Silver',      emoji: '<:silver:1479474365316989151>',                   minScore: 50000,   color: 0xC0C0C0, ansi: 'white'   },
-  { name: 'Gold',        emoji: '<:gold:1479474310123884585>',                     minScore: 80000,   color: 0xFFD700, ansi: 'yellow'  },
-  { name: 'Platinum',    emoji: '<:platinum:1479474282437284013>',                 minScore: 100000,  color: 0x00BFFF, ansi: 'cyan'    },
-  { name: 'Diamond',     emoji: '<:diamond_rank:1479474261809959093>',             minScore: 250000,  color: 0xB9F2FF, ansi: 'cyan'    },
-  { name: 'Master',      emoji: '<:master:1479474424255086753>',                   minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
-  { name: 'Grandmaster', emoji: '<:grandmaster:1479474424255086753>',              minScore: 700000,  color: 0xFF6600, ansi: 'yellow'  },
-  { name: 'Celestial',   emoji: '<:celestial:1479474231808102470>',                minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' },
-  { name: '???',         emoji: '🔱',                                              minScore: 2000000, color: 0x000000, ansi: 'black'   },
+  { name: 'Bronze',      emoji: '<:bronze:1534337657914527915>',      minScore: 25000,   color: 0xCD7F32, ansi: 'orange'  },
+  { name: 'Silver',      emoji: '<:silver:1534338165555335218>',      minScore: 50000,   color: 0xC0C0C0, ansi: 'white'   },
+  { name: 'Gold',        emoji: '<:gold:1534338263169499166>',        minScore: 80000,   color: 0xFFD700, ansi: 'yellow'  },
+  { name: 'Platinum',    emoji: '<:platinum:1534338501938647190>',    minScore: 100000,  color: 0x00BFFF, ansi: 'cyan'    },
+  { name: 'Diamond',     emoji: '<:diamond:1534338799486763109>',     minScore: 250000,  color: 0xB9F2FF, ansi: 'cyan'    },
+  { name: 'Master',      emoji: '<:master:1534339117494702162>',      minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
+  { name: 'Grandmaster', emoji: '<:grandmaster:1534339387335376907>', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' }, // top visible rank
+  { name: 'Secret',      emoji: '<:secret:1534340531910344804>',      minScore: 2000000, color: 0x000000, ansi: 'black'   }, // hidden — do not show in tier lists
 ];
 
 function getGardenTier(score) {
@@ -309,34 +343,84 @@ function getNextGardenTier(score) {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 const MUTATIONS = [
-  { name: 'Starstruck', emoji: '<:starstruck:1477666927135428650>', multiplier: 3,    weight: 3,  color: 0xFFFF00 },
-  { name: 'Shocked',    emoji: '<:shocked:1477666867890884628>',    multiplier: 2.5,  weight: 6,  color: 0xFFDD00 },
-  { name: 'Soaked',     emoji: '<:soaked:1477666816745537546>',     multiplier: 2.2,  weight: 10, color: 0x66CCFF },
-  { name: 'Snowy',      emoji: '<:snowy:1477666846382620683>',      multiplier: 1.90, weight: 15, color: 0xADD8E6 },
-  { name: 'Flooded',    emoji: '🌊',                               multiplier: 1.50, weight: 5,  color: 0x0099FF },
-  { name: 'Sandy',      emoji: '🏜️',                               multiplier: 1.25, weight: 12, color: 0xF4A460 },
+  { name: 'Eclipsed',  emoji: '<:eclipsed:1477666927135428650>', multiplier: 5.0, weight: 1,  color: 0x2a0a3d },
+  { name: 'Ignited',   emoji: '<:ignited:1534229469185839204>', multiplier: 4.2, weight: 2,  color: 0xFF4500 },
+  { name: 'Bloodlit',  emoji: '<:bloodlit:1534227550920900831>', multiplier: 4.0, weight: 2,  color: 0x8B0000 },
+  { name: 'Glow',      emoji: '<:glow:1477666867890884628>', multiplier: 3.5, weight: 3,  color: 0xADFF2F },
+  { name: 'Starstruck',emoji: '<:starstruck:1534230447247327303>', multiplier: 3.0, weight: 4,  color: 0xFFFF00 },
+  { name: 'Electric',  emoji: '<a:lightning:1534229071385333770>', multiplier: 2.0, weight: 6,  color: 0xFFDD00 }, 
+  { name: 'Frozen',    emoji: '<:frozen:1477666846382620683>', multiplier: 1.4, weight: 12, color: 0xADD8E6 },
+  { name: 'Aurora',    emoji: '<:aurora:1534229653211054262>', multiplier: 1.15, weight: 15, color: 0x66CCFF },
 ];
-const MUTATION_NONE_WEIGHT = 949;
-function rollMutation() {
-  const roll = Math.random() * 1000;
-  let acc = MUTATION_NONE_WEIGHT;
-  if (roll < acc) return null;
-  for (const m of MUTATIONS) {
-    acc += m.weight;
-    if (roll < acc) return m;
-  }
+
+// ─── Weather System ────────────────────────────────────────────────────────
+const WEATHER_TYPES = [
+  { name: 'Eclipsed',   emoji: '<:eclipsed:1477666927135428650>', color: 0x2a0a3d, weight: 1,
+    desc: 'A total eclipse blankets the garden in darkness — mutated cards are wildly overcharged (5.0x).' },
+  { name: 'Ignited',    emoji: '<:ignited:1534229469185839204>', color: 0xFF4500, weight: 2,
+    desc: 'Wildfire heat rolls across the fields — mutated cards burn hotter than usual (4.2x).' },
+  { name: 'Bloodlit',   emoji: '<:bloodlit:1534227550920900831>', color: 0x8B0000, weight: 2,
+    desc: 'A crimson haze settles over everything — mutated cards pulse with dark energy (4.0x).' },
+  { name: 'Glow',       emoji: '<:glow:1477666867890884628>', color: 0xADFF2F, weight: 3,
+    desc: 'The garden hums with a soft radiance — mutated cards shine brighter than normal (3.5x).' },
+  { name: 'Starstruck', emoji: '<:starstruck:1534230447247327303>', color: 0xFFFF00, weight: 4,
+    desc: 'Falling stars streak overhead — mutated cards sparkle with cosmic power (3.0x).' },
+  { name: 'Electric',   emoji: '<a:lightning:1534229071385333770>', color: 0xFFDD00, weight: 6,
+    desc: 'Static crackles through the air — mutated cards carry a jolt of extra charge (2.0x).' },
+  { name: 'Frozen',     emoji: '<:frozen:1477666846382620683>', color: 0xADD8E6, weight: 12,
+    desc: 'A cold snap has frozen the garden overnight — mutated cards get a light chill boost (1.4x).' },
+  { name: 'Aurora',     emoji: '<:aurora:1534229653211054262>', color: 0x66CCFF, weight: 15,
+    desc: 'A faint celestial glow washes over everything — mutated cards get a small boost (1.15x).' },
+];
+const WEATHER_INTERVAL_MS = 60 * 60 * 1000; // how often a new weather event can start
+const WEATHER_DURATION_MS = 30 * 60 * 1000; // how long each weather event lasts
+let currentWeather = null; // { name, emoji, color, desc, startedAt, endsAt }
+function pickWeather() {
+  const total = WEATHER_TYPES.reduce((s, w) => s + w.weight, 0);
+  let roll = Math.random() * total;
+  for (const w of WEATHER_TYPES) { roll -= w.weight; if (roll <= 0) return w; }
+  return WEATHER_TYPES[0];
+}
+function getActiveWeather() {
+  if (currentWeather && Date.now() < currentWeather.endsAt) return currentWeather;
   return null;
 }
 
+const MUTATION_NONE_WEIGHT = 955; // adjust so weights sum to 1000
+function rollMutation(weatherName) {
+  // No active weather = no mutations at all, full stop.
+  if (!weatherName) return null;
+  // While a weather event is active, ONLY the mutation matching that weather
+  // can spawn (or no mutation at all) — every other mutation is completely
+  // excluded from the roll, not just de-weighted.
+  const match = MUTATIONS.find(m => m.name === weatherName);
+  if (!match) return null;
+  const total = MUTATION_NONE_WEIGHT + match.weight;
+  const roll = Math.random() * total;
+  if (roll < MUTATION_NONE_WEIGHT) return null;
+  return match;
+}
+
 // ─── Rarities ─────────────────────────────────────────────────────────────────
+const RARITY_EMOJIS = {
+  Common:    '<:common:1534321914049466488>',
+  Uncommon:  '<:uncommon:1534331462227202118>',
+  Rare:      '<:rare:1534330477450891467>',
+  Epic:      '<:epic:1534331279015940146>',
+  Legendary: '<:legendary:1534332213443952732>',
+  Mythic:    '<:mythic:1534326656204931082>',
+  Super:     '<:super:1534330521755320512>',
+  Secret:    '<:secret:1534330406227152896>',
+};
 const RARITIES = [
-  { name: 'Common',    color: 0x9E9E9E, weight: 499300, emoji: '⚪', sellPrice: 10    },
-  { name: 'Uncommon',  color: 0x4CAF50, weight: 279900, emoji: '🟢', sellPrice: 25    },
-  { name: 'Rare',      color: 0x2196F3, weight: 129900, emoji: '🔵', sellPrice: 75    },
-  { name: 'Epic',      color: 0x9C27B0, weight: 59900,  emoji: '🟣', sellPrice: 2000  },
-  { name: 'Legendary', color: 0xFFD700, weight: 29900,  emoji: '🌟', sellPrice: 10000 },
-  { name: 'Mythic',    color: 0xEA2222, weight: 2000,   emoji: '🔥', sellPrice: 25000 },
-  { name: 'Secret',    color: 0x000000, weight: 1000,    emoji: '<:Secret:1477076829004370045>', sellPrice: 100000 },
+  { name: 'Common',    color: 0x9E9E9E, weight: 480000, emoji: RARITY_EMOJIS.Common,    sellPrice: 10     },
+  { name: 'Uncommon',  color: 0x4CAF50, weight: 270000, emoji: RARITY_EMOJIS.Uncommon,  sellPrice: 25     },
+  { name: 'Rare',      color: 0x2196F3, weight: 129000, emoji: RARITY_EMOJIS.Rare,      sellPrice: 75     },
+  { name: 'Epic',      color: 0x9C27B0, weight: 58000,  emoji: RARITY_EMOJIS.Epic,      sellPrice: 2000   },
+  { name: 'Legendary', color: 0xFFD700, weight: 27500,  emoji: RARITY_EMOJIS.Legendary, sellPrice: 10000  },
+  { name: 'Mythic',    color: 0xEA2222, weight: 4000,    emoji: RARITY_EMOJIS.Mythic,    sellPrice: 25000  },
+  { name: 'Super',     color: 0x00E5FF, weight: 1400,    emoji: RARITY_EMOJIS.Super,     sellPrice: 60000  },
+  { name: 'Secret',    color: 0x000000, weight: 100,     emoji: RARITY_EMOJIS.Secret,    sellPrice: 250000 },
 ];
 
 // ─── Base plant sell prices (version-weighted) ────────────────────────────────
@@ -387,8 +471,8 @@ const ACHIEVEMENTS = {
   collector_10:   { name: 'Budding Collector', emoji: '🌻', description: 'Own 10 plants',               title: 'Collector',     check: u => u.collection.length >= 10 },
   collector_50:   { name: 'Green Thumb',       emoji: '👍', description: 'Own 50 plants',               title: 'Green Thumb',   check: u => u.collection.length >= 50 },
   collector_100:  { name: 'The Hoarder',       emoji: '📦', description: 'Own 100 plants',              title: 'Hoarder',       check: u => u.collection.length >= 100 },
-  rare_finder:    { name: 'Rare Find',         emoji: '🔵', description: 'Claim a Rare or higher',      title: 'Rare Finder',   check: u => u.collection.some(p => ['Rare','Epic','Legendary','Mythic','Secret'].includes(p.rarity)) },
-  legendary_find: { name: 'Legendary Bloom',   emoji: '🌟', description: 'Claim a Legendary or higher', title: 'Legendary',     check: u => u.collection.some(p => ['Legendary','Mythic','Secret'].includes(p.rarity)) },
+  rare_finder:    { name: 'Rare Find',         emoji: '🔵', description: 'Claim a Rare or higher',      title: 'Rare Finder',   check: u => u.collection.some(p => ['Rare','Epic','Legendary','Mythic','Super','Secret'].includes(p.rarity)) },
+  legendary_find: { name: 'Legendary Bloom',   emoji: '🌟', description: 'Claim a Legendary or higher', title: 'Legendary',     check: u => u.collection.some(p => ['Legendary','Mythic','Super','Secret'].includes(p.rarity)) },
   secret_find:    { name: 'The Secret Garden', emoji: '💎', description: 'Claim a Secret plant',        title: 'Secret Keeper', check: u => u.collection.some(p => p.rarity === 'Secret') },
   mutant:         { name: 'Mutant Hunter',     emoji: '⭐', description: 'Claim a mutated plant',       title: 'Mutant Hunter', check: u => u.collection.some(p => p.mutation) },
   rich:           { name: 'Coin Baron',        emoji: '💰', description: 'Reach 10,000 coins',          title: 'Baron',         check: u => u.currency >= 10000 },
@@ -409,67 +493,80 @@ const SHOP_TITLES = {
 
 // ─── Charms ───────────────────────────────────────────────────────────────────
 const CHARMS = {
-  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×5**',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
-  silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15**',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
-  gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.30**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
+  bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×1.05** (Legendary **×1.15**)',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
+  silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15** (Legendary **×1.25**)',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
+  gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.40**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
   void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
 };
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
 const CRATES = {
-  bronze:  { name: 'Bronze Crate',  emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,   minLevel: 5,  plants: 10, weights: { Common: 736717, Uncommon: 173000, Rare:  49400, Epic:  28592, Legendary:   1040, Mythic:   195, Secret:      0 } },
-  silver:  { name: 'Silver Crate',  emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10, weights: { Common: 596483, Uncommon: 180000, Rare:  85800, Epic: 120540, Legendary:   3640, Mythic:   260, Secret:      0 } },
-  gold:    { name: 'Gold Crate',    emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500,  minLevel: 15, plants: 10, weights: { Common: 448866, Uncommon: 172000, Rare: 117000, Epic: 242466, Legendary:  12350, Mythic:  1410, Secret:     10 } },
-  diamond: { name: 'Diamond Crate', emoji: '<:diamond:1478191131841007829>',       color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10, weights: { Common: 279620, Uncommon: 150000, Rare: 136500, Epic: 104000, Legendary:  76136, Mythic:  9910, Secret:     80 } },
-  ruby:    { name: 'Ruby Crate',    emoji: '<:ruby:1477667927854682254>',           color: 0xFF1744, price: 32000, minLevel: 40, plants: 10, weights: { Common:  58476, Uncommon:  90000, Rare: 132600, Epic: 156000, Legendary:  95740, Mythic: 34680, Secret:    100 } },
+  bronze:  { name: 'Basic Seed Pouch',   emoji: '<:bronze_crate:1478192003274510508>', color: 0xCD7F32, price: 750,   minLevel: 5,  plants: 10,
+    weights: { Common: 747120, Uncommon: 190000, Rare:  55000, Epic:   6495, Legendary:   1137, Mythic:   195, Super:     54, Secret:      0 } },
+
+  silver:  { name: 'Premium Seed Pouch', emoji: '<:silver_crate:1478191961931517982>', color: 0xC0C0C0, price: 2500,  minLevel: 10, plants: 10,
+    weights: { Common: 645500, Uncommon: 200000, Rare: 120000, Epic:  27125, Legendary:   6200, Mythic:   930, Super:    258, Secret:      0 } },
+
+  gold:    { name: 'Deluxe Seed Sack',   emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500,  minLevel: 15, plants: 10,
+    weights: { Common: 585000, Uncommon: 200000, Rare: 150000, Epic:  48980, Legendary:  11756, Mythic:  3135, Super:    980, Secret:    157 } },
+
+  diamond: { name: 'Mythic Seed Vault',  emoji: '<:diamond:1478191131841007829>',      color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10,
+    weights: { Common: 280000, Uncommon: 285000, Rare: 305000, Epic:  82328, Legendary:  32931, Mythic: 10977, Super:   3659, Secret:    439 } },
+
+  ruby:    { name: 'Super Seed Crate',   emoji: '<:ruby:1477667927854682254>',         color: 0xFF1744, price: 32000, minLevel: 40, plants: 10,
+    weights: { Common:  50000, Uncommon:  80000, Rare: 627000, Epic: 135313, Legendary:  67656, Mythic: 27063, Super:  11276, Secret:   1624 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
 const PLANTS = [
-  { name: 'Carrot',         file: './images/carrot2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/carrot2-removebg-preview.png',         rarity: 'Common'    },
-  { name: 'Corn',           file: './images/corn2-removebg-preview.png',           display: 'https://bot2026-production-06e3.up.railway.app/images/corn2-removebg-preview.png',           rarity: 'Common'    },
-  { name: 'Sunpetal',       file: './images/sunpetal2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/sunpetal2-removebg-preview.png',       rarity: 'Common'    },
-  { name: 'Dandelion',      file: './images/dandelion2-removebg-preview.png',      display: 'https://bot2026-production-06e3.up.railway.app/images/dandelion2-removebg-preview.png',      rarity: 'Common'    },
-  { name: 'Biohazard Melon',file: './images/biohazardmelon2-removebg-preview.png', display: 'https://bot2026-production-06e3.up.railway.app/images/biohazardmelon2-removebg-preview.png', rarity: 'Common'    },
-  { name: 'Onion',          file: './images/onion2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/onion2-removebg-preview.png',          rarity: 'Uncommon'  },
-  { name: 'Mushroom',       file: './images/mushroom2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/mushroom2-removebg-preview.png',       rarity: 'Uncommon'  },
-  { name: 'Strawberry',     file: './images/strawberry2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/strawberry2-removebg-preview.png',     rarity: 'Uncommon'  },
-  { name: 'Goldenberry',    file: './images/goldenberry2-removebg-preview.png',    display: 'https://bot2026-production-06e3.up.railway.app/images/goldenberry2-removebg-preview.png',    rarity: 'Uncommon'  },
-  { name: 'Bell Pepper',    file: './images/bellpepper2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/bellpepper2-removebg-preview.png',     rarity: 'Uncommon'  },
-  { name: 'Lablush Berry',  file: './images/LablushBerry2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/LablushBerry2-removebg-preview.png',   rarity: 'Uncommon'  },
-  { name: 'Beetroot',       file: './images/beetroot2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/beetroot2-removebg-preview.png',       rarity: 'Rare'      },
-  { name: 'Tomato',         file: './images/tomato2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/tomato2-removebg-preview.png',         rarity: 'Rare'      },
-  { name: 'Rose',           file: './images/rose2-removebg-preview.png',           display: 'https://bot2026-production-06e3.up.railway.app/images/rose2-removebg-preview.png',           rarity: 'Rare'      },
-  { name: 'Apple',          file: './images/apple2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/apple2-removebg-preview.png',          rarity: 'Rare'      },
-  { name: 'Amberpine',      file: './images/amberpine2-removebg-preview.png',      display: 'https://bot2026-production-06e3.up.railway.app/images/amberpine2-removebg-preview.png',      rarity: 'Rare'      },
-  { name: 'Birch',          file: './images/birch2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/birch2-removebg-preview.png',          rarity: 'Rare'      },
-  { name: 'Starvine',       file: './images/Starvine2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/Starvine2-removebg-preview.png',       rarity: 'Secret'    },
-  { name: 'Wheat',          file: './images/wheat.png',                            display: 'https://bot2026-production-06e3.up.railway.app/images/wheat.png',                            rarity: 'Epic'      },
-  { name: 'Banana',         file: './images/banana2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/banana2-removebg-preview.png',         rarity: 'Epic'      },
-  { name: 'Potato',         file: './images/potato2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/potato2-removebg-preview.png',         rarity: 'Epic'      },
-  { name: 'Plum',           file: './images/plum2-removebg-preview.png',           display: 'https://bot2026-production-06e3.up.railway.app/images/plum2-removebg-preview.png',           rarity: 'Epic'      },
-  { name: 'Emberwood',      file: './images/emberwood2-removebg-preview.png',      display: 'https://bot2026-production-06e3.up.railway.app/images/emberwood2-removebg-preview.png',      rarity: 'Epic'      },
-  { name: 'Orange',         file: './images/orange2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/orange2-removebg-preview.png',         rarity: 'Epic'      },
-  { name: 'Radiant Petal',  file: './images/radiantpetal2-removebg-preview.png',   display: 'https://bot2026-production-06e3.up.railway.app/images/radiantpetal2-removebg-preview.png',   rarity: 'Epic'      },
-  { name: 'Cabbage',        file: './images/cabbage2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/cabbage2-removebg-preview.png',        rarity: 'Legendary' },
-  { name: 'Cherry',         file: './images/cherry2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/cherry2-removebg-preview.png',         rarity: 'Legendary' },
-  { name: 'Dawn Fruit',     file: './images/dawnfruit2-removebg-preview.png',      display: 'https://bot2026-production-06e3.up.railway.app/images/dawnfruit2-removebg-preview.png',      rarity: 'Legendary' },
-  { name: 'Pomegranate',    file: './images/pomegranate2-removebg-preview.png',    display: 'https://bot2026-production-06e3.up.railway.app/images/pomegranate2-removebg-preview.png',    rarity: 'Legendary' },
-  { name: 'Mango',          file: './images/mango2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/mango2-removebg-preview.png',          rarity: 'Legendary' },
-  { name: 'Bamboo',         file: './images/bamboo2-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/bamboo2-removebg-preview.png',         rarity: 'Legendary' },
-  { name: 'Octobranch',     file: './images/octobranch2-removebg-preview.png',     display: 'https://bot2026-production-06e3.up.railway.app/images/octobranch2-removebg-preview.png',     rarity: 'Legendary' },
-  { name: 'Dawn Blossom',   file: './images/dawn-blossom.png',                     display: 'https://bot2026-production-06e3.up.railway.app/images/dawn-blossom.png',                     rarity: 'Mythic'    },
-  { name: 'Olive',          file: './images/olive2-removebg-preview.png',          display: 'https://bot2026-production-06e3.up.railway.app/images/olive2-removebg-preview.png',          rarity: 'Mythic'    },
+  // ── Common ─────────────────────────────────────────────────────────────
+  { name: 'Carrot',     file: './images/Carrot.png',     display: 'Carrot.png',     rarity: 'Common' },
+  { name: 'Strawberry', file: './images/Strawberry.png',  display: 'Strawberry.png',  rarity: 'Common' },
+  { name: 'Blueberry',  file: './images/Blueberry.png', display: 'Blueberry.png', rarity: 'Common' },
 
-  // UPDATE 1.0 PLANTS
-    { name: 'Roundmelon',  file: './images/roundmelon.png',                        display: 'https://bot2026-production-06e3.up.railway.app/images/roundmelon.png',                        rarity: 'Uncommon', dropOnly: true  },
-    { name: 'Firefern',    file: './images/firefern-removebg-preview.png',         display: 'https://bot2026-production-06e3.up.railway.app/images/firefern-removebg-preview.png',         rarity: 'Legendary', dropOnly: true },
-   { name: 'Glowflower',  file: './images/glowflower.png',                         display: 'https://bot2026-production-06e3.up.railway.app/images/Glowflower.png',                         rarity: 'Secret',   dropOnly: true },
-    { name: 'Blue Rose',   file: './images/bluerose2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/bluerose2-removebg-preview.png',        rarity: 'Legendary', dropOnly: true },
-    { name: 'Glowvein',    file: './images/glowvein2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowvein2-removebg-preview.png',        rarity: 'Mythic', dropOnly: true      },
-    { name: 'Lostlight',   file: './images/lostlight2-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/lostlight2-removebg-preview.png',       rarity: 'Epic', dropOnly: true    },
-  { name: 'Glowcorn',    file: './images/glowcorn2-removebg-preview.png',        display: 'https://bot2026-production-06e3.up.railway.app/images/glowcorn2-removebg-preview.png',        rarity: 'Epic', dropOnly: true      },
-    { name: 'Titanbloom',  file: './images/titanbloom-removebg-preview.png',       display: 'https://bot2026-production-06e3.up.railway.app/images/titanbloom-removebg-preview.png',       rarity: 'Rare', dropOnly: true      },
+  // ── Uncommon ───────────────────────────────────────────────────────────
+  { name: 'Tulip',   file: './images/Tulip.png',  display: 'Tulip.png',  rarity: 'Uncommon' },
+  { name: 'Tomato',  file: './images/Tomato.png', display: 'Tomato.png', rarity: 'Uncommon' },
+  { name: 'Apple',   file: './images/Apple.png',  display: 'Apple.png',  rarity: 'Uncommon' },
+
+  // ── Rare ───────────────────────────────────────────────────────────────
+  { name: 'Bamboo',    file: './images/Bamboo.png',    display: 'Bamboo.png',    rarity: 'Rare' },
+  { name: 'Corn',      file: './images/Corn.png',      display: 'Corn.png',      rarity: 'Rare' },
+  { name: 'Cactus',    file: './images/Cactus.png',    display: 'Cactus.png',    rarity: 'Rare' },
+  { name: 'Pineapple', file: './images/Pineapple.png', display: 'Pineapple.png', rarity: 'Rare' },
+
+  // ── Epic ───────────────────────────────────────────────────────────────
+  { name: 'Mushroom',   file: './images/Mushroom.png', display: 'Mushroom.png', rarity: 'Epic' },
+  { name: 'Green Bean', file: './images/GreenBean.png',   display: 'GreenBean.png',   rarity: 'Epic' },
+  { name: 'Banana',     file: './images/Banana.png',   display: 'Banana.png',   rarity: 'Epic' },
+  { name: 'Grape',      file: './images/Grape.png',    display: 'Grape.png',    rarity: 'Epic' },
+  { name: 'Coconut',    file: './images/Coconut.png',  display: 'Coconut.png',  rarity: 'Epic' },
+  { name: 'Mango',      file: './images/Mango.png',    display: 'Mango.png',    rarity: 'Epic' },
+
+  // ── Legendary ──────────────────────────────────────────────────────────
+  // NOTE: Cherry omitted — no image file present. Rocket Pop excluded (not obtainable in GAG2).
+  { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
+  { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
+  { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
+  { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
+
+  // ── Mythic ─────────────────────────────────────────────────────────────
+  // NOTE: Briar Rose excluded (not obtainable in GAG2, no image present).
+  { name: 'Venus Fly Trap', file: './images/VenusFlyTrap.png',  display: 'VenusFlyTrap.png',  rarity: 'Mythic' },
+  { name: 'Pomegranate',    file: './images/Pomegranate.png', display: 'Pomegranate.png', rarity: 'Mythic' },
+  { name: 'Poison Apple',   file: './images/PoisonApple.png', display: 'PoisonApple.png', rarity: 'Mythic' },
+  { name: 'Venom Spitter',  file: './images/VenomSpitter.png',  display: 'VenomSpitter.png',  rarity: 'Mythic' },
+
+  // ── Super ──────────────────────────────────────────────────────────────
+  { name: 'Moon Bloom',      file: './images/MoonBloom.png',   display: 'MoonBloom.png',   rarity: 'Super' },
+  { name: 'Hypno Bloom',     file: './images/HypnoBloom.png',  display: 'HypnoBloom.png',  rarity: 'Super' },
+  { name: "Dragon's Breath", file: './images/DragonsBreath.png', display: 'DragonsBreath.png', rarity: 'Super' },
+  { name: 'Sun Bloom',       file: './images/SunBloom.png',    display: 'SunBloom.png',    rarity: 'Super' },
+  { name: 'Star Fruit',      file: './images/StarFruit.png',      display: 'StarFruit.png',      rarity: 'Super' },
+
+  // ── Secret ─────────────────────────────────────────────────────────────
+  // TODO: replace with your actual GAG2 secret plant name + image once decided
+  { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
 ];
 
 
@@ -744,6 +841,7 @@ function getUser(db, userId) {
   if (!u.claimCooldowns) u.claimCooldowns = {};
   if (!u.lastActivity)   u.lastActivity   = Date.now();
   if (u.decayWarned === undefined) u.decayWarned = false;
+  if (!u.cratePity)      u.cratePity      = {};
   return u;
 }
 
@@ -835,13 +933,13 @@ function ansiColor(text, color) {
 }
 function ansiBlock(s) { return `\`\`\`ansi\n${s}\n\`\`\``; }
 function rarityAnsiColor(name) {
-  return { Common:'gray', Uncommon:'green', Rare:'cyan', Epic:'magenta', Legendary:'yellow', Mythic:'red', Secret:'white' }[name] || 'white';
+  return { Common:'gray', Uncommon:'green', Rare:'cyan', Epic:'magenta', Legendary:'yellow', Mythic:'red', Super:'blue', Secret:'white' }[name] || 'white';
 }
 function mutationAnsiColor(name) {
-  return { Starstruck:'yellow', Flooded:'cyan', Shocked:'yellow', Soaked:'cyan', Sandy:'orange', Snowy:'white' }[name] || 'white';
+  return { Eclipsed:'magenta', Ignited:'orange', Bloodlit:'red', Glow:'green', Starstruck:'yellow', Electric:'cyan', Frozen:'blue', Aurora:'white' }[name] || 'white';
 }
 function rarityAnsiEmoji(name) {
-  return { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'◼' }[name] || '▫';
+  return RARITY_EMOJIS[name] || '▫';
 }
 
 function getActiveTitle(user) {
@@ -856,12 +954,16 @@ function getActiveTitle(user) {
 // ─── Version system ───────────────────────────────────────────────────────────
 function getAvailableVersionFromMeta(plantName, db, meta) {
   if (!meta.plantVersions) meta.plantVersions = {};
-  if (!meta.plantClaimed)  meta.plantClaimed  = {};
-  if (!meta.plantClaimed[plantName]) meta.plantClaimed[plantName] = [];
 
   const high = meta.plantVersions[plantName] || 0;
 
-  const owned = new Set(meta.plantClaimed[plantName]);
+  // "owned" is computed fresh every time from what actually currently exists —
+  // collections, auctions, listings. This is the ONLY source of truth for which
+  // versions are taken. (Previously meta.plantClaimed permanently remembered every
+  // version ever handed out and never cleared it, even after a card was sold,
+  // discarded, or otherwise removed — which meant discarded low versions could
+  // never be re-dropped and the pool just kept growing new max versions forever.)
+  const owned = new Set();
   for (const userData of Object.values(db)) {
     for (const p of (userData.collection || [])) {
       if (p.name === plantName && p.version) owned.add(p.version);
@@ -879,13 +981,17 @@ function getAvailableVersionFromMeta(plantName, db, meta) {
 
   let ver;
   if (free.length > 0) {
-    ver = free[Math.floor(Math.random() * free.length)];
+    // Prioritize the lowest available version — if a low version was freed up
+    // (discarded/sold/etc.) it should be the next one to drop, not a random pick.
+    free.sort((a, b) => a - b);
+    ver = free[0];
   } else {
     ver = high + 1;
     meta.plantVersions[plantName] = ver;
     meta.totalDrops = (meta.totalDrops || 0) + 1;
   }
-  const lockKey = `${plantName}:${ver}`; versionLocks.add(lockKey); setTimeout(() => versionLocks.delete(lockKey), 10000); meta.plantClaimed[plantName].push(ver); return ver;
+  const lockKey = `${plantName}:${ver}`; versionLocks.add(lockKey); setTimeout(() => versionLocks.delete(lockKey), 10000);
+  return ver;
 }
 
 function getAvailableVersion(plantName, db) {
@@ -920,17 +1026,21 @@ function calcInventoryValue(collection) {
 }
 
 // ─── Mutation display ─────────────────────────────────────────────────────────
-function mutationDisplay(rarity, mutation) {
+function mutationDisplay(rarity, mutation, claimLine) {
   const rCol   = rarityAnsiColor(rarity.name);
-  const rEmoji = rarityAnsiEmoji(rarity.name);
   const mCol   = mutation ? mutationAnsiColor(mutation.name) : null;
-  let line     = ansiColor(`${rEmoji}  ${rarity.name.toUpperCase()}`, rCol);
+  // No emoji here — custom emoji tags don't render inside ```ansi``` code blocks,
+  // they just show up as broken raw text (e.g. "<:legendary:123...>"). The rarity
+  // emoji is already shown correctly in the embed title, so it doesn't need to be
+  // repeated (and broken) here.
+  let line = ansiColor(rarity.name.toUpperCase(), rCol);
   if (mutation) line += ansiColor(`  ·  ${mutation.name.toUpperCase()}`, mCol);
+  if (claimLine) line += `\n${ansiColor(claimLine, 'gray')}`;
   return ansiBlock(line);
 }
 
 // ─── Combined plant + captcha image ──────────────────────────────────────────
-async function generateDropImage(plant, captcha, rarityColor) {
+async function generateDropImage(plant, captcha, rarityColor, weather) {
   const W = 400, H = 400, CAPTCHA_H = 52;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
@@ -946,6 +1056,7 @@ async function generateDropImage(plant, captcha, rarityColor) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(plant.name, W / 2, H / 2);
   }
+
   const barY = H - CAPTCHA_H;
   const fade = ctx.createLinearGradient(0, barY - 20, 0, barY + 4);
   fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,0.82)');
@@ -959,7 +1070,7 @@ async function generateDropImage(plant, captcha, rarityColor) {
     ctx.strokeStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.04})`; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.lineTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.stroke();
   }
-  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff9f43','#ff6bff'];
+  const colors = getRarityColorPalette(rarityColor);
   const letters = captcha.split('');
   const CHAR_W = 48, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.35, midY = barY + CAPTCHA_H / 2;
   letters.forEach((char, i) => {
@@ -974,6 +1085,91 @@ async function generateDropImage(plant, captcha, rarityColor) {
   }
   return canvas.toBuffer('image/png');
 }
+
+function generateWeatherImage(weather) {
+  const W = 500, H = 220;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const r = (weather.color >> 16) & 0xFF, g = (weather.color >> 8) & 0xFF, b = weather.color & 0xFF;
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, `rgba(${r},${g},${b},0.55)`);
+  bgGrad.addColorStop(1, '#05060a');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+  // Weather-flavored particles
+  if (weather.name === 'Bloodlit') {
+    for (let i = 0; i < 60; i++) {
+      ctx.strokeStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.2})`;
+      const x = Math.random() * W, y = Math.random() * H;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 16); ctx.stroke();
+    }
+  } else if (weather.name === 'Frozen') {
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.25})`;
+      ctx.beginPath(); ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 2 + 1, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (weather.name === 'Ignited') {
+    for (let i = 0; i < 10; i++) {
+      ctx.strokeStyle = `rgba(255,150,0,${0.1 + Math.random() * 0.15})`;
+      ctx.lineWidth = 2;
+      const x = Math.random() * W;
+      ctx.beginPath(); ctx.moveTo(x, H); ctx.quadraticCurveTo(x + 20, H / 2, x, 0); ctx.stroke();
+    }
+  } else if (weather.name === 'Electric') {
+    for (let i = 0; i < 12; i++) {
+      ctx.strokeStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.15})`;
+      ctx.lineWidth = 2;
+      const y = Math.random() * H;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(W * 0.3, y - 15, W * 0.6, y + 15, W, y); ctx.stroke();
+    }
+  } else if (weather.name === 'Aurora') {
+    for (let i = 0; i < 3; i++) {
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, 'rgba(0,255,200,0)');
+      grad.addColorStop(0.5, `rgba(${r},${g},${b},0.35)`);
+      grad.addColorStop(1, 'rgba(0,255,200,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 30 + i * 50, W, 24);
+    }
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.shadowColor = `rgba(${r},${g},${b},0.9)`; ctx.shadowBlur = 18;
+  ctx.font = 'bold 34px Arial'; ctx.fillStyle = '#ffffff';
+  ctx.fillText(weather.name.toUpperCase(), W / 2, H / 2 - 10);
+  ctx.restore();
+  ctx.font = '14px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText('WEATHER EVENT', W / 2, H / 2 + 24);
+  drawWatermark(ctx, W, H);
+  return canvas.toBuffer('image/png');
+}
+async function sendWeatherEvent(channel, forcedWeather = null) {
+  const weather = forcedWeather || pickWeather();
+  const now = Date.now();
+  currentWeather = { ...weather, startedAt: now, endsAt: now + WEATHER_DURATION_MS };
+  const imgBuffer = generateWeatherImage(weather);
+  const attachment = new AttachmentBuilder(imgBuffer, { name: 'weather.png' });
+  const embed = new EmbedBuilder()
+    .setTitle(`${weather.emoji} WEATHER EVENT — ${weather.name}`)
+    .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
+    .setImage('attachment://weather.png')
+    .setColor(weather.color)
+    .setFooter({ text: `Lasts 1 hour · ${SERVER_NAME}` })
+    .setTimestamp();
+  await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
+}
+function startWeatherLoop() {
+  setInterval(async () => {
+    const allDropChIds = new Set([
+      ...Object.values(dropChannels),
+      ...Object.values(relaxedDropChannels),
+    ]);
+    for (const chId of allDropChIds) {
+      const ch = client.channels.cache.get(chId);
+      if (ch) await sendWeatherEvent(ch).catch(console.error);
+    }
+  }, WEATHER_INTERVAL_MS);
+}
+
 
 // ─── Activity-based Drop System ───────────────────────────────────────────────
 async function tryActivityDrop(channel) {
@@ -999,19 +1195,21 @@ async function sendDrop(channel, opts = {}) {
   } else {
     plant = pickPlant(rarity.name, true);
   }
+  const activeWeather = getActiveWeather();
   let mutation;
   if (forcedMutation) {
     if (forcedMutation === 'none') mutation = null;
     else { mutation = MUTATIONS.find(m => m.name.toLowerCase() === forcedMutation.toLowerCase()) || null; if (!mutation) { await channel.send(`❌ Mutation **${forcedMutation}** not found.`); return; } }
-  } else { mutation = rollMutation(); }
+  } else { mutation = rollMutation(activeWeather ? activeWeather.name : null); }
   const captcha  = randomCaptcha(6);
   const dropTime = Date.now();
-  const imgBuffer  = await generateDropImage(plant, captcha, rarity.color);
+  const imgBuffer  = await generateDropImage(plant, captcha, rarity.color, activeWeather);
   const attachment = new AttachmentBuilder(imgBuffer, { name: 'drop.png' });
   const mutSuffix = mutation ? `  ${mutation.emoji} **${mutation.name}**` : '';
+  const titleEmoji = activeWeather ? activeWeather.emoji : rarity.emoji;
   const embed = new EmbedBuilder()
-    .setTitle(`${rarity.emoji} **${plant.name}**${mutSuffix}`)
-    .setDescription(mutationDisplay(rarity, mutation) + `Type \`claim <captcha>\` to claim!`)
+    .setTitle(`${titleEmoji} **${plant.name}**${mutSuffix}`)
+    .setDescription(mutationDisplay(rarity, mutation, 'Type claim <captcha> to claim!'))
     .setImage('attachment://drop.png')
     .setColor(mutation ? mutation.color : rarity.color)
     .setTimestamp();
@@ -1195,7 +1393,7 @@ function startPayoutLoop() {
             : `The **weekly cycle** ended with no claims — no payouts this round.`
         )
         .setColor(0x4CAF50)
-        .setFooter({ text: `SERVER_NAME` })
+        .setFooter({ text: `${SERVER_NAME}` })
         .setTimestamp();
 
       for (const chId of Object.values(payoutChannels)) {
@@ -1268,14 +1466,61 @@ function startDecayLoop() {
   }, 15 * 60 * 1000); // check every 15 minutes
 }
 
+const PITY_RARITIES = ['Legendary', 'Mythic', 'Super', 'Secret'];
+
 function openCrate(crateKey, db, userId) {
-  const crate = CRATES[crateKey];
-  return Array.from({ length: crate.plants }, () => {
+  const crate      = CRATES[crateKey];
+  const user       = getUser(db, userId);
+  const threshold  = CRATE_PITY_THRESHOLD[crateKey] || 999;
+  const dryStreak  = user.cratePity[crateKey] || 0;
+  const pityActive = dryStreak >= threshold;
+
+  // Weather only boosts mutation odds on ONE random slot per crate —
+  // applying it to every plant would break crate ROI.
+  const activeWeather = getActiveWeather();
+  const weatherSlot    = activeWeather ? Math.floor(Math.random() * crate.plants) : -1;
+
+  const results = Array.from({ length: crate.plants }, (_, i) => {
+    const weatherName = (i === weatherSlot) ? activeWeather.name : null;
+
+    if (pityActive && i === crate.plants - 1) {
+      const pityWeights = {};
+      for (const r of PITY_RARITIES) pityWeights[r] = crate.weights[r] || 1;
+      const rarity   = pickRarity(pityWeights);
+      const plant    = pickPlant(rarity.name);
+      const mutation = rollMutation(weatherName);
+      return { ...plant, rarityConfig: rarity, mutation };
+    }
     const rarity   = pickRarityWithCharms(db, userId, crate.weights);
     const plant    = pickPlant(rarity.name);
-    const mutation = rollMutation();
+    const mutation = rollMutation(weatherName);
     return { ...plant, rarityConfig: rarity, mutation };
   });
+
+  const hitLegendaryPlus = results.some(r => PITY_RARITIES.includes(r.rarityConfig.name));
+  user.cratePity[crateKey] = hitLegendaryPlus ? 0 : dryStreak + 1;
+
+  return results;
+}
+function shadeColor(hexColor, percent) {
+  let r = (hexColor >> 16) & 0xFF;
+  let g = (hexColor >> 8) & 0xFF;
+  let b = hexColor & 0xFF;
+  r = Math.min(255, Math.max(0, Math.round(r + (percent < 0 ? r : 255 - r) * percent)));
+  g = Math.min(255, Math.max(0, Math.round(g + (percent < 0 ? g : 255 - g) * percent)));
+  b = Math.min(255, Math.max(0, Math.round(b + (percent < 0 ? b : 255 - b) * percent)));
+  return `rgb(${r},${g},${b})`;
+}
+
+function getRarityColorPalette(rarityColor) {
+  return [
+    shadeColor(rarityColor, 0.35),
+    shadeColor(rarityColor, 0.0),
+    shadeColor(rarityColor, -0.25),
+    shadeColor(rarityColor, 0.55),
+    shadeColor(rarityColor, -0.4),
+    shadeColor(rarityColor, 0.15),
+  ];
 }
 
 // ─── Shared canvas helpers ────────────────────────────────────────────────────
@@ -1590,7 +1835,6 @@ async function generateProfileImage(data) {
   const tierB = parseInt(tierHex.slice(5, 7), 16);
 
   const tierIconMap = {
-    Iron:        null,
     Bronze:      './images/tiers/bronze.webp',
     Silver:      './images/tiers/silver.webp',
     Gold:        './images/tiers/gold.webp',
@@ -1598,8 +1842,7 @@ async function generateProfileImage(data) {
     Diamond:     './images/tiers/diamond.webp',
     Master:      './images/tiers/master.webp',
     Grandmaster: './images/tiers/grandmaster.webp',
-    Celestial:   './images/tiers/celestial.webp',
-    '???':       './images/tiers/celestial.webp',
+    Secret:      './images/tiers/secret.webp', // TODO: add this image asset — until then it'll just draw no icon (fails silently)
   };
 
   const ICON_SIZE = 20, ICON_GAP = 6;
@@ -2118,8 +2361,8 @@ const SHOP_PAGES = [
     const legMult = ch.multipliers.Legendary || null;
     const mytMult = ch.multipliers.Mythic    || null;
     const rateLines = [
-      legMult ? `🌟 Legendary ×${legMult.toFixed(2)}` : null,
-      mytMult ? `🔥 Mythic ×${mytMult.toFixed(2)}`    : null,
+      legMult ? `${RARITY_EMOJIS.Legendary} Legendary ×${legMult.toFixed(2)}` : null,
+      mytMult ? `${RARITY_EMOJIS.Mythic} Mythic ×${mytMult.toFixed(2)}`    : null,
     ].filter(Boolean).join('  ·  ');
     return { name: `${ch.emoji} ${ch.name} — ${ch.price.toLocaleString()} ${CURRENCY_NAME}${status}`, value: `${rateLines}\n\`!buy ${key}\`` };
   }) },
@@ -2145,6 +2388,7 @@ client.once('ready', () => {
   startDropLoop();
   startDecayLoop();
   startPayoutLoop();
+  startWeatherLoop();
 
   // Resume any auctions that were running before restart
   const auctions = loadAuctions();
@@ -2244,7 +2488,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
         if (version === 1) {
           const vPingChId = vPingChannels[message.guild?.id];
-          if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(drop.plant.display).setColor(mutation ? mutation.color : rCfg.color)] }).catch(console.error); } }
+          if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { const vAttach = new AttachmentBuilder(`${IMAGES_DIR}/${drop.plant.display}`, { name: drop.plant.display }); await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(`attachment://${drop.plant.display}`).setColor(mutation ? mutation.color : rCfg.color)], files: [vAttach] }).catch(console.error); } }
         }
         if (lvlUp) await message.channel.send(`<@${message.author.id}> levelled up to **Level ${lvlUp}**! ${getRank(lvlUp).emoji}`);
         if (newAch.length) { const achLines = newAch.map(k => `${ACHIEVEMENTS[k].emoji} **${ACHIEVEMENTS[k].name}** — *${ACHIEVEMENTS[k].description}*`).join('\n'); await message.channel.send({ embeds: [new EmbedBuilder().setTitle('Achievement Unlocked!').setDescription(achLines).setColor(0xFFD700)] }); }
@@ -2402,7 +2646,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     try {
       fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }, null, 2));
       fs.writeFileSync(RACE_LB_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(MARKET_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(CLAIMS_LB_FILE, JSON.stringify([], null, 2));
-      activeDrops = {}; activeRaces = {}; pendingSells = {};
+      fs.writeFileSync(AUCTION_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(TRADES_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(LOCKS_FILE, JSON.stringify({}, null, 2)); fs.writeFileSync(LISTINGS_FILE, JSON.stringify([], null, 2)); fs.writeFileSync(AUTOSELL_FILE, JSON.stringify({}, null, 2));
+      activeDrops = {}; activeRaces = {}; pendingSells = {}; webTrades = {};
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Wipe Complete').setDescription('All data has been wiped.').setColor(0x00FF00)] });
     } catch (err) { return message.reply(`❌ Wipe failed: ${err.message}`); }
   }
@@ -2418,16 +2663,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
     const totalVal = sellable.reduce((sum, p) => sum + getLiveSellValue(p), 0);
     const count = sellable.length;
-    const meta = loadMeta();
-    for (const p of sellable) {
-      if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
-        meta.plantVersions[p.name]--;
-        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
-      }
-    }
     user.collection = user.collection.filter(p => isLocked(message.author.id, p));
     user.currency += totalVal;
-    saveMeta(meta); saveDB(db);
+    saveDB(db);
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle('💰 Entire Inventory Sold')
       .setDescription(`Sold **${count} plants** for ${fmt(totalVal)}.\nNew balance: ${fmt(user.currency)}`)
@@ -2441,15 +2679,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
     const db = loadDB();
     const user = getUser(db, wipe.targetId);
-    const meta = loadMeta();
-    for (const p of user.collection) {
-      if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
-        meta.plantVersions[p.name]--;
-        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
-      }
-    }
     user.collection = [];
-    saveMeta(meta);
     saveDB(db);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ Cards Wiped').setDescription(`All plants have been removed from **${wipe.targetName}**'s collection.`).setColor(0x00FF00)] });
   }
@@ -2459,8 +2689,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     delete pendingWipes[`user_${message.author.id}`];
     if (content.trim() !== wipe.phrase) return message.reply('❌ Phrase did not match. Wipe cancelled.');
     try {
-      const db = loadDB(), meta = loadMeta(), user = db[wipe.targetId];
-      if (user && user.collection) { for (const p of user.collection) { if (p.name && meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) { meta.plantVersions[p.name]--; meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1); } } saveMeta(meta); }
+      const db = loadDB();
       delete db[wipe.targetId]; saveDB(db);
       const raceLB = loadRaceLB().filter(e => e.userId !== wipe.targetId); saveRaceLB(raceLB);
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('✅ User Wiped').setDescription(`All data for **${wipe.targetName}** has been deleted.`).setColor(0x00FF00)] });
@@ -2490,18 +2719,27 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     }
 
     if (args[1] === 'cancel') {
-      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages) ) {
-        const auctionId = args[2];
-        const auctions = loadAuctions();
-        const auction  = auctions.find(a => a.id === auctionId);
-        if (!auction) return message.reply('Auction not found.');
+      const auctionId = args[2];
+      const auctions = loadAuctions();
+      const auction  = auctions.find(a => a.id === auctionId);
+      if (!auction) return message.reply('Auction not found.');
+      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
         if (auction.sellerId !== message.author.id) return message.reply('You can only cancel your own auctions.');
         if (auction.bids.length) return message.reply('❌ Cannot cancel — this auction already has bids.');
       }
-      const auctionId = args[2];
-      const auctions = loadAuctions().filter(a => a.id !== auctionId);
-      saveAuctions(auctions);
-      return message.reply(`✅ Auction \`${auctionId}\` cancelled.`);
+      const db = loadDB();
+      const seller = getUser(db, auction.sellerId);
+      seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      if (auction.bids.length) {
+        const topBid = auction.bids[auction.bids.length - 1];
+        const bidder = getUser(db, topBid.userId);
+        bidder.currency += topBid.amount;
+        pushCoinUpdate(topBid.userId, bidder.currency);
+      }
+      saveDB(db);
+      const remaining = auctions.filter(a => a.id !== auctionId);
+      saveAuctions(remaining);
+      return message.reply(`✅ Auction \`${auctionId}\` cancelled — plant returned to seller${auction.bids.length ? ' and bidders refunded' : ''}.`);
     }
 
     if (args[1] === 'bid') {
@@ -2951,6 +3189,42 @@ if (cmd === 'web') {
     return;
   }
 
+  if (cmd === 'weather') {
+  const w = getActiveWeather();
+  if (!w) return message.reply('☀️ No weather event is currently active.');
+  const remaining = w.endsAt - Date.now();
+  const mins = Math.ceil(remaining / 60000);
+  return message.channel.send({ embeds: [new EmbedBuilder()
+    .setTitle(`${w.emoji} Current Weather — ${w.name}`)
+    .setDescription(`${w.desc}\n\nEnds in **${mins}m**.`)
+    .setColor(w.color)
+  ]});
+}
+
+  // ── !forceweather ─────────────────────────────────────────────────────────
+  if (cmd === 'forceweather' || cmd === 'setweather') {
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
+    const arg = args.slice(1).join(' ').trim();
+
+    if (!arg || arg.toLowerCase() === 'random') {
+      await sendWeatherEvent(message.channel);
+      return;
+    }
+
+    if (arg.toLowerCase() === 'clear' || arg.toLowerCase() === 'stop') {
+      currentWeather = null;
+      return message.reply('✅ Weather cleared.');
+    }
+
+    const match = WEATHER_TYPES.find(w => w.name.toLowerCase() === arg.toLowerCase());
+    if (!match) {
+      return message.reply(`❌ Unknown weather. Options: ${WEATHER_TYPES.map(w => w.name).join(', ')}, \`random\`, \`clear\``);
+    }
+
+    await sendWeatherEvent(message.channel, match);
+    return;
+  }
+
   // ── !setrarity ────────────────────────────────────────────────────────────
   if (cmd === 'setrarity') {
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
@@ -2966,7 +3240,7 @@ if (cmd === 'web') {
     const db = loadDB(); const user = getUser(db, target.id);
     const { level, needed, progress, pct } = xpToNextLevel(user.xp || 0);
     const rank = getRank(level), title = getActiveTitle(user);
-    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, xp: u.xp||0, score: calcWeightedGardenScore(u.collection||[]) })).sort((a,b) => b.score-a.score);
+    const allUsers = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, xp: u.xp||0 })).sort((a,b) => b.xp-a.xp);
     const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
     const imgBuf = await generateLevelCardImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, needed, progress, rankEmoji: rank.emoji, rankName: rank.name, title, totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length });
     const att = new AttachmentBuilder(imgBuf, { name: 'level.png' });
@@ -3104,7 +3378,7 @@ if (cmd === 'web') {
     const msg = await message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://race.png').setColor(0xFFAA00)], files: [rAtt] });
     activeRaces[message.channel.id] = { captcha, messageId: msg.id, startTime, finishers: [] };
     setTimeout(async () => { const r = activeRaces[message.channel.id]; if (r && r.messageId === msg.id) await endRace(message.channel, r); }, raceTimer * 1000);
-    return;
+    return; 
   }
 
   // ── !racelb / !rlb ────────────────────────────────────────────────────────
@@ -3185,7 +3459,7 @@ if (cmd === 'web') {
 
     const cleanArgs = cleanForPlant.replace(plantNameFilter || '', '').trim();
     const pageArg = parseInt(cleanArgs) || 1;
-    const RARITY_SORT = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const RARITY_SORT = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     let filtered = [...user.collection].sort((a, b) => { const ri = RARITY_SORT.indexOf(a.rarity) - RARITY_SORT.indexOf(b.rarity); if (ri !== 0) return ri; return (a.version || 999) - (b.version || 999); });
     if (versionFilter) { const { op, n } = versionFilter; filtered = filtered.filter(p => { const v = p.version || 0; if (op==='>'||op==='gt') return v>n; if (op==='>='||op==='gte') return v>=n; if (op==='<'||op==='lt') return v<n; if (op==='<='||op==='lte') return v<=n; if (op==='='||op==='==') return v===n; return true; }); }
     if (mutationFilter) { if (mutationFilter === 'none') filtered = filtered.filter(p => !p.mutation); else filtered = filtered.filter(p => p.mutation && p.mutation.name.toLowerCase() === mutationFilter); }
@@ -3287,7 +3561,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
     const ownedByLine = allOwners.length ? `*Owned by: ${allOwners.join('  ·  ')}*` : '*Not owned by anyone yet.*';
 
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n${ownedByLine}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(plant.display).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })] });
+    const viewAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n${ownedByLine}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(`attachment://${plant.display}`).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })], files: [viewAttach] });
   }
 
   // ── !sell / !s — with optional -v <version> flag ──────────────────────────
@@ -3394,7 +3669,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
     const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
     const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** \`v${plant.version || '?'}\`?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setThumbnail(plant.display).setColor(rCfg.color)] });
+    const sellEmbed = new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** \`v${plant.version || '?'}\`?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setColor(rCfg.color);
+    if (plant.image && fs.existsSync(`${IMAGES_DIR}/${plant.image}`)) {
+      const sellAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.image}`, { name: plant.image });
+      sellEmbed.setThumbnail(`attachment://${plant.image}`);
+      return message.channel.send({ embeds: [sellEmbed], files: [sellAttach] });
+    }
+    return message.channel.send({ embeds: [sellEmbed] });
   }
 
   // ── !sellbatch / !sb — sell multiple plants by filter ────────────────────
@@ -3481,7 +3762,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (!byRarity[p.rarity]) byRarity[p.rarity] = 0;
       byRarity[p.rarity]++;
     }
-    const RARITY_ORDER = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const RARITY_ORDER = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     const summaryLines = RARITY_ORDER
       .filter(r => byRarity[r])
       .map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
@@ -3496,13 +3777,16 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     if (!doConfirm) {
       // Preview mode
+      const protectionNote = sellbatchV10Protection
+        ? `⚠️ *v1–v10 and locked plants are always excluded.*\n`
+        : `🚨 *v1–v10 protection is currently OFF — only locked plants are excluded.*\n`;
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle(`🔍 Batch Sell Preview — ${candidates.length} plants`)
         .setDescription(
           `**Filters:** ${filterStr}\n\n` +
           summaryLines.join('\n') +
           `\n\n**Total payout:** ${fmt(totalCoins)}\n\n` +
-          `⚠️ *v1–v10 and locked plants are always excluded.*\n` +
+          protectionNote +
           `Add \`--confirm\` to your command to execute.`
         )
         .setColor(0xFFAA00)
@@ -3622,7 +3906,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     touchActivity(db, message.author.id, message.author);
     const now = Date.now(), DAY = 86400000;
     if (user.lastDaily && now - user.lastDaily < DAY) { claimingDaily.delete(message.author.id); const rem = DAY - (now - user.lastDaily); const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000); return message.reply(`⏳ Come back in **${h}h ${m}m**.`); }
-    const rarity = pickRarityWithCharms(db, message.author.id), plant = pickPlant(rarity.name), mutation = rollMutation();
+    const rarity = pickRarityWithCharms(db, message.author.id), plant = pickPlant(rarity.name), mutation = rollMutation(getActiveWeather()?.name || null);
     const version = getAvailableVersion(plant.name, db); recordVersionHighWater(plant.name, version);
     const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
     if (!TEST_IDS.has(message.author.id)) {
@@ -3632,7 +3916,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }]); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(plant.display).setColor(rarity.color)] });
+    const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌱 Daily Plant Claimed!').setDescription(`${rarity.emoji} **${plant.name}** *(${rarity.name})*  \`#${version}\`${v1Badge}${mutLine}\n+ ${fmt(coins)}\n\nCome back tomorrow!`).setThumbnail(`attachment://${plant.display}`).setColor(rarity.color)], files: [dailyAttach] });
   }
 
   // ── !weekly ───────────────────────────────────────────────────────────────
@@ -3643,7 +3928,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     touchActivity(db, message.author.id, message.author);
     const now = Date.now(), WEEK = 604800000;
     if (user.lastWeekly && now - user.lastWeekly < WEEK) { claimingWeekly.delete(message.author.id); const rem = WEEK - (now - user.lastWeekly); const d = Math.floor(rem/86400000), h = Math.floor((rem%86400000)/3600000); return message.reply(`⏳ Come back in **${d}d ${h}h**.`); }
-    const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
+    const plants = Array.from({length:3}, () => { const r = pickRarityWithCharms(db, message.author.id), p = pickPlant(r.name), mut = rollMutation(getActiveWeather()?.name || null), ver = getAvailableVersion(p.name, db); recordVersionHighWater(p.name, ver); const sv = calcSellValue(p, r, mut, ver); return { name: p.name, rarity: r, mutation: mut, version: ver, display: p.display, sv }; });
     const coins = Math.floor(Math.random()*1000)+500;
     if (!TEST_IDS.has(message.author.id)) {
       if (user.lastWeekly && now - user.lastWeekly < WEEK) return message.reply(`⏳ Already claimed this week.`);
@@ -3753,6 +4038,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const addedPlants = [];
       let autoEarned = 0;
 
+      let dupeBlockedCount = 0;
       if (!TEST_IDS.has(message.author.id)) {
         user.currency -= crate.price;
         user.crateCooldowns[crateKey] = Date.now();
@@ -3767,8 +4053,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             addedPlants.push(entry);
           } else {
             console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
+            dupeBlockedCount++;
           }
           db[message.author.id] = user;
+        }
+        if (dupeBlockedCount > 0) {
+          const refund = Math.round((crate.price / crate.plants) * dupeBlockedCount);
+          user.currency += refund;
         }
         saveMeta(crateMeta);
         user.cratesOpened = (user.cratesOpened||0) + 1;
@@ -3784,7 +4075,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
       const cratePnl = crateValue - crate.price;
       const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
-      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
+      const dupeRefundStr = dupeBlockedCount > 0 ? `  ·  ⚠️ ${dupeBlockedCount} slot${dupeBlockedCount!==1?'s':''} refunded (version collision)` : '';
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}${dupeRefundStr}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
     });
   }
 
@@ -3880,12 +4172,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     const mutLine = mutation ? `  ${mutation.emoji} **${mutation.name}**` : '';
     const v1Badge = version === 1 ? '  🔖 *First copy!*' : '';
+    const addPlantAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
     return message.reply({ embeds: [new EmbedBuilder()
       .setTitle('✅ Plant Added')
       .setDescription(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
-      .setThumbnail(plant.display)
+      .setThumbnail(`attachment://${plant.display}`)
       .setColor(mutation ? mutation.color : rarity.color)
-    ]});
+    ], files: [addPlantAttach]});
   }
 
   // ── !bulkadd — restore many plants to a user at once ─────────────────────
@@ -4026,19 +4319,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
 
     // Remove all candidates
-    const meta = loadMeta();
     const removed = [];
     for (const { p } of candidates) {
-      if (meta.plantVersions[p.name] && meta.plantVersions[p.name] > 0) {
-        meta.plantVersions[p.name]--;
-        meta.totalDrops = Math.max(0, (meta.totalDrops || 1) - 1);
-      }
       removed.push(p);
     }
     // Remove from highest index down
     candidates.sort((a, b) => b.i - a.i);
     for (const { i } of candidates) user.collection.splice(i, 1);
-    saveMeta(meta); saveDB(db);
+    saveDB(db);
 
     const lines = removed.map(p => {
       const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
@@ -4080,24 +4368,65 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (!plant) return message.reply(`Plant **${plantName}** not found.`);
       const rCfg = getRarityConfig(plant.rarity), mult = getMarketMultiplier(plant.name);
       const trend = mult > 1.1 ? '📈 Rising' : mult < 0.9 ? '📉 Falling' : '📊 Stable';
-      const db = loadDB(), versionEntries = {};
-      for (const [uid, userData] of Object.entries(db)) { for (const p of (userData.collection || [])) { if (p.name !== plant.name || !p.version) continue; if (!versionEntries[p.version]) versionEntries[p.version] = []; versionEntries[p.version].push({ userId: uid, mutation: p.mutation || null }); } }
-      const marketPage = Math.max(1, explicitPage || 1), PER_PAGE = 10;
-      const knownVersions = Object.keys(versionEntries).map(Number), maxKnownVersion = knownVersions.length > 0 ? Math.max(...knownVersions) : 0;
-      const totalVersions = Math.max(10, maxKnownVersion), totalPages = Math.ceil(totalVersions / PER_PAGE), page = Math.min(marketPage, totalPages);
-      const startV = (page - 1) * PER_PAGE + 1, endV = Math.min(startV + PER_PAGE - 1, totalVersions);
-      let versionLines = '';
-      for (let v = startV; v <= endV; v++) {
-        if (versionFilter) { const { op, n } = versionFilter; const pass = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n); if (!pass) continue; }
-        const holders = (versionEntries[v] || []).filter(e => { if (!mutationFilter) return true; if (mutationFilter === 'none') return !e.mutation; return e.mutation && e.mutation.name.toLowerCase() === mutationFilter; });
-        if (mutationFilter && holders.length === 0 && (versionEntries[v] || []).length > 0) continue;
-        const verPill = `\`v${String(v).padStart(2, ' ')}\``;
-        const ownerStr = !versionEntries[v] || versionEntries[v].length === 0 ? '*unclaimed*' : holders.length === 0 ? '*no matches*' : holders.map(e => { const mutTag = e.mutation ? ` ${e.mutation.emoji}` : ''; return `<@${e.userId}>${mutTag}`; }).join('  ');
-        versionLines += `${verPill}  ${ownerStr}\n`;
-      }
-      if (!versionLines) versionLines = '*No versions match those filters on this page.*\n';
       const filterParts = []; if (versionFilter) filterParts.push(`version ${versionFilter.op}${versionFilter.n}`); if (mutationFilter) filterParts.push(`mutation: ${mutationFilter}`);
-      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${plant.name} — Version Ownership`).setDescription(`${rCfg.emoji} **${plant.rarity}**  ·  Demand: **${trend}**${filterParts.length ? `  ·  filter: ${filterParts.join(' + ')}` : ''}\n\n${versionLines}`).setThumbnail(plant.display).setColor(rCfg.color).setFooter({ text: `v${startV}–v${endV}  ·  Page ${page}/${totalPages}` })] });
+      const PER_PAGE = 10;
+
+      function buildMarketData() {
+        const db = loadDB(), versionEntries = {};
+        for (const [uid, userData] of Object.entries(db)) { for (const p of (userData.collection || [])) { if (p.name !== plant.name || !p.version) continue; if (!versionEntries[p.version]) versionEntries[p.version] = []; versionEntries[p.version].push({ userId: uid, mutation: p.mutation || null }); } }
+        const knownVersions = Object.keys(versionEntries).map(Number), maxKnownVersion = knownVersions.length > 0 ? Math.max(...knownVersions) : 0;
+        const totalVersions = Math.max(10, maxKnownVersion), totalPages = Math.ceil(totalVersions / PER_PAGE);
+        return { versionEntries, totalVersions, totalPages };
+      }
+
+      function buildMarketEmbed(p) {
+        const { versionEntries, totalVersions, totalPages } = buildMarketData();
+        const page = Math.max(1, Math.min(p, totalPages));
+        const startV = (page - 1) * PER_PAGE + 1, endV = Math.min(startV + PER_PAGE - 1, totalVersions);
+        let versionLines = '';
+        for (let v = startV; v <= endV; v++) {
+          if (versionFilter) { const { op, n } = versionFilter; const pass = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n); if (!pass) continue; }
+          const holders = (versionEntries[v] || []).filter(e => { if (!mutationFilter) return true; if (mutationFilter === 'none') return !e.mutation; return e.mutation && e.mutation.name.toLowerCase() === mutationFilter; });
+          if (mutationFilter && holders.length === 0 && (versionEntries[v] || []).length > 0) continue;
+          const verPill = `\`v${String(v).padStart(2, ' ')}\``;
+          const ownerStr = !versionEntries[v] || versionEntries[v].length === 0 ? '*unclaimed*' : holders.length === 0 ? '*no matches*' : holders.map(e => { const mutTag = e.mutation ? ` ${e.mutation.emoji}` : ''; return `<@${e.userId}>${mutTag}`; }).join('  ');
+          versionLines += `${verPill}  ${ownerStr}\n`;
+        }
+        if (!versionLines) versionLines = '*No versions match those filters on this page.*\n';
+        return { totalPages, page, embed: new EmbedBuilder().setTitle(`${plant.name} — Version Ownership`).setDescription(`${rCfg.emoji} **${plant.rarity}**  ·  Demand: **${trend}**${filterParts.length ? `  ·  filter: ${filterParts.join(' + ')}` : ''}\n\n${versionLines}`).setThumbnail(`attachment://${plant.display}`).setColor(rCfg.color).setFooter({ text: `v${startV}–v${endV}  ·  Page ${page}/${totalPages}` }) };
+      }
+
+      function buildMarketRow(p, totalPages) {
+        return new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('market_prev').setLabel('◀ Previous').setStyle(ButtonStyle.Secondary).setDisabled(p <= 1),
+          new ButtonBuilder().setCustomId('market_next').setLabel('Next ▶').setStyle(ButtonStyle.Secondary).setDisabled(p >= totalPages)
+        );
+      }
+
+      const marketAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
+      const initial = buildMarketEmbed(Math.max(1, explicitPage || 1));
+
+      if (initial.totalPages <= 1) {
+        return message.channel.send({ embeds: [initial.embed], files: [marketAttach] });
+      }
+
+      const marketMsg = await message.channel.send({ embeds: [initial.embed], files: [marketAttach], components: [buildMarketRow(initial.page, initial.totalPages)] });
+      let currentMarketPage = initial.page;
+      const marketCollector = marketMsg.createMessageComponentCollector({ time: 120_000 });
+      marketCollector.on('collect', async interaction => {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({ content: '❌ Only the person who ran this command can flip pages.', ephemeral: true });
+        }
+        const { totalPages } = buildMarketData();
+        if (interaction.customId === 'market_prev') currentMarketPage = Math.max(1, currentMarketPage - 1);
+        if (interaction.customId === 'market_next') currentMarketPage = Math.min(totalPages, currentMarketPage + 1);
+        const fresh = buildMarketEmbed(currentMarketPage);
+        await interaction.update({ embeds: [fresh.embed], components: [buildMarketRow(fresh.page, fresh.totalPages)] });
+      });
+      marketCollector.on('end', () => {
+        marketMsg.edit({ components: [] }).catch(() => {});
+      });
+      return;
     } else {
       const trending = PLANTS.map(p => ({ name: p.name, rarity: p.rarity, mult: getMarketMultiplier(p.name) })).sort((a,b) => b.mult - a.mult).slice(0, 8);
       const lines = trending.map(p => { const r = getRarityConfig(p.rarity); const arrow = p.mult > 1.1 ? '📈' : p.mult < 0.9 ? '📉' : '📊'; return `${arrow} ${r.emoji} **${p.name}** — ×${p.mult.toFixed(2)}`; });
@@ -4200,12 +4529,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           {
             name: '⭐ Rarities',
             value: [
-              '⚪ **Common** — very frequent · sell: 10 coins',
-              '🟢 **Uncommon** — frequent · sell: 25 coins',
-              '🔵 **Rare** — occasional · sell: 75 coins',
-              '🟣 **Epic** — uncommon · sell: 200 coins',
-              '🌟 **Legendary** — rare · sell: 750 coins',
-              '🔥 **Mythic** — very rare · sell: 5,000 coins',
+              `${RARITY_EMOJIS.Common} **Common** — very frequent · sell: 10 coins`,
+              `${RARITY_EMOJIS.Uncommon} **Uncommon** — frequent · sell: 25 coins`,
+              `${RARITY_EMOJIS.Rare} **Rare** — occasional · sell: 75 coins`,
+              `${RARITY_EMOJIS.Epic} **Epic** — uncommon · sell: 2,000 coins`,
+              `${RARITY_EMOJIS.Legendary} **Legendary** — rare · sell: 10,000 coins`,
+              `${RARITY_EMOJIS.Mythic} **Mythic** — very rare · sell: 25,000 coins`,
+              `${RARITY_EMOJIS.Super} **Super** — extremely rare · sell: 60,000 coins`,
               '*There are rumours of something even rarer...*',
             ].join('\n'),
           },
@@ -4214,15 +4544,17 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   value: [
     'Mutations are rare bonuses that increase a plant\'s sell value. They can appear on any rarity.',
     '',
-    '<:starstruck:1477666927135428650> **Starstruck** — ×3.0 sell value',
-    '<:shocked:1477666867890884628> **Shocked** — ×2.5 sell value',
-    '<:soaked:1477666816745537546> **Soaked** — ×2.2 sell value',
-    '<:snowy:1477666846382620683> **Snowy** — ×1.90 sell value',
-    '🌊 **Flooded** — ×1.50 sell value',
-    '🏜️ **Sandy** — ×1.25 sell value',
+    '<:eclipsed:1477666927135428650> **Eclipsed** — ×5.0 sell value',
+    '<:ignited:1534229469185839204> **Ignited** — ×4.2 sell value',
+    '<:bloodlit:1534227550920900831> **Bloodlit** — ×4.0 sell value',
+    '<:glow:1477666867890884628> **Glow** — ×3.5 sell value',
+    '<:starstruck:1534230447247327303> **Starstruck** — ×3.0 sell value',
+    '<a:lightning:1534229071385333770> **Electric** — ×2.0 sell value',
+    '<:frozen:1477666846382620683> **Frozen** — ×1.4 sell value',
+    '<:aurora:1534229653211054262> **Aurora** — ×1.15 sell value',
     '',
     '*Mutations only affect sell value — they do not contribute to garden rank.*',
-    '*Overall mutation chance is ~5%. Starstruck is the rarest.*',
+    '*Eclipsed is the rarest mutation.*',
   ].join('\n'),
 },
           {
@@ -4381,7 +4713,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             value: [
               'Your garden score is calculated using a **weighted ranking system** — higher rarity plants contribute more, but with diminishing returns so 100 commons can\'t beat 1 legendary.',
               '',
-              '🪨 Iron · 🥉 Bronze · 🥈 Silver · 🥇 Gold · 💠 Platinum · 💎 Diamond · 🔮 Master · 👑 Grandmaster · 🌌 Celestial',
+              GARDEN_TIERS.filter(t => t.name !== 'Secret').map(t => `${t.emoji} ${t.name}`).join(' · '),
               '',
               'Mutations and low version numbers both increase a plant\'s contribution to your score.',
             ].join('\n'),
@@ -4566,6 +4898,7 @@ async function endRace(channel, race) {
 // ─── Login ────────────────────────────────────────────────────────────────────
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) { console.error('❌ No BOT_TOKEN'); process.exit(1); }
+if (ENABLE_WEB_DASHBOARD) {
 // ─── Web Server ───────────────────────────────────────────────────────────────
 const path = require('path');
 const express = require('express');
@@ -4905,24 +5238,24 @@ const wss = new WebSocketServer({ server: httpServer });
 // Global user socket map — userId -> ws
 const userSockets = {};
 
-function pushToUser(userId, payload) {
+pushToUser = function(userId, payload) {
   const ws = userSockets[userId];
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
-}
+};
 
-function broadcastAll(payload) {
+broadcastAll = function(payload) {
   const data = JSON.stringify(payload);
   wss.clients.forEach(client => {
     if (client.readyState === 1) client.send(data);
   });
-}
+};
 
-function pushCoinUpdate(userId, newBalance) {
+pushCoinUpdate = function(userId, newBalance) {
   pushToUser(userId, { type: 'coin_update', balance: newBalance });
-}
+};
 
 // Push a user's full collection to them live (for inventory sync)
-function pushCollectionUpdate(userId) {
+pushCollectionUpdate = function(userId) {
   try {
     const db   = loadDB();
     const user = db[userId];
@@ -4941,12 +5274,12 @@ function pushCollectionUpdate(userId) {
     });
     pushToUser(userId, { type: 'collection_update', collection });
   } catch {}
-}
+};
 
 // Broadcast a leaderboard refresh signal to all connected clients
-function broadcastLeaderboardUpdate() {
+broadcastLeaderboardUpdate = function() {
   broadcastAll({ type: 'leaderboard_update' });
-}
+};
 
 // ── CHAT PERSISTENCE ──────────────────────────────────────────────────────
 const CHAT_FILE = `${DATA_DIR}/auction_chats.json`;
@@ -5077,13 +5410,6 @@ app.post('/api/auction/create', async (req, res) => {
 });
 
 // ── MARKET LISTINGS ──────────────────────────────────────────────────────
-const LISTINGS_FILE = `${DATA_DIR}/market_listings.json`;
-function loadListings() {
-  try {
-    if (!fs.existsSync(LISTINGS_FILE)) fs.writeFileSync(LISTINGS_FILE, '[]');
-    return JSON.parse(fs.readFileSync(LISTINGS_FILE));
-  } catch { return []; }
-}
 function saveListings(l) { fs.writeFileSync(LISTINGS_FILE, JSON.stringify(l, null, 2)); }
 
 // ── CRATE OPEN API (web) — mirrors !buy [crate] exactly ──────────────────────
@@ -5444,8 +5770,6 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     const iSide = trade.sides[trade.initiatorId];
     const tSide = trade.sides[trade.targetId];
 
-    // Helper to fail the trade cleanly, resetting confirmed state so neither
-    // side is stuck, and never touching collections or balances.
     const failTrade = (reason) => {
       trade.status = 'failed';
       trade.failReason = reason;
@@ -5455,19 +5779,11 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
       return res.status(400).json({ error: reason });
     };
 
-    // ── Phase 1: validate everything against the fresh DB before any mutation ──
-
-    // Re-validate coin balances now, not just at offer time. A user could have
-    // spent coins between offering and confirming, which would drive currency
-    // negative without this check.
     if (iSide.coins > 0 && (iUser.currency || 0) < iSide.coins)
       return failTrade(`${trade.initiatorName} no longer has enough coins (offered ${iSide.coins}, has ${iUser.currency || 0})`);
     if (tSide.coins > 0 && (tUser.currency || 0) < tSide.coins)
       return failTrade(`${trade.targetName} no longer has enough coins (offered ${tSide.coins}, has ${tUser.currency || 0})`);
 
-    // Re-validate plant ownership for both sides up-front. We only look up
-    // indices here — nothing is mutated yet. This prevents partial execution
-    // where one side's plants are removed before the other side's check fails.
     const iPlantIndices = [];
     for (const p of iSide.plants) {
       const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
@@ -5481,22 +5797,17 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
       tPlantIndices.push(idx);
     }
 
-    // ── Phase 2: all checks passed — apply mutations atomically ──
-
-    // Remove initiator's plants (iterate indices in reverse to avoid splice offset drift)
     for (let i = iPlantIndices.length - 1; i >= 0; i--) {
       const [removed] = iUser.collection.splice(iPlantIndices[i], 1);
       tUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
       recordTrade(removed.name);
     }
-    // Remove target's plants
     for (let i = tPlantIndices.length - 1; i >= 0; i--) {
       const [removed] = tUser.collection.splice(tPlantIndices[i], 1);
       iUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
       recordTrade(removed.name);
     }
 
-    // Transfer coins (balances already confirmed sufficient above)
     if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
     if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
 
@@ -5583,7 +5894,6 @@ app.get('/api/fixmeta', (req, res) => {
     fs.writeFileSync(META_FILE, JSON.stringify(correct, null, 2));
     res.json({ ok: true });
   } catch(e) {
-    // Nuclear option — just reset plantClaimed too
     const correct = { plantVersions: { "Tomato":53,"Strawberry":54,"Goldenberry":210,"Biohazard Melon":1262,"Banana":27,"Carrot":1312,"Corn":1252,"Bell Pepper":61,"Apple":49,"Dawn Fruit":20,"Onion":67,"Potato":30,"Birch":59,"Amberpine":58,"Dawn Blossom":37,"Lablush Berry":74,"Mango":23,"Radiant Petal":33,"Bamboo":25,"Sunpetal":1272,"Beetroot":67,"Dandelion":1336,"Orange":35,"Rose":41,"Emberwood":34,"Mushroom":59,"Cabbage":31,"Wheat":36,"Plum":44,"Octobranch":14,"Cherry":19,"Pomegranate":27,"Olive":42,"Starvine":16 }, totalDrops: 7778, plantClaimed: {} };
     fs.writeFileSync(META_FILE, JSON.stringify(correct, null, 2));
     res.json({ ok: true, reset: true });
@@ -5592,7 +5902,6 @@ app.get('/api/fixmeta', (req, res) => {
 
 // ── MERCHANT API ─────────────────────────────────────────────────────────────
 
-// Check if the logged-in user has Manage Guild permission in the Discord server
 app.get('/api/merchant/is-admin', async (req, res) => {
   if (!req.user) return res.json({ isAdmin: false });
   try {
@@ -5601,12 +5910,10 @@ app.get('/api/merchant/is-admin', async (req, res) => {
     const isAdmin = member.permissions.has(PermissionsBitField.Flags.ManageGuild);
     res.json({ isAdmin });
   } catch (e) {
-    // User not in server or fetch failed — not an admin
     res.json({ isAdmin: false });
   }
 });
 
-// Admin-only: force a merchant restock by providing a new seed override
 app.post('/api/merchant/restock', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
   try {
@@ -5618,13 +5925,9 @@ app.post('/api/merchant/restock', async (req, res) => {
   } catch (e) {
     return res.status(403).json({ error: 'Could not verify permissions' });
   }
-  // Return a unique restock token — the client uses this to bust its local seed cache
   res.json({ ok: true, restockToken: Date.now() });
 });
 
-// Active item prices — mirrors MERCHANT_POOL in index.html.
-// Add new item IDs here when you add them to the pool.
-// Placeholder IDs are commented out until implemented.
 const MERCHANT_ITEM_PRICES = {
   xp_boost:      17500,
   mystery_box:    6000,
@@ -5654,10 +5957,9 @@ function getMerchantPlantByRarity(rarity) {
   if (!allPlants.length) return null;
   const picked = allPlants[Math.floor(Math.random() * allPlants.length)];
   const version = getAvailableVersion(picked.name, loadDB()); recordVersionHighWater(picked.name, version);
-  const rarityEmojis = { Common:'🌿',Uncommon:'🌸',Rare:'💠',Epic:'💜',Legendary:'⭐',Mythic:'🔴',Secret:'💎' };
   return {
     name: picked.name, rarity, version,
-    emoji: rarityEmojis[rarity] || '🌿',
+    emoji: RARITY_EMOJIS[rarity] || RARITY_EMOJIS.Common,
     claimedAt: new Date().toISOString(),
     source: 'merchant',
     sellValue: getRarityConfig(rarity).sellPrice,
@@ -5682,7 +5984,6 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   let extraData = {};
 
   if (itemId === 'mystery_box') {
-    // Only items that are fully implemented — pick one at random and activate it
     const ACTIVE_ITEMS = [
       { id: 'xp_boost',      name: 'XP Tome' },
       { id: 'rainbow_tag',   name: 'Rainbow Nametag' },
@@ -5692,7 +5993,6 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
     const won = ACTIVE_ITEMS[Math.floor(Math.random() * ACTIVE_ITEMS.length)];
     extraData.wonItemId = won.id;
     extraData.wonName = won.name;
-    // Activate the won item immediately just like a direct purchase
     if (won.id === 'xp_boost') {
       const existing = user.xpBoost && user.xpBoost.expiresAt > now ? user.xpBoost.expiresAt : now;
       user.xpBoost = { expiresAt: existing + 30 * 60 * 1000 };
@@ -5703,28 +6003,23 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
     } else if (won.id === 'listing_boost') {
       user.listingBoost = { expiresAt: now + 24 * 60 * 60 * 1000 };
     } else if (won.id === 'price_alert') {
-      // Price alert needs setup — store as pending consumable
       user.merchantConsumables = user.merchantConsumables || [];
       user.merchantConsumables.push({ itemId: 'price_alert', name: 'Price Alert', purchasedAt: now, used: false });
       extraData.needsSetup = true;
     }
 
   } else if (itemId === 'xp_boost') {
-    // 30-minute 2x XP boost — activates immediately, stacks time if already active
     const existing = user.xpBoost && user.xpBoost.expiresAt > now ? user.xpBoost.expiresAt : now;
     user.xpBoost = { expiresAt: existing + 30 * 60 * 1000 };
     extraData.xpBoostExpiresAt = user.xpBoost.expiresAt;
 
   } else if (itemId === 'rainbow_tag') {
-    // 6-hour rainbow tag on leaderboard
     user.rainbowTag = { expiresAt: now + 6 * 60 * 60 * 1000 };
 
   } else if (itemId === 'sprint_boost') {
-    // 1-hour sprint: claims count double toward leaderboard
     user.sprintBoost = { expiresAt: now + 60 * 60 * 1000 };
 
   } else if (itemId === 'listing_boost') {
-    // 24-hour listing boost: seller's listings float to top of market
     user.listingBoost = { expiresAt: now + 24 * 60 * 60 * 1000 };
 
   } else if (type === 'seed') {
@@ -5784,7 +6079,6 @@ app.post('/api/merchant/price-alert/set', express.json(), (req, res) => {
   const user = getUser(db, req.user.id);
   user.priceAlerts = user.priceAlerts || [];
 
-  // Max 5 alerts per user
   if (user.priceAlerts.length >= 5) return res.status(400).json({ error: 'You already have 5 active alerts. Delete one first.' });
 
   user.priceAlerts.push({ id: `pa_${Date.now()}`, rarity: rarity || null, maxPrice: parseInt(maxPrice), createdAt: Date.now() });
@@ -5830,12 +6124,11 @@ app.delete('/api/merchant/price-alert/:id', (req, res) => {
 });
 
 // ── One-time startup cleanup: remove listingBoost from users who never bought it ──
-// This fixes corrupted data from previous deployments where listingBoost was set incorrectly.
 (function cleanupListingBoost() {
   try {
     const db = loadDB();
     const now = Date.now();
-    const maxValid = now + 25 * 60 * 60 * 1000; // max 25 hours from now is valid
+    const maxValid = now + 25 * 60 * 60 * 1000;
     let fixed = 0;
     for (const user of Object.values(db)) {
       if (user.listingBoost && user.listingBoost.expiresAt > maxValid) {
@@ -5848,5 +6141,6 @@ app.delete('/api/merchant/price-alert/:id', (req, res) => {
 })();
 
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
+}
 
 client.login(TOKEN);
