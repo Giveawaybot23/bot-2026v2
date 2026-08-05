@@ -62,6 +62,8 @@ const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
 const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
 
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
@@ -1173,7 +1175,11 @@ async function sendWeatherEvent(channel, forcedWeather = null) {
     .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
     .setImage('attachment://weather.png')
     .setColor(weather.color)
+<<<<<<< HEAD
     .setFooter({ text: `Lasts 30 minutes · ${SERVER_NAME}` })
+=======
+    .setFooter({ text: `Lasts 1 hour · ${SERVER_NAME}` })
+>>>>>>> 4ff67543046b9ee7357f31cda3d4e410ed27c812
     .setTimestamp();
   await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
 }

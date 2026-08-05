@@ -6734,47 +6734,17 @@ async function deletePriceAlert(alertId) {
 // ── PLANT SPOTLIGHT ENGINE ──────────────────────────────────────────────────
 (function () {
   const PLANTS = [
-    { name:'Carrot',           src:'/images/carrot2-removebg-preview.png',           rarity:'Common',    color:'#8aab8a' },
-    { name:'Corn',             src:'/images/corn2-removebg-preview.png',             rarity:'Common',    color:'#8aab8a' },
-    { name:'Sunpetal',         src:'/images/sunpetal2-removebg-preview.png',         rarity:'Common',    color:'#8aab8a' },
-    { name:'Dandelion',        src:'/images/dandelion2-removebg-preview.png',        rarity:'Common',    color:'#8aab8a' },
-    { name:'Biohazard Melon',  src:'/images/biohazardmelon2-removebg-preview.png',   rarity:'Common',    color:'#8aab8a' },
-    { name:'Onion',            src:'/images/onion2-removebg-preview.png',            rarity:'Uncommon',  color:'#52b788' },
-    { name:'Mushroom',         src:'/images/mushroom2-removebg-preview.png',         rarity:'Uncommon',  color:'#52b788' },
-    { name:'Strawberry',       src:'/images/strawberry2-removebg-preview.png',       rarity:'Uncommon',  color:'#52b788' },
-    { name:'Goldenberry',      src:'/images/goldenberry2-removebg-preview.png',      rarity:'Uncommon',  color:'#52b788' },
-    { name:'Bell Pepper',      src:'/images/bellpepper2-removebg-preview.png',       rarity:'Uncommon',  color:'#52b788' },
-    { name:'Lablush Berry',    src:'/images/Lablushberry2-removebg-preview.png',     rarity:'Uncommon',  color:'#52b788' },
-    { name:'Beetroot',         src:'/images/beetroot2-removebg-preview.png',         rarity:'Rare',      color:'#2196f3' },
-    { name:'Tomato',           src:'/images/tomato2-removebg-preview.png',           rarity:'Rare',      color:'#2196f3' },
-    { name:'Rose',             src:'/images/rose2-removebg-preview.png',             rarity:'Rare',      color:'#2196f3' },
-    { name:'Apple',            src:'/images/apple2-removebg-preview.png',            rarity:'Rare',      color:'#2196f3' },
-    { name:'Amberpine',        src:'/images/amberpine2-removebg-preview.png',        rarity:'Rare',      color:'#2196f3' },
-    { name:'Titan Bloom',      src:'/images/titanbloom-removebg-preview.png',        rarity:'Rare',      color:'#2196f3' },
-    { name:'Wheat',            src:'/images/wheat.png',                              rarity:'Epic',      color:'#9c27b0' },
-    { name:'Banana',           src:'/images/banana2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
-    { name:'Potato',           src:'/images/potato2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
-    { name:'Plum',             src:'/images/plum2-removebg-preview.png',             rarity:'Epic',      color:'#9c27b0' },
-    { name:'Emberwood',        src:'/images/emberwood2-removebg-preview.png',        rarity:'Epic',      color:'#9c27b0' },
-    { name:'Orange',           src:'/images/orange2-removebg-preview.png',           rarity:'Epic',      color:'#9c27b0' },
-    { name:'Radiant Petal',    src:'/images/radiantpetal2-removebg-preview.png',     rarity:'Epic',      color:'#9c27b0' },
-    { name:'Lostlight',        src:'/images/lostlight2-removebg-preview.png',        rarity:'Epic',      color:'#9c27b0' },
-    { name:'Glowcorn',         src:'/images/glowcorn2-removebg-preview.png',         rarity:'Epic',      color:'#9c27b0' },
-    { name:'Cabbage',          src:'/images/cabbage2-removebg-preview.png',          rarity:'Legendary', color:'#c9a84c' },
-    { name:'Cherry',           src:'/images/cherry2-removebg-preview.png',           rarity:'Legendary', color:'#c9a84c' },
-    { name:'Dawn Fruit',       src:'/images/dawnfruit2-removebg-preview.png',        rarity:'Legendary', color:'#c9a84c' },
-    { name:'Pomegranate',      src:'/images/pomegranate2-removebg-preview.png',      rarity:'Legendary', color:'#c9a84c' },
-    { name:'Mango',            src:'/images/mango2-removebg-preview.png',            rarity:'Legendary', color:'#c9a84c' },
-    { name:'Bamboo',           src:'/images/bamboo2-removebg-preview.png',           rarity:'Legendary', color:'#c9a84c' },
-    { name:'Octobranch',       src:'/images/octobranch2-removebg-preview.png',       rarity:'Legendary', color:'#c9a84c' },
-    { name:'Firefern',         src:'/images/firefern-removebg-preview.png',          rarity:'Legendary', color:'#c9a84c' },
-    { name:'Blue Rose',        src:'/images/bluerose2-removebg-preview.png',         rarity:'Legendary', color:'#c9a84c' },
-    { name:'Twisted Sunflower',src:'/images/Twistedsunflower-removebg-preview.png',  rarity:'Legendary', color:'#c9a84c' },
-    { name:'Dawn Blossom',     src:'/images/dawn-blossom.png',                       rarity:'Mythic',    color:'#ea2222' },
-    { name:'Olive',            src:'/images/olive2-removebg-preview.png',            rarity:'Mythic',    color:'#ea2222' },
-    { name:'Glowvein',         src:'/images/glowvein2-removebg-preview.png',         rarity:'Mythic',    color:'#ea2222' },
-    { name:'Starvine',         src:'/images/Starvine2-removebg-preview.png',         rarity:'Secret',    color:'#b0a090' },
-    { name:'Glowflower',       src:'/images/glowflower.png',                         rarity:'Secret',    color:'#b0a090' },
+    { name:'Carrot',           src:'/images/Carrot.png',           rarity:'Common',    color:'#8aab8a' },
+    { name:'Corn',             src:'/images/Corn.png',             rarity:'Common',    color:'#8aab8a' },
+    { name:'Mushroom',         src:'/images/Mushroom.png',         rarity:'Uncommon',  color:'#52b788' },
+    { name:'Strawberry',       src:'/images/Strawberry.png',       rarity:'Uncommon',  color:'#52b788' },
+    { name:'Tomato',           src:'/images/Tomato.png',           rarity:'Rare',      color:'#2196f3' },
+    { name:'Apple',            src:'/images/Apple.png',            rarity:'Rare',      color:'#2196f3' },
+    { name:'Banana',           src:'/images/Banana.png',           rarity:'Epic',      color:'#9c27b0' },
+    { name:'Pomegranate',      src:'/images/Pomegranate.png',      rarity:'Legendary', color:'#c9a84c' },
+    { name:'Mango',            src:'/images/Mango.png',            rarity:'Legendary', color:'#c9a84c' },
+    { name:'Bamboo',           src:'/images/Bamboo.png',           rarity:'Legendary', color:'#c9a84c' },
+    { name:'Firefern',         src:'/images/FireFern.png',         rarity:'Legendary', color:'#c9a84c' },
   ];
 
   const INTERVAL  = 2800;
@@ -7348,6 +7318,7 @@ async function deletePriceAlert(alertId) {
   };
 
 })();
+// Dick
 </script>
 </body>
 </html>
