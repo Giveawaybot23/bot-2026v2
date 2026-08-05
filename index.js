@@ -62,6 +62,8 @@ const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
 const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
 
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
