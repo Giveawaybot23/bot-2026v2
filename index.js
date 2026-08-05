@@ -1175,11 +1175,7 @@ async function sendWeatherEvent(channel, forcedWeather = null) {
     .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
     .setImage('attachment://weather.png')
     .setColor(weather.color)
-<<<<<<< HEAD
     .setFooter({ text: `Lasts 30 minutes · ${SERVER_NAME}` })
-=======
-    .setFooter({ text: `Lasts 1 hour · ${SERVER_NAME}` })
->>>>>>> 4ff67543046b9ee7357f31cda3d4e410ed27c812
     .setTimestamp();
   await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
 }
