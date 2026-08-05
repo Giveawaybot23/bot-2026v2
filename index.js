@@ -1,5 +1,5 @@
 require('dotenv').config();
-const ENABLE_WEB_DASHBOARD = false;
+const ENABLE_WEB_DASHBOARD = true;
 
 // No-op stand-ins so Discord command handlers (!auction bid, trade confirm, etc.)
 // don't crash calling these when the web dashboard is disabled.
