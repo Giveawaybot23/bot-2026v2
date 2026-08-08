@@ -107,7 +107,7 @@ function saveAutosellRules(r) { fs.writeFileSync(AUTOSELL_FILE, JSON.stringify(r
 function getUserAutosellRules(userId) {
   return loadAutosellRules()[userId] || [];
 }
-function applyAutosellRules(user, userId, newPlants) {
+function applyAutosellRules(user, userId, newPlants, guildId = null) {
   const rules = getUserAutosellRules(userId);
   if (!rules.length) return 0;
   let totalEarned = 0;
@@ -139,8 +139,10 @@ function applyAutosellRules(user, userId, newPlants) {
   }
 
   candidates.sort((a, b) => b - a);
+  const soldPlants = candidates.map(idx => user.collection[idx]);
   for (const idx of candidates) user.collection.splice(idx, 1);
   user.currency += totalEarned;
+  for (const p of soldPlants) announceDroppable(p, 'sold', guildId).catch(() => {});
   return totalEarned;
 }
 
@@ -221,6 +223,7 @@ const lastDropTime     = {};
 let   dropChannels     = {};
 let   relaxedDropChannels = {};
 let   vPingChannels    = {};
+let   droppableChannels = {};
 
 // ─── Settings persistence ─────────────────────────────────────────────────────
 function loadSettings() {
@@ -236,7 +239,57 @@ function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, nul
   if (s.vPingChannels)       vPingChannels       = s.vPingChannels;
   if (s.auctionChannels) auctionChannels = s.auctionChannels;
   if (s.payoutChannels) payoutChannels = s.payoutChannels;
+  if (s.droppableChannels) droppableChannels = s.droppableChannels;
 })();
+
+// ─── Droppable announcements ──────────────────────────────────────────────────
+// Fires whenever a plant re-enters circulation (sold for currency, or decayed
+// away from an inactive user) so it can be claimed again.
+// Rules:
+//   • sold    → only versions v1–v10
+//   • decayed → only versions v11–v20, and only rarity Mythic or higher
+const DROPPABLE_SOLD_MAX_VER    = 10;
+const DROPPABLE_DECAY_MIN_VER   = 11;
+const DROPPABLE_DECAY_MAX_VER   = 20;
+// NOTE: RARITIES is defined further down the file, so its index lookup is done
+// lazily inside the function below (called at runtime, never at module load).
+function isDroppableEligible(plant, action) {
+  const version = plant.version || 0;
+  if (action === 'sold') {
+    return version >= 1 && version <= DROPPABLE_SOLD_MAX_VER;
+  }
+  if (action === 'decayed') {
+    if (version < DROPPABLE_DECAY_MIN_VER || version > DROPPABLE_DECAY_MAX_VER) return false;
+    const mythicIdx = RARITIES.findIndex(r => r.name === 'Mythic'); // Mythic, Super, Secret qualify
+    const rarityIdx = RARITIES.findIndex(r => r.name === plant.rarity);
+    return rarityIdx !== -1 && mythicIdx !== -1 && rarityIdx >= mythicIdx;
+  }
+  return false;
+}
+
+// guildId: pass a specific guild to only announce there (e.g. from a !sell command).
+// Omit it to broadcast to every guild that has a droppable channel set (e.g. decay loop,
+// which has no single guild context since collections are stored per-user, not per-guild).
+async function announceDroppable(plant, action, guildId = null) {
+  if (!plant || !isDroppableEligible(plant, action)) return;
+
+  const targetGuildIds = guildId ? [guildId] : Object.keys(droppableChannels);
+  if (!targetGuildIds.length) return;
+
+  const version = plant.version || 0;
+  const mutStr  = plant.mutation ? ` ${plant.mutation.emoji} ${plant.mutation.name}` : '';
+  const verb    = action === 'sold' ? 'sold' : 'decayed';
+  const rCfg    = getRarityConfig(plant.rarity);
+  const msg     = `${rCfg.emoji} **${plant.name}**${mutStr} \`v${version}\` has been **${verb}** and is now able to be claimed.`;
+
+  for (const gId of targetGuildIds) {
+    const chId = droppableChannels[gId];
+    if (!chId) continue;
+    const ch = client.channels.cache.get(chId);
+    if (!ch) continue;
+    try { await ch.send(msg); } catch (err) { console.error('announceDroppable send failed:', err); }
+  }
+}
 
 
 // ─── XP Config ────────────────────────────────────────────────────────────────
@@ -1525,9 +1578,11 @@ function startDecayLoop() {
             toRemoveDecay.push(pick.i);
           }
           toRemoveDecay.sort((a, b) => b - a);
+          const decayedPlants = toRemoveDecay.map(idx => u.collection[idx]);
           for (const idx of toRemoveDecay) u.collection.splice(idx, 1);
           u.lastDecayTick = lastDecay + hoursPassed * DECAY_INTERVAL;
           changed = true;
+          for (const p of decayedPlants) announceDroppable(p, 'decayed').catch(() => {});
         }
       }
     }
@@ -2548,7 +2603,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           newAch = checkAchievements(user);
           user.claimCooldowns[drop.rarity.name] = Date.now();
           const claimNewPlants = [{ name: drop.plant.name, version }];
-          applyAutosellRules(user, message.author.id, claimNewPlants);
+          applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
           saveDB(db);
           recordClaim(message.author.id, message.author.username);
         }
@@ -2642,7 +2697,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       checkAchievements(user);
-      applyAutosellRules(user, message.author.id, addedCratePlants);
+      applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id);
       saveDB(db);
     }
     const spoilerLines = addedCratePlants.map(p =>
@@ -2677,6 +2732,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         }
         user.currency += totalVal;
         saveDB(db);
+        for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
         const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
         return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
       }
@@ -2695,6 +2751,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       });
       saveLocks(message.author.id, remaining);
       saveDB(db);
+      announceDroppable(plant, 'sold', message.guild?.id).catch(() => {});
       return message.reply(`✅ Sold **${plant.name}** v${plant.version || '?'}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
     }
     if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
@@ -2736,6 +2793,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     user.collection = user.collection.filter(p => isLocked(message.author.id, p));
     user.currency += totalVal;
     saveDB(db);
+    for (const p of sellable) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle('💰 Entire Inventory Sold')
       .setDescription(`Sold **${count} plants** for ${fmt(totalVal)}.\nNew balance: ${fmt(user.currency)}`)
@@ -3141,6 +3199,22 @@ if (cmd === 'web') {
     vPingChannels[message.guild.id] = targetCh.id;
     const s = loadSettings(); s.vPingChannels = vPingChannels; saveSettings(s);
     return message.reply(`✅ v1 pings → <#${targetCh.id}>.`);
+  }
+
+  // ── !set droppable <channelid> ────────────────────────────────────────────
+  if (cmd === 'set' && args[1]?.toLowerCase() === 'droppable') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (args[2]?.toLowerCase() === 'stop') {
+      delete droppableChannels[message.guild.id];
+      const s = loadSettings(); s.droppableChannels = droppableChannels; saveSettings(s);
+      return message.reply('✅ Droppable announcements disabled.');
+    }
+    const rawId    = args[2]?.replace(/[<#>]/g, '');
+    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh) return message.reply('❌ Channel not found.');
+    droppableChannels[message.guild.id] = targetCh.id;
+    const s = loadSettings(); s.droppableChannels = droppableChannels; saveSettings(s);
+    return message.reply(`✅ Droppable announcements → <#${targetCh.id}>.\nSold plants \`v1–v10\` and decayed **Mythic+** plants \`v11–v20\` will be posted there.`);
   }
 
   // ── !lock / !unlock ───────────────────────────────────────────────────────
@@ -3870,6 +3944,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     touchActivity(db, message.author.id, message.author);
     checkAchievements(user);
     saveDB(db);
+    for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle(`✅ Batch Sold — ${candidates.length} plants`)
@@ -3983,7 +4058,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }]); saveDB(db); claimingDaily.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
@@ -4006,7 +4081,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version }))); saveDB(db); claimingWeekly.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -4135,7 +4210,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.cratesOpened = (user.cratesOpened||0) + 1;
         addXP(db, message.author.id, XP_REWARDS.crate_open);
         checkAchievements(user);
-        autoEarned = applyAutosellRules(user, message.author.id, addedPlants);
+        autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id);
         saveDB(db);
       }
 
@@ -4861,6 +4936,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!setdrop stop` — Disable drops',
               '`!setvping [#channel or ID]` — Set the v1 ping channel',
               '`!setvping stop` — Disable v1 pings',
+              '`!set droppable <#channel or ID>` — Announce plants that become claimable again (sold v1–v10, decayed Mythic+ v11–v20)',
+              '`!set droppable stop` — Disable droppable announcements',
               '`!drop [-r rarity] [-p "plant"] [-m mutation]` — Force a drop',
               '`!race` — Start a race in the current channel',
             ].join('\n'),
