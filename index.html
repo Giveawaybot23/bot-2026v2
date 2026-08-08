@@ -2665,20 +2665,9 @@ async function pkDoOpen(){
   const pack = _pkCurrentTier;
   _pkPhase = 'opening';
 
-  // Animate the pack split immediately for responsiveness
-  const pv=document.getElementById('pk-pv');
-  if(pv){
-    const inner=pv.innerHTML;
-    pv.innerHTML=`
-      <div class="pk-half top"><div class="pk-half-inner">${inner}</div></div>
-      <div class="pk-half bottom"><div class="pk-half-inner">${inner}</div></div>
-    `;
-    const rect=pv.getBoundingClientRect();
-    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
-    setTimeout(()=>{ pv.classList.add('splitting'); pkFlash(pack.accent+'88'); pkBurst(cx,cy,pack.accent,35); },80);
-  }
-
-  // Call the server
+  // Call the server FIRST — only animate once we know the open is actually valid
+  // (enough coins, off cooldown, etc.). Animating before this check meant failed
+  // opens showed the pack visually splitting apart, then abruptly resetting.
   let data;
   try {
     const res = await fetch('/api/crate/open', {
@@ -2689,9 +2678,6 @@ async function pkDoOpen(){
     data = await res.json();
     if(!res.ok){
       _pkPhase='idle';
-      // Reset visual
-      document.getElementById('pk-pack-visual-wrap').innerHTML='';
-      renderPackVisual(pack);
       if(data.cooldownMs){
         _pkCooldownEnds[pack.crateKey] = Date.now() + data.cooldownMs;
         _pkStartCooldownTicker();
@@ -2708,6 +2694,19 @@ async function pkDoOpen(){
     _pkPhase='idle';
     showToast('Network error — try again.', true);
     return;
+  }
+
+  // Server confirmed the open is valid — now play the pack split animation
+  const pv=document.getElementById('pk-pv');
+  if(pv){
+    const inner=pv.innerHTML;
+    pv.innerHTML=`
+      <div class="pk-half top"><div class="pk-half-inner">${inner}</div></div>
+      <div class="pk-half bottom"><div class="pk-half-inner">${inner}</div></div>
+    `;
+    const rect=pv.getBoundingClientRect();
+    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    setTimeout(()=>{ pv.classList.add('splitting'); pkFlash(pack.accent+'88'); pkBurst(cx,cy,pack.accent,35); },80);
   }
 
   // Success — use server plants, update coins
@@ -3076,7 +3075,7 @@ async function loadMarketHighlights() {
   function loadMorePlants(btn, rarity, grid) {
   const offset = parseInt(btn.dataset.offset);
   const plants = window._profileGrouped[rarity];
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#000000' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#000000' };
   const next = plants.slice(offset, offset + 50);
   const html = next.map((p, pi) => `
     <div class="pd-collection-item${p.version===1?' v1-item':''}" style="${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
@@ -3404,10 +3403,10 @@ async function loadProfile(id) {
 
     const rarityColors = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
-      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#aa88ff',
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#aa88ff',
     };
-    const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-    const rarityWeight = { Secret:8, Super:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
+    const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityWeight = { Secret:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
 
     /* ── Group collection by rarity ── */
     const grouped = {};
@@ -3982,7 +3981,7 @@ function setMarketSort(sort, btn) {
 }
 
 function renderMarket() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#111' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
   const grid = document.getElementById('market-grid');
   let items = [..._marketItems];
   if (_marketRarity !== 'all') items = items.filter(item => item.rarity === _marketRarity);
@@ -4708,32 +4707,26 @@ async function showAuctionDetail(auctionId) {
   } catch(err) { console.error(err); }
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 function renderChatMsg(m) {
-  const safeName = escapeHtml(m.name);
   return `<div class="chat-msg">
     <div class="chat-msg-avatar" style="overflow:hidden;padding:0;background:var(--green-pale)">
-      ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<span style="font-size:10px;font-weight:700;color:var(--green)">${safeName[0].toUpperCase()}</span>`}
+      ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<span style="font-size:10px;font-weight:700;color:var(--green)">${m.name[0].toUpperCase()}</span>`}
     </div>
     <div class="chat-msg-body">
-      <div class="chat-msg-name">${safeName}</div>
-      <div class="chat-msg-text">${escapeHtml(m.text)}</div>
+      <div class="chat-msg-name">${m.name}</div>
+      <div class="chat-msg-text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
     </div>
   </div>`;
 }
 
-const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111' };
-const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#111' };
+const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
-// Kept in sync with the backend MUTATIONS list: Eclipsed, Ignited, Bloodlit,
-// Glow, Starstruck, Electric, Frozen, Aurora.
 function mutationEmoji(name) {
-  return { Eclipsed:'🌑', Ignited:'🔥', Bloodlit:'🩸', Glow:'💡', Starstruck:'⭐', Electric:'⚡', Frozen:'❄️', Aurora:'🌈' }[name] || '✨';
+  return { Starstruck:'⭐', Shocked:'⚡', Soaked:'💧', Snowy:'❄️', Flooded:'🌊', Sandy:'🏜️' }[name] || '✨';
 }
 function mutationColor(name) {
-  return { Eclipsed:'#4B0082', Ignited:'#FF4500', Bloodlit:'#B22222', Glow:'#FFF176', Starstruck:'#FFE033', Electric:'#00E5FF', Frozen:'#ADE8F4', Aurora:'#7FFFD4' }[name] || '#fff';
+  return { Starstruck:'#FFE033', Shocked:'#FFD700', Soaked:'#66CCFF', Snowy:'#ADE8F4', Flooded:'#0099FF', Sandy:'#F4A460' }[name] || '#fff';
 }
 function v1Badge(small=false) {
   const sz = small ? '11px' : '13px';
@@ -5033,7 +5026,7 @@ async function loadInventoryPage() {
         .map(p => p.name)
     );
 
-    const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
     document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
     renderInventoryPage();
@@ -5055,7 +5048,7 @@ function filterInventoryPage(val) {
 }
 
 function renderInventoryPage() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
   const grid = document.getElementById('inv-page-grid');
   if (!grid) return;
   let filtered = _invPageCollection;
@@ -5107,7 +5100,7 @@ function openPlantDetail(idx) {
   );
   const p = filtered[idx];
   if (!p) return;
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
   const rarityGradients = {
     Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
     Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
@@ -5115,7 +5108,6 @@ function openPlantDetail(idx) {
     Epic:     'linear-gradient(160deg, #2a0850 0%, #150328 100%)',
     Legendary:'linear-gradient(160deg, #503a00 0%, #281e00 100%)',
     Mythic:   'linear-gradient(160deg, #500808 0%, #280404 100%)',
-    Super:    'linear-gradient(160deg, #003a45 0%, #001a20 100%)',
     Secret:   'linear-gradient(160deg, #1a0a3a 0%, #0a0520 100%)',
   };
   const color = rarityColors[p.rarity] || '#999';
@@ -6159,7 +6151,7 @@ if (msg.type === 'trade_complete') {
 }
 if (msg.type === 'collection_update') {
   // Live-refresh the inventory page if it's currently visible
-  const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+  const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
   _invPageCollection = msg.collection.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
   const invCount = document.getElementById('inv-page-count');
   if (invCount) invCount.textContent = `${_invPageCollection.length} plants in the game.`;
