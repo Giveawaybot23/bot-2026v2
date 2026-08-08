@@ -589,6 +589,53 @@ const PLANTS = [
   // ── Secret ─────────────────────────────────────────────────────────────
   // TODO: replace with your actual GAG2 secret plant name + image once decideded
   { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
+
+
+  // ═══════════════════════════════════════════════════════════════════════
+// NEW — Event/Limited plants (uncomment when publishing)
+// ═══════════════════════════════════════════════════════════════════════
+/*
+  // ── Standalone new plants ────────────────────────────────────────────
+  { name: 'Glow Mushroom',          file: './images/_MConverteu_GlowMushroomProduce.png',    display: '_MConverteu_GlowMushroomProduce.png',    rarity: 'TODO' },
+  { name: 'Horned Melon',           file: './images/_MConverteu_HornedMelonProduce.png',     display: '_MConverteu_HornedMelonProduce.png',     rarity: 'TODO' },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'TODO' },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'TODO' },
+  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'TODO' },
+  { name: 'Cherry',                 file: './images/CherryProduce.png',                      display: 'CherryProduce.png',                      rarity: 'Legendary' }, // matches your old "Cherry omitted — no image" note
+  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'TODO' },
+  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'TODO' },
+  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'TODO' },
+  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'TODO' },
+  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'TODO' },
+  { name: 'Pomegranate (NEW)',      file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'TODO' }, // ⚠️ name collides with existing Pomegranate — needs a different name
+  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'TODO' },
+
+  // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
+  { name: 'Maple Acorn',          file: './images/_MConverteu_MapleAcornCropProducee.png', display: '_MConverteu_MapleAcornCropProducee.png', rarity: 'Legendary' },
+  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon'  },
+  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare'      },
+  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic'      },
+  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common'    },
+  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare'      },
+  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common'    },
+  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary' },
+  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic'      },
+  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare'      },
+  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary' },
+  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic'      },
+  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic'      },
+  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic'      },
+  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic'      },
+  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare'      },
+  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    },
+  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common'    },
+  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary' },
+  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon'  },
+  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon'  },
+  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    },
+  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    },
+*/
+
 ];
 
 
