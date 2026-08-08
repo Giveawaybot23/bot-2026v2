@@ -745,6 +745,19 @@ function queueForUser(userId, fn) {
   return result;
 }
 
+// Same pattern as queueForUser, but keyed by an arbitrary shared-resource
+// identifier (e.g. a listing/auction/trade id) instead of a user id. This
+// serializes concurrent operations against the SAME resource (e.g. two
+// different buyers hitting the same market listing at once), which a
+// per-user queue alone cannot prevent.
+const resourceQueues = {};
+function queueForResource(key, fn) {
+  if (!resourceQueues[key]) resourceQueues[key] = Promise.resolve();
+  const result = resourceQueues[key].then(() => fn());
+  resourceQueues[key] = result.catch(() => {});
+  return result;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeDrops  = {};
 let activeRaces  = {};
@@ -987,7 +1000,7 @@ function getUser(db, userId) {
   const u = db[userId];
   if (!u.collection)     u.collection     = [];
   if (!u.claimed)        u.claimed        = 0;
-  if (!u.currency)       u.currency       = 500;
+  if (u.currency === undefined || u.currency === null) u.currency = 500;
   if (!u.charms)         u.charms         = [];
   if (!u.equippedCharms) u.equippedCharms = [];
   if (!u.bestRaceTime)   u.bestRaceTime   = null;
@@ -1607,10 +1620,12 @@ function startDecayLoop() {
         const lastDecay = u.lastDecayTick || (now - DECAY_START_MS);
         const hoursPassed = Math.floor((now - lastDecay) / DECAY_INTERVAL);
         if (hoursPassed >= 1) {
-          // Build pool of decayable plants (v > DECAY_SAFE_VER or no version)
+          // Build pool of decayable plants (v > DECAY_SAFE_VER or no version,
+          // and NOT locked — locked plants are protected from decay just
+          // like they're protected from selling/trading).
           const pool = u.collection
             .map((p, i) => ({ p, i }))
-            .filter(({ p }) => !p.version || p.version > DECAY_SAFE_VER);
+            .filter(({ p }) => (!p.version || p.version > DECAY_SAFE_VER) && !isLocked(userId, p));
 
           const toRemoveDecay = [];
           for (let h = 0; h < hoursPassed && pool.length > 0; h++) {
@@ -2779,7 +2794,26 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
       // Single sell path
       const { plant, plantName, plantVersion } = pending;
-      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+      // Match by name + version + mutation + claimedAt (the closest thing we
+      // have to an object identity) so that owning two copies with the same
+      // name/version but different mutations can't cause the wrong copy to
+      // be removed/charged. Fall back to looser matching only if nothing
+      // matches exactly (e.g. legacy entries without claimedAt).
+      const pendingMutName = plant.mutation ? plant.mutation.name : null;
+      let index = user.collection.findIndex(p =>
+        p.name === plantName && p.version === plantVersion &&
+        (p.mutation ? p.mutation.name : null) === pendingMutName &&
+        (p.claimedAt || null) === (plant.claimedAt || null)
+      );
+      if (index === -1) {
+        index = user.collection.findIndex(p =>
+          p.name === plantName && p.version === plantVersion &&
+          (p.mutation ? p.mutation.name : null) === pendingMutName
+        );
+      }
+      if (index === -1) {
+        index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+      }
       if (index === -1) return message.reply(`❌ Could not find **${plantName}** ${fmtVersion(plantVersion)} — it may have already been sold or traded.`);
       user.collection.splice(index, 1);
       const price = getLiveSellValue(plant);
@@ -5342,8 +5376,12 @@ app.get('/api/players', (req, res) => {
 });
 
 app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // Serialize all bids/buyouts against this specific auction so two
+  // concurrent requests can't both pass the "still open" / "high enough
+  // bid" checks before either write lands.
+  return queueForResource(`auction:${req.params.id}`, async () => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Not logged in' });
     const { amount, buyout } = req.body;
 
     // Buy now path
@@ -5452,6 +5490,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       newMin: Math.ceil(bidAmount * 1.05),
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
+  });
 });
 
 app.get('/api/auctions', (req, res) => {
@@ -5852,6 +5891,7 @@ app.post('/api/market/list', async (req, res) => {
     return res.status(400).json({ error: 'Plant name and a valid positive price are required' });
   }
 
+  return queueForUser(req.user.id, async () => {
   const db   = loadDB();
   const user = getUser(db, req.user.id);
 
@@ -5899,54 +5939,66 @@ app.post('/api/market/list', async (req, res) => {
   }
 
   res.json({ success: true, listingId });
+  });
 });
 
 app.delete('/api/market/:id', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const listings = loadListings();
-  const listing  = listings.find(l => l.id === req.params.id);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  if (listing.sellerId !== req.user.id) return res.status(403).json({ error: 'Not your listing' });
-  const db   = loadDB();
-  const user = getUser(db, req.user.id);
-  user.collection.push({ ...listing.plant });
-  saveDB(db);
-  saveListings(listings.filter(l => l.id !== req.params.id));
-  broadcastAll({ type: 'market_update' });
-  pushCoinUpdate(req.user.id, getUser(db, req.user.id).currency);
-  pushCollectionUpdate(req.user.id);
-  res.json({ success: true });
+  return queueForResource(`listing:${req.params.id}`, async () => {
+    const listings = loadListings();
+    const listing  = listings.find(l => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+    if (listing.sellerId !== req.user.id) return res.status(403).json({ error: 'Not your listing' });
+    const db   = loadDB();
+    const user = getUser(db, req.user.id);
+    user.collection.push({ ...listing.plant });
+    saveDB(db);
+    saveListings(listings.filter(l => l.id !== req.params.id));
+    broadcastAll({ type: 'market_update' });
+    pushCoinUpdate(req.user.id, getUser(db, req.user.id).currency);
+    pushCollectionUpdate(req.user.id);
+    res.json({ success: true });
+  });
 });
 
 app.post('/api/market/buy/:id', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const listings = loadListings();
-  const listing  = listings.find(l => l.id === req.params.id);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
 
-  const db     = loadDB();
-  const buyer  = getUser(db, req.user.id);
-  const seller = getUser(db, listing.sellerId);
+  // Lock on the listing id (so two different buyers can't both pass the
+  // "listing still exists" check for the same listing) AND on the buyer's
+  // own id (so the same user double-clicking / using two tabs can't have
+  // two overlapping buys stomp on each other's currency writes).
+  return queueForResource(`listing:${req.params.id}`, async () => {
+    return queueForUser(req.user.id, async () => {
+      const listings = loadListings();
+      const listing  = listings.find(l => l.id === req.params.id);
+      if (!listing) return res.status(404).json({ error: 'Listing not found' });
+      if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
 
-  if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
+      const db     = loadDB();
+      const buyer  = getUser(db, req.user.id);
+      const seller = getUser(db, listing.sellerId);
 
-  buyer.currency  -= listing.price;
-  seller.currency += listing.price;
-  buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
+      if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
 
-  saveDB(db);
-  saveListings(listings.filter(l => l.id !== req.params.id));
+      buyer.currency  -= listing.price;
+      seller.currency += listing.price;
+      buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
 
-  // DM seller
-  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+      saveDB(db);
+      saveListings(listings.filter(l => l.id !== req.params.id));
 
-  broadcastAll({ type: 'market_update' });
-  pushCoinUpdate(req.user.id, buyer.currency);
-  pushCoinUpdate(listing.sellerId, seller.currency);
-  pushCollectionUpdate(req.user.id);
-  broadcastLeaderboardUpdate();
-  res.json({ success: true });
+      // DM seller
+      try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+
+      broadcastAll({ type: 'market_update' });
+      pushCoinUpdate(req.user.id, buyer.currency);
+      pushCoinUpdate(listing.sellerId, seller.currency);
+      pushCollectionUpdate(req.user.id);
+      broadcastLeaderboardUpdate();
+      res.json({ success: true });
+    });
+  });
 });
 
 app.get('/api/auction/:auctionId/chats', (req, res) => {
@@ -6033,8 +6085,9 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
   if (plants !== undefined) {
     for (const p of plants) {
       if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, and Secret plants can be traded.' });
-      const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
-      if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
+      const owned = user.collection.find(c => c.name === p.name && c.version === p.version);
+      if (!owned) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
+      if (isLocked(req.user.id, owned)) return res.status(400).json({ error: `${owned.name} v${owned.version} is locked.` });
     }
     mySide.plants = plants;
   }
@@ -6052,6 +6105,10 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
 
 app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // Serialize confirms on the same trade so both sides confirming at
+  // (almost) the same instant can't race past each other and cause the
+  // completion logic to run twice / read stale collections.
+  return queueForResource(`trade:${req.params.id}`, async () => {
   const trade = webTrades[req.params.id];
   if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
@@ -6085,12 +6142,14 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
     for (const p of iSide.plants) {
       const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
       if (idx === -1) return failTrade(`${trade.initiatorName} no longer has ${p.name} v${p.version}`);
+      if (isLocked(trade.initiatorId, iUser.collection[idx])) return failTrade(`${trade.initiatorName}'s ${p.name} v${p.version} is locked and can't be traded.`);
       iPlantIndices.push(idx);
     }
     const tPlantIndices = [];
     for (const p of tSide.plants) {
       const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
       if (idx === -1) return failTrade(`${trade.targetName} no longer has ${p.name} v${p.version}`);
+      if (isLocked(trade.targetId, tUser.collection[idx])) return failTrade(`${trade.targetName}'s ${p.name} v${p.version} is locked and can't be traded.`);
       tPlantIndices.push(idx);
     }
 
@@ -6123,6 +6182,7 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   }
   saveTrades(webTrades);
   res.json(trade);
+  });
 });
 
 app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
@@ -6174,14 +6234,17 @@ app.post('/api/notif-prefs', express.json(), (req, res) => {
 });
 
 app.get('/api/rawdb', (req, res) => {
+  if (!req.user || !isBotAdmin(req.user.id)) return res.status(403).json({ error: 'Admins only' });
   res.send(fs.readFileSync(DB_FILE, 'utf8'));
 });
 
 app.get('/api/rawmeta', (req, res) => {
+  if (!req.user || !isBotAdmin(req.user.id)) return res.status(403).json({ error: 'Admins only' });
   res.send(fs.readFileSync(META_FILE, 'utf8'));
 });
 
 app.get('/api/fixmeta', (req, res) => {
+  if (!req.user || !isBotAdmin(req.user.id)) return res.status(403).json({ error: 'Admins only' });
   try {
     const correct = {
       plantVersions: { "Tomato":53,"Strawberry":54,"Goldenberry":210,"Biohazard Melon":1262,"Banana":27,"Carrot":1312,"Corn":1252,"Bell Pepper":61,"Apple":49,"Dawn Fruit":20,"Onion":67,"Potato":30,"Birch":59,"Amberpine":58,"Dawn Blossom":37,"Lablush Berry":74,"Mango":23,"Radiant Petal":33,"Bamboo":25,"Sunpetal":1272,"Beetroot":67,"Dandelion":1336,"Orange":35,"Rose":41,"Emberwood":34,"Mushroom":59,"Cabbage":31,"Wheat":36,"Plum":44,"Octobranch":14,"Cherry":19,"Pomegranate":27,"Olive":42,"Starvine":16 },
@@ -6249,13 +6312,16 @@ function merchantWeightedPick(pool) {
 }
 
 function getMerchantPlantByRarity(rarity) {
-  const meta = JSON.parse(fs.existsSync(META_FILE) ? fs.readFileSync(META_FILE) : '{}');
-  const allPlants = Object.entries(meta.plantVersions || {}).map(([name, maxV]) => ({ name, maxV }));
-  if (!allPlants.length) return null;
-  const picked = allPlants[Math.floor(Math.random() * allPlants.length)];
+  // Pick from plants that actually belong to the rarity being sold, so a
+  // "Common Seed" can never hand out a Legendary-identity plant (etc).
+  let pool = PLANTS.filter(p => p.rarity === rarity);
+  if (!pool.length) pool = PLANTS.filter(p => p.rarity && p.rarity !== 'TODO'); // fallback if a rarity has no defined plants
+  if (!pool.length) return null;
+  const picked = pool[Math.floor(Math.random() * pool.length)];
   const version = getAvailableVersion(picked.name, loadDB()); recordVersionHighWater(picked.name, version);
   return {
     name: picked.name, rarity, version,
+    image: picked.display,
     emoji: RARITY_EMOJIS[rarity] || RARITY_EMOJIS.Common,
     claimedAt: new Date().toISOString(),
     source: 'merchant',
@@ -6265,13 +6331,15 @@ function getMerchantPlantByRarity(rarity) {
 
 app.post('/api/merchant/buy', express.json(), (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  const { itemId, type, price, name } = req.body;
-  if (!itemId || !type || price === undefined) return res.status(400).json({ error: 'Missing fields' });
+  const { itemId, type, name } = req.body;
+  if (!itemId || !type) return res.status(400).json({ error: 'Missing fields' });
   const basePrice = MERCHANT_ITEM_PRICES[itemId];
   if (basePrice === undefined) return res.status(400).json({ error: 'Unknown item' });
-  const minAllowed = Math.floor(basePrice * 0.65);
-  if (price < minAllowed || price > basePrice * 1.05) return res.status(400).json({ error: 'Invalid price' });
+  // Price is always derived server-side from MERCHANT_ITEM_PRICES; the client
+  // can no longer influence what gets charged.
+  const price = basePrice;
 
+  return queueForUser(req.user.id, () => { try {
   const db = loadDB();
   const user = getUser(db, req.user.id);
   if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
@@ -6338,16 +6406,21 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   pushCoinUpdate(req.user.id, user.currency);
   if (type === 'seed') pushCollectionUpdate(req.user.id);
   res.json({ ok: true, newBalance: user.currency, ...extraData });
+  } catch (err) { res.status(500).json({ error: err.message }); } });
 });
 
 app.post('/api/merchant/crate', express.json(), (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  const { crateId, price } = req.body;
+  const { crateId } = req.body;
   const pool = MERCHANT_CRATE_POOLS[crateId];
   if (!pool) return res.status(400).json({ error: 'Unknown crate' });
   const basePrice = MERCHANT_ITEM_PRICES[crateId];
-  if (!basePrice || price < basePrice * 0.95 || price > basePrice * 1.05) return res.status(400).json({ error: 'Invalid price' });
+  if (!basePrice) return res.status(400).json({ error: 'Unknown crate' });
+  // Price is always derived server-side; the client can no longer influence
+  // what gets charged.
+  const price = basePrice;
 
+  return queueForUser(req.user.id, () => { try {
   const db = loadDB();
   const user = getUser(db, req.user.id);
   if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
@@ -6361,6 +6434,7 @@ app.post('/api/merchant/crate', express.json(), (req, res) => {
   pushCoinUpdate(req.user.id, user.currency);
   pushCollectionUpdate(req.user.id);
   res.json({ ok: true, newBalance: user.currency, plant: plant || null });
+  } catch (err) { res.status(500).json({ error: err.message }); } });
 });
 
 // ── PRICE ALERT API ───────────────────────────────────────────────────────────
