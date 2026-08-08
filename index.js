@@ -8,7 +8,7 @@ let pushToUser = () => {};
 let broadcastAll = () => {};
 let pushCollectionUpdate = () => {};
 let broadcastLeaderboardUpdate = () => {};
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
@@ -121,9 +121,25 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
     if (isLocked(userId, p)) continue;
     for (const rule of rules) {
       if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
+
+      // Multi-select mutation list, e.g. ['none', 'Frozen', 'Glow']
+      if (rule.mutations && rule.mutations.length) {
+        const mutName = p.mutation ? p.mutation.name.toLowerCase() : null;
+        const matches = rule.mutations.some(m => (m === 'none' && !mutName) || (mutName && m.toLowerCase() === mutName));
+        if (!matches) continue;
+      }
+      // Legacy single-mutation field
       if (rule.mutation === 'none' && p.mutation) continue;
       if (rule.mutation && rule.mutation !== 'none' && (!p.mutation || p.mutation.name.toLowerCase() !== rule.mutation.toLowerCase())) continue;
+
       if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
+
+      // Multi-select exact version list, e.g. [1, 5, 10]
+      if (rule.versions && rule.versions.length) {
+        const v = p.version || 0;
+        if (!rule.versions.includes(v)) continue;
+      }
+      // Legacy version_op/version_n threshold field
       if (rule.version_op && rule.version_n !== undefined) {
         const v = p.version || 0;
         const n = rule.version_n;
@@ -131,6 +147,7 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
         const passes = (op==='>'&&v>n)||(op==='>='&&v>=n)||(op==='<'&&v<n)||(op==='<='&&v<=n)||((op==='='||op==='==')&&v===n);
         if (!passes) continue;
       }
+
       usedIndexes.add(i);
       candidates.push(i);
       totalEarned += getLiveSellValue(p);
@@ -3991,9 +4008,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const lines = rules.map((r, i) => {
         const parts = [];
         if (r.rarity)     parts.push(`rarity: **${r.rarity}**`);
-        if (r.mutation)   parts.push(`mutation: **${r.mutation}**`);
+        if (r.mutations && r.mutations.length) parts.push(`mutations: **${r.mutations.join(', ')}**`);
+        else if (r.mutation) parts.push(`mutation: **${r.mutation}**`);
         if (r.plant)      parts.push(`plant: **${r.plant}**`);
-        if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
+        if (r.versions && r.versions.length)   parts.push(`versions: **${r.versions.map(v => 'v' + v).join(', ')}**`);
+        else if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
         return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
       });
       return message.channel.send({ embeds: [new EmbedBuilder()
@@ -4012,7 +4031,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const removed = rules.splice(idx, 1)[0];
       all[message.author.id] = rules;
       saveAutosellRules(all);
-      const desc = Object.entries(removed).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
+      const desc = Object.entries(removed).map(([k, v]) => `${k}: **${Array.isArray(v) ? v.join(', ') : v}**`).join('  ·  ');
       return message.reply(`🗑️ Removed rule: ${desc}`);
     }
 
@@ -4028,7 +4047,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!rarityInput) {
       return message.reply([
         'Usage: `!autosell <rarity>` — e.g. `!autosell common` or `!autosell common, uncommon, rare`',
-        'I\'ll ask a couple quick questions after that to fine-tune it.',
+        'I\'ll show you dropdowns to pick versions/mutations, then hit **Add Rule**.',
         '',
         'Other commands: `!autosell list` · `!autosell remove <number>` · `!autosell clear`',
       ].join('\n'));
@@ -4047,103 +4066,107 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
     if (!matchedRarities.length) return message.reply('❌ No valid rarities given.');
 
-    const wizardEmbed = new EmbedBuilder()
-      .setTitle('⚡ Autosell Setup')
-      .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n\nSell every version, or keep your best one?`)
-      .setColor(0x00C853);
-    const verRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('asw_ver_all').setLabel('Sell all versions').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('asw_ver_keep1').setLabel('Keep my v1, sell the rest').setStyle(ButtonStyle.Secondary),
+    const MAX_VERSION_OPTIONS = 20; // covers v1–v20 (well past the v1–v10 decay-safe range)
+
+    const versionSelect = new StringSelectMenuBuilder()
+      .setCustomId('asw_versions')
+      .setPlaceholder('Versions: no filter (any version)')
+      .setMinValues(1)
+      .setMaxValues(MAX_VERSION_OPTIONS + 1)
+      .addOptions(
+        { label: 'No filter (any version)', value: 'no' },
+        ...Array.from({ length: MAX_VERSION_OPTIONS }, (_, i) => ({ label: `v${i + 1}`, value: String(i + 1) })),
+      );
+
+    const mutationSelect = new StringSelectMenuBuilder()
+      .setCustomId('asw_mutations')
+      .setPlaceholder('Mutations: no filter (any, including none)')
+      .setMinValues(1)
+      .setMaxValues(MUTATIONS.length + 2)
+      .addOptions(
+        { label: 'No filter (any mutation)', value: 'no' },
+        { label: 'Unmutated only', value: 'none' },
+        ...MUTATIONS.map(m => ({ label: m.name, value: m.name })),
+      );
+
+    const confirmRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('asw_confirm').setLabel('✅ Add Rule').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('asw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
-    const wizardMsg = await message.channel.send({ embeds: [wizardEmbed], components: [verRow] });
-    const collector = wizardMsg.createMessageComponentCollector({ time: 120_000, filter: i => i.user.id === message.author.id });
+    const buildEmbed = (selVersions, selMutations) => new EmbedBuilder()
+      .setTitle('⚡ Autosell Setup')
+      .setDescription([
+        `Rarities: **${matchedRarities.join(', ')}**`,
+        `Versions: **${selVersions === null ? 'any' : selVersions.map(v => 'v' + v).join(', ')}**`,
+        `Mutations: **${selMutations === null ? 'any' : selMutations.join(', ')}**`,
+        '',
+        'Pick from the dropdowns below, then hit **Add Rule**.',
+      ].join('\n'))
+      .setColor(0x00C853);
 
-    let versionRule = null;
-    let stage = 'version';
+    let selectedVersions = null;  // null = no filter
+    let selectedMutations = null; // null = no filter
 
-    const finish = async (interaction, mutationRule) => {
-      stage = 'done';
-      collector.stop();
+    const wizardMsg = await message.channel.send({
+      embeds: [buildEmbed(selectedVersions, selectedMutations)],
+      components: [new ActionRowBuilder().addComponents(versionSelect), new ActionRowBuilder().addComponents(mutationSelect), confirmRow],
+    });
 
-      const all = loadAutosellRules();
-      if (!all[message.author.id]) all[message.author.id] = [];
-      const existing = all[message.author.id];
-
-      const added = [];
-      let skippedForCap = 0;
-      for (const rarityName of matchedRarities) {
-        if (existing.length >= 20) { skippedForCap++; continue; }
-        const rule = { rarity: rarityName.toLowerCase() };
-        if (versionRule) Object.assign(rule, versionRule);
-        if (mutationRule) rule.mutation = mutationRule;
-        existing.push(rule);
-        added.push(rarityName);
-      }
-      all[message.author.id] = existing;
-      saveAutosellRules(all);
-
-      const verText = versionRule ? 'keeping v1, selling the rest' : 'selling all versions';
-      const mutText = mutationRule === 'none' ? 'keeping mutated plants' : mutationRule ? `only selling ${mutationRule}-mutated ones` : 'selling mutated too';
-
-      let desc = added.length
-        ? `Auto-selling **${added.join(', ')}** — ${verText}, ${mutText}.`
-        : `No rules added — you're already at the 20-rule limit. Use \`!autosell remove <number>\` to free up space.`;
-      if (skippedForCap > 0 && added.length) desc += `\n⚠️ Skipped **${skippedForCap}** — you hit the 20-rule limit.`;
-
-      const doneEmbed = new EmbedBuilder()
-        .setTitle(added.length ? '✅ Autosell Rules Saved' : '❌ Autosell Limit Reached')
-        .setDescription(desc)
-        .setColor(added.length ? 0x00C853 : 0xFF5252);
-
-      await interaction.update({ embeds: [doneEmbed], components: [] });
-    };
+    const collector = wizardMsg.createMessageComponentCollector({ time: 180_000, filter: i => i.user.id === message.author.id });
 
     collector.on('collect', async (interaction) => {
-      if (stage === 'version') {
-        versionRule = interaction.customId === 'asw_ver_keep1' ? { version_op: '>', version_n: 1 } : null;
-        stage = 'mutation';
-
-        const mutEmbed = new EmbedBuilder()
-          .setTitle('⚡ Autosell Setup')
-          .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n${versionRule ? 'Keeping v1, selling the rest.' : 'Selling all versions.'}\n\nWhat about mutated plants?`)
-          .setColor(0x00C853);
-        const mutRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('asw_mut_all').setLabel('Sell those too').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('asw_mut_none').setLabel('Keep mutated (only sell plain)').setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId('asw_mut_pick').setLabel('Only sell one specific mutation').setStyle(ButtonStyle.Secondary),
-        );
-        await interaction.update({ embeds: [mutEmbed], components: [mutRow] });
+      if (interaction.customId === 'asw_versions') {
+        selectedVersions = interaction.values.includes('no') ? null : interaction.values.map(v => parseInt(v));
+        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
         return;
       }
 
-      if (stage === 'mutation') {
-        if (interaction.customId === 'asw_mut_pick') {
-          stage = 'mutation_pick';
-          const pickEmbed = new EmbedBuilder()
-            .setTitle('⚡ Autosell Setup')
-            .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n\nWhich mutation should be auto-sold?`)
-            .setColor(0x00C853);
-          const mutButtons = MUTATIONS.map(m => new ButtonBuilder().setCustomId(`asw_mutsel_${m.name}`).setLabel(m.name).setStyle(ButtonStyle.Secondary));
-          const rows = [];
-          for (let i = 0; i < mutButtons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(mutButtons.slice(i, i + 5)));
-          await interaction.update({ embeds: [pickEmbed], components: rows });
-          return;
+      if (interaction.customId === 'asw_mutations') {
+        selectedMutations = interaction.values.includes('no') ? null : interaction.values;
+        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
+        return;
+      }
+
+      if (interaction.customId === 'asw_cancel') {
+        collector.stop('cancelled');
+        return interaction.update({ embeds: [new EmbedBuilder().setTitle('❌ Cancelled').setDescription('No rule was added.').setColor(0xFF5252)], components: [] });
+      }
+
+      if (interaction.customId === 'asw_confirm') {
+        collector.stop('confirmed');
+
+        const all = loadAutosellRules();
+        if (!all[message.author.id]) all[message.author.id] = [];
+        const existing = all[message.author.id];
+
+        const added = [];
+        let skippedForCap = 0;
+        for (const rarityName of matchedRarities) {
+          if (existing.length >= 20) { skippedForCap++; continue; }
+          const rule = { rarity: rarityName.toLowerCase() };
+          if (selectedVersions)  rule.versions  = selectedVersions;
+          if (selectedMutations) rule.mutations = selectedMutations;
+          existing.push(rule);
+          added.push(rarityName);
         }
-        const mutationRule = interaction.customId === 'asw_mut_none' ? 'none' : null;
-        await finish(interaction, mutationRule);
-        return;
-      }
+        all[message.author.id] = existing;
+        saveAutosellRules(all);
 
-      if (stage === 'mutation_pick') {
-        const mutName = interaction.customId.replace('asw_mutsel_', '');
-        await finish(interaction, mutName);
-        return;
+        let desc = added.length
+          ? `Auto-selling **${added.join(', ')}** — versions: **${selectedVersions ? selectedVersions.map(v => 'v' + v).join(', ') : 'any'}**, mutations: **${selectedMutations ? selectedMutations.join(', ') : 'any'}**.`
+          : `No rules added — you're already at the 20-rule limit. Use \`!autosell remove <number>\` to free up space.`;
+        if (skippedForCap > 0 && added.length) desc += `\n⚠️ Skipped **${skippedForCap}** — you hit the 20-rule limit.`;
+
+        return interaction.update({
+          embeds: [new EmbedBuilder().setTitle(added.length ? '✅ Autosell Rule Saved' : '❌ Autosell Limit Reached').setDescription(desc).setColor(added.length ? 0x00C853 : 0xFF5252)],
+          components: [],
+        });
       }
     });
 
     collector.on('end', (_collected, reason) => {
-      if (stage !== 'done' && reason === 'time') wizardMsg.edit({ components: [] }).catch(() => {});
+      if (reason === 'time') wizardMsg.edit({ components: [] }).catch(() => {});
     });
 
     return;
