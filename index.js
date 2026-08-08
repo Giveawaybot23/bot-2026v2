@@ -298,6 +298,26 @@ const RARITY_WEIGHT_BONUS = {
   Secret:    1.00,  // was 3.50 — this was the whole problem
 };
 
+// A single plant can already be worth a LOT before it ever reaches this scoring
+// function — e.g. a v1 Secret is 875,000, and a v1 Secret with a dropOnly bonus
+// AND an Eclipsed mutation stacks up past 5,000,000. Since the very first item
+// in the weighted sum always counts at full value (0.95^0 = 1), one lucky pull
+// like that could nearly max out the entire tier ladder by itself.
+// PLANT_SCORE_CAP lets values up to that point count fully (so normal Rare/Epic/
+// Legendary/Mythic progression feels exactly the same as before), but anything
+// above it grows via sqrt instead of linearly — so no single plant, however
+// insane its rarity/version/mutation combo, can carry someone to the endgame
+// tiers alone. Reaching Grandmaster/Secret now takes accumulating MANY high-value
+// plants (grinding AND trading), not one drop. Tune these two constants to
+// taste — raising the cap lets big single hits matter more, raising the dampen
+// factor softens the falloff above the cap.
+const PLANT_SCORE_CAP = 150000;
+const PLANT_SCORE_DAMPEN = 30;
+function dampenPlantScore(value) {
+  if (value <= PLANT_SCORE_CAP) return value;
+  return PLANT_SCORE_CAP + Math.sqrt(value - PLANT_SCORE_CAP) * PLANT_SCORE_DAMPEN;
+}
+
 function calcWeightedGardenScore(collection) {
   if (!collection.length) return 0;
   // Sort by effective value descending
@@ -305,7 +325,7 @@ function calcWeightedGardenScore(collection) {
     .map(p => {
       const base = getLiveSellValue(p);
       const bonus = RARITY_WEIGHT_BONUS[p.rarity] || 1.0;
-      return base * bonus;
+      return dampenPlantScore(base * bonus);
     })
     .sort((a, b) => b - a);
 
@@ -548,6 +568,7 @@ const PLANTS = [
   // ── Legendary ──────────────────────────────────────────────────────────
   // NOTE: Cherry omitted — no image file present. Rocket Pop excluded (not obtainable in GAG2).
   { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
+  { name: 'Cherry', file: './images/Cherry.png', display: 'Cherry.png', rarity: 'Legendary' },
   { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
   { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
@@ -562,13 +583,60 @@ const PLANTS = [
   // ── Super ──────────────────────────────────────────────────────────────
   { name: 'Moon Bloom',      file: './images/MoonBloom.png',   display: 'MoonBloom.png',   rarity: 'Super' },
   { name: 'Hypno Bloom',     file: './images/HypnoBloom.png',  display: 'HypnoBloom.png',  rarity: 'Super' },
-  { name: "Dragon's Breath", file: './images/DragonsBreath.png', display: 'DragonsBreath.png', rarity: 'Super' },
+  { name: "Dragons Breath", file: './images/DragonsBreath.png', display: 'DragonsBreath.png', rarity: 'Super' },
   { name: 'Sun Bloom',       file: './images/SunBloom.png',    display: 'SunBloom.png',    rarity: 'Super' },
   { name: 'Star Fruit',      file: './images/StarFruit.png',      display: 'StarFruit.png',      rarity: 'Super' },
 
   // ── Secret ─────────────────────────────────────────────────────────────
-  // TODO: replace with your actual GAG2 secret plant name + image once decided
+  // TODO: replace with your actual GAG2 secret plant name + image once decideded
   { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
+
+
+  // ═══════════════════════════════════════════════════════════════════════
+// NEW — Event/Limited plants (uncomment when publishing)
+// ═══════════════════════════════════════════════════════════════════════
+/*
+  // ── Standalone new plants ────────────────────────────────────────────
+  { name: 'Glow Mushroom',          file: './images/_MConverteu_GlowMushroomProduce.png',    display: '_MConverteu_GlowMushroomProduce.png',    rarity: 'TODO' },
+  { name: 'Horned Melon',           file: './images/_MConverteu_HornedMelonProduce.png',     display: '_MConverteu_HornedMelonProduce.png',     rarity: 'TODO' },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'TODO' },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'TODO' },
+  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'TODO' },
+  { name: 'Cherry',                 file: './images/CherryProduce.png',                      display: 'CherryProduce.png',                      rarity: 'Legendary' }, // matches your old "Cherry omitted — no image" note
+  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'TODO' },
+  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'TODO' },
+  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'TODO' },
+  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'TODO' },
+  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'TODO' },
+  { name: 'Pomegranate (NEW)',      file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'TODO' }, // ⚠️ name collides with existing Pomegranate — needs a different name
+  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'TODO' },
+
+  // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
+  { name: 'Maple Acorn',          file: './images/_MConverteu_MapleAcornCropProducee.png', display: '_MConverteu_MapleAcornCropProducee.png', rarity: 'Legendary' },
+  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon'  },
+  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare'      },
+  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic'      },
+  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common'    },
+  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare'      },
+  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common'    },
+  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary' },
+  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic'      },
+  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare'      },
+  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary' },
+  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic'      },
+  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic'      },
+  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic'      },
+  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic'      },
+  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare'      },
+  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    },
+  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common'    },
+  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary' },
+  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon'  },
+  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon'  },
+  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    },
+  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    },
+*/
+
 ];
 
 
@@ -1155,7 +1223,7 @@ async function sendWeatherEvent(channel, forcedWeather = null) {
     .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
     .setImage('attachment://weather.png')
     .setColor(weather.color)
-    .setFooter({ text: `Lasts 1 hour · ${SERVER_NAME}` })
+    .setFooter({ text: `Lasts 30 minutes · ${SERVER_NAME}` })
     .setTimestamp();
   await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
 }
