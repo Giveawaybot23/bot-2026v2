@@ -276,18 +276,31 @@ async function announceDroppable(plant, action, guildId = null) {
   const targetGuildIds = guildId ? [guildId] : Object.keys(droppableChannels);
   if (!targetGuildIds.length) return;
 
-  const version = plant.version || 0;
-  const mutStr  = plant.mutation ? ` ${plant.mutation.emoji} ${plant.mutation.name}` : '';
   const verb    = action === 'sold' ? 'sold' : 'decayed';
+  const verbCap = action === 'sold' ? 'Sold' : 'Decayed';
   const rCfg    = getRarityConfig(plant.rarity);
-  const msg     = `${rCfg.emoji} **${plant.name}**${mutStr} \`v${version}\` has been **${verb}** and is now able to be claimed.`;
+  const mutLine = plant.mutation ? `\n${plant.mutation.emoji} **${plant.mutation.name}** mutation` : '';
+
+  const embed = new EmbedBuilder()
+    .setTitle('🌱 Now Claimable!')
+    .setDescription(`${rCfg.emoji} **${plant.name}** ${fmtVersion(plant)} has been **${verb}** and is now able to be claimed.${mutLine}`)
+    .setColor(rCfg.color)
+    .setFooter({ text: `${plant.rarity} · ${verbCap}` });
+
+  const imageName = plant.image || plant.display;
+  let files = [];
+  if (imageName && fs.existsSync(`${IMAGES_DIR}/${imageName}`)) {
+    const attach = new AttachmentBuilder(`${IMAGES_DIR}/${imageName}`, { name: imageName });
+    embed.setThumbnail(`attachment://${imageName}`);
+    files = [attach];
+  }
 
   for (const gId of targetGuildIds) {
     const chId = droppableChannels[gId];
     if (!chId) continue;
     const ch = client.channels.cache.get(chId);
     if (!ch) continue;
-    try { await ch.send(msg); } catch (err) { console.error('announceDroppable send failed:', err); }
+    try { await ch.send({ embeds: [embed], files }); } catch (err) { console.error('announceDroppable send failed:', err); }
   }
 }
 
@@ -509,6 +522,16 @@ const VERSION_MULTIPLIERS = {
 };
 
 function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 1.00; }
+
+// ─── Version display formatting ───────────────────────────────────────────────
+// Canonical way to show a plant's version in any Discord-facing text.
+// Accepts either a plant object ({version: N}) or a raw version number.
+// Always falls back to "v?" instead of "vundefined" when version is missing.
+function fmtVersion(plantOrVersion, { code = true } = {}) {
+  const v = (plantOrVersion && typeof plantOrVersion === 'object') ? plantOrVersion.version : plantOrVersion;
+  const text = v ? `v${v}` : 'v?';
+  return code ? `\`${text}\`` : text;
+}
 
 // ─── Market / Demand system ───────────────────────────────────────────────────
 function loadMarket() {
@@ -2609,7 +2632,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         }
 
         const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
-        await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${rCfg.emoji} **${drop.plant.name}** \`v${version}\` claimed by <@${message.author.id}>!${mutLine}`).setColor(mutation ? mutation.color : rCfg.color)] });
+        await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${rCfg.emoji} **${drop.plant.name}** ${fmtVersion(version)} claimed by <@${message.author.id}>!${mutLine}`).setColor(mutation ? mutation.color : rCfg.color)] });
 
         if (version === 1) {
           const vPingChId = vPingChannels[message.guild?.id];
@@ -2701,7 +2724,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveDB(db);
     }
     const spoilerLines = addedCratePlants.map(p =>
-      `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+      `||${getRarityConfig(p.rarity).emoji} **${p.name}** ${fmtVersion(p)} — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
     );
     return message.channel.send({
       embeds: [new EmbedBuilder()
@@ -2733,14 +2756,14 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         user.currency += totalVal;
         saveDB(db);
         for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
-        const names = sellAllCandidates.map(c => `**${c.plant.name}** v${c.plant.version || '?'}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
+        const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
         return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
       }
 
       // Single sell path
       const { plant, plantName, plantVersion } = pending;
       const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
-      if (index === -1) return message.reply(`❌ Could not find **${plantName}** \`v${plantVersion}\` — it may have already been sold or traded.`);
+      if (index === -1) return message.reply(`❌ Could not find **${plantName}** ${fmtVersion(plantVersion)} — it may have already been sold or traded.`);
       user.collection.splice(index, 1);
       const price = getLiveSellValue(plant);
       user.currency += price;
@@ -2752,7 +2775,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveLocks(message.author.id, remaining);
       saveDB(db);
       announceDroppable(plant, 'sold', message.guild?.id).catch(() => {});
-      return message.reply(`✅ Sold **${plant.name}** v${plant.version || '?'}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
+      return message.reply(`✅ Sold **${plant.name}** ${fmtVersion(plant)}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
     }
     if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
   }
@@ -2841,7 +2864,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         const remaining = Math.max(0, a.endsAt - Date.now());
         const hrs = Math.floor(remaining / 3600000), mins = Math.floor((remaining % 3600000) / 60000);
         const topBid = a.bids.length ? a.bids[a.bids.length - 1] : null;
-        return `**${a.plant.name}** \`v${a.plant.version || '?'}\` — ID: \`${a.id}\` — Top: ${topBid ? fmt(topBid.amount) : 'No bids'} — Ends in: ${hrs}h ${mins}m`;
+        return `**${a.plant.name}** ${fmtVersion(a.plant)} — ID: \`${a.id}\` — Top: ${topBid ? fmt(topBid.amount) : 'No bids'} — Ends in: ${hrs}h ${mins}m`;
       });
       return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🔨 Active Auctions').setDescription(lines.join('\n')).setColor(0xFFD700)] });
     }
@@ -2926,7 +2949,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const newTimeLeft = Math.max(0, auction.endsAt - Date.now());
       const m = Math.floor(newTimeLeft / 60000), s = Math.floor((newTimeLeft % 60000) / 1000);
       return message.channel.send({ embeds: [new EmbedBuilder()
-        .setDescription(`🔨 **${message.author.username}** bid ${fmt(bidAmount)} on **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${extendedMsg}\n⏰ Ends in **${m}m ${s}s**`)
+        .setDescription(`🔨 **${message.author.username}** bid ${fmt(bidAmount)} on **${auction.plant.name}** ${fmtVersion(auction.plant)}${extendedMsg}\n⏰ Ends in **${m}m ${s}s**`)
         .setColor(0xFFD700)
       ]});
     }
@@ -2954,7 +2977,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveAuctions(auctions);
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('🔨 Auction Bought Out!')
-        .setDescription(`**${message.author.username}** bought **${auction.plant.name}** \`v${auction.plant.version || '?'}\` for ${fmt(auction.buyoutPrice)}!`)
+        .setDescription(`**${message.author.username}** bought **${auction.plant.name}** ${fmtVersion(auction.plant)} for ${fmt(auction.buyoutPrice)}!`)
         .setColor(0x00C853)
       ]});
     }
@@ -2997,12 +3020,12 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
     if (!candidates.length) return message.reply(`You don't own **${plantName}**${vFilter !== null ? ` v${vFilter}` : ''}.`);
     if (candidates.length > 1 && vFilter === null) {
-      const lines = candidates.map(({ p }) => `\`v${p.version || '?'}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}`).join('  ·  ');
+      const lines = candidates.map(({ p }) => `${fmtVersion(p)}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}`).join('  ·  ');
       return message.reply(`You own **${candidates.length}** copies of **${plantName}**: ${lines}\nUse \`-v <version>\` to specify which one.`);
     }
 
     const { p: plant, i: plantIndex } = candidates[0];
-    if (isLocked(message.author.id, plant)) return message.reply(`🔒 **${plant.name}** \`v${plant.version}\` is locked.`);
+    if (isLocked(message.author.id, plant)) return message.reply(`🔒 **${plant.name}** ${fmtVersion(plant)} is locked.`);
 
     const hours       = Math.min(72, Math.max(1, hoursMatch ? parseInt(hoursMatch[1]) : 0.1667)); // default 10 min
     const startPrice  = startMatch ? parseInt(startMatch[1]) : (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
@@ -3041,7 +3064,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       .setTitle(`🔨 New Auction — ${rCfg.emoji} ${plant.name}`)
       .setDescription([
         `Listed by **${message.author.username}**`,
-        `\`v${plant.version || '?'}\`${plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : ''}`,
+        `${fmtVersion(plant)}${plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : ''}`,
         '',
         `**Starting bid:** ${fmt(startPrice)}`,
         buyoutPrice ? `**Buyout:** ${fmt(buyoutPrice)}` : '',
@@ -3624,7 +3647,7 @@ const page = Math.max(1, Math.min(pageArg, totalPages));
     const filterStr = filterParts.length ? `  ·  filter: ${filterParts.join(' + ')}` : '';
     const topRarity = getRarityConfig(slice[0].rarity);
     const lines = slice.map((p, i) => {
-      const rCfg = getRarityConfig(p.rarity), mutBadge = p.mutation ? ` ${p.mutation.emoji} **${p.mutation.name}**` : '', verStr = p.version === 1 ? '`v1` 🔖' : `\`v${p.version || '?'}\``;
+      const rCfg = getRarityConfig(p.rarity), mutBadge = p.mutation ? ` ${p.mutation.emoji} **${p.mutation.name}**` : '', verStr = p.version === 1 ? '`v1` 🔖' : `${fmtVersion(p)}`;
       const num = (page - 1) * PER_PAGE + i + 1;
       const sellVal = p.sellValue || rCfg.sellPrice;
       const lockBadge = isLocked(message.author.id, p) ? ' `[L]`' : '';
@@ -3637,7 +3660,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const sl = filtered.slice((p - 1) * PER_PAGE, p * PER_PAGE);
       const tR = getRarityConfig(sl[0].rarity);
       const ls = sl.map((plant, i) => {
-        const rCfg = getRarityConfig(plant.rarity), mutBadge = plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : '', verStr = plant.version === 1 ? '`v1` 🔖' : `\`v${plant.version || '?'}\``;
+        const rCfg = getRarityConfig(plant.rarity), mutBadge = plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : '', verStr = plant.version === 1 ? '`v1` 🔖' : `${fmtVersion(plant)}`;
         const num = (p - 1) * PER_PAGE + i + 1;
         const sellVal = getLiveSellValue(plant);
         const lockBadge = isLocked(message.author.id, plant) ? ' `[L]`' : '';
@@ -3690,7 +3713,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (vFilter !== null) owned = owned.filter(p => p.version === vFilter);
     const mktMult = getMarketMultiplier(plant.name);
     const mktStr = mktMult > 1.05 ? `📈 +${Math.round((mktMult-1)*100)}% demand` : mktMult < 0.95 ? `📉 ${Math.round((mktMult-1)*100)}% demand` : `📊 Normal demand`;
-    let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** \`v${p.version}\``; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
+    let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** ${fmtVersion(p)}`; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
 
     // Find who owns this plant server-wide
     const allOwners = [];
@@ -3768,7 +3791,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const lines     = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
         const val    = getLiveSellValue(p);
-        return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+        return `${fmtVersion(p)}${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       // Store all indices for the confirm handler
       pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, name: c.p.name, version: c.p.version })), totalVal };
@@ -3786,7 +3809,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const lines = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
         const val    = p.sellValue || rCfg.sellPrice;
-        return `\`v${p.version || '?'}\`${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+        return `${fmtVersion(p)}${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       const totalVal = candidates.reduce((sum, { p }) => sum + (p.sellValue || rCfg.sellPrice), 0);
       return message.reply({ embeds: [new EmbedBuilder()
@@ -3805,7 +3828,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     
 
     // Single match — confirm
-    if (isLocked(message.author.id, candidates[0].p)) return message.reply(`🔒 **${candidates[0].p.name}** \`v${candidates[0].p.version}\` is locked. Use \`!unlock\` to remove the lock first.`);
+    if (isLocked(message.author.id, candidates[0].p)) return message.reply(`🔒 **${candidates[0].p.name}** ${fmtVersion(candidates[0].p)} is locked. Use \`!unlock\` to remove the lock first.`);
     const { p: plant, i: index } = candidates[0];
     const price = getLiveSellValue(plant);
     const rCfg  = getRarityConfig(plant.rarity);
@@ -3813,7 +3836,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
     const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
     const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
-    const sellEmbed = new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** \`v${plant.version || '?'}\`?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setColor(rCfg.color);
+    const sellEmbed = new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** ${fmtVersion(plant)}?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setColor(rCfg.color);
     if (plant.image && fs.existsSync(`${IMAGES_DIR}/${plant.image}`)) {
       const sellAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.image}`, { name: plant.image });
       sellEmbed.setThumbnail(`attachment://${plant.image}`);
@@ -4215,7 +4238,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       }
 
       const spoilerLines = addedPlants.map(p =>
-        `||${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version}\` — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
+        `||${getRarityConfig(p.rarity).emoji} **${p.name}** ${fmtVersion(p)} — ${p.rarity}${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}||`
       );
       const crateValue = addedPlants.reduce((sum, p) => sum + (p.sellValue || 0), 0);
       const cratePnl = crateValue - crate.price;
@@ -4320,7 +4343,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const addPlantAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
     return message.reply({ embeds: [new EmbedBuilder()
       .setTitle('✅ Plant Added')
-      .setDescription(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
+      .setDescription(`${rarity.emoji} **${plant.name}** ${fmtVersion(version)}${mutLine}${v1Badge}\nadded to **${target.username}**'s collection.\nSell value: ${fmt(sellValue)}`)
       .setThumbnail(`attachment://${plant.display}`)
       .setColor(mutation ? mutation.color : rarity.color)
     ], files: [addPlantAttach]});
@@ -4387,7 +4410,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         sellValue,
         claimedAt: new Date().toISOString(),
       });
-      added.push(`${rarity.emoji} **${plant.name}** \`v${version}\`${mutation ? ` ${mutation.emoji} ${mutation.name}` : ''}`);
+      added.push(`${rarity.emoji} **${plant.name}** ${fmtVersion(version)}${mutation ? ` ${mutation.emoji} ${mutation.name}` : ''}`);
     }
 
     saveMeta(meta);
@@ -4454,7 +4477,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (candidates.length > 1 && !doAll) {
       const lines = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        return `${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version || '?'}\`${mutStr} *(${p.rarity})*`;
+        return `${getRarityConfig(p.rarity).emoji} **${p.name}** ${fmtVersion(p)}${mutStr} *(${p.rarity})*`;
       });
       return message.reply({ embeds: [new EmbedBuilder()
         .setTitle(`Found ${candidates.length} matching plants`)
@@ -4475,7 +4498,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     const lines = removed.map(p => {
       const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-      return `${getRarityConfig(p.rarity).emoji} **${p.name}** \`v${p.version || '?'}\`${mutStr}`;
+      return `${getRarityConfig(p.rarity).emoji} **${p.name}** ${fmtVersion(p)}${mutStr}`;
     });
     return message.reply({ embeds: [new EmbedBuilder()
       .setTitle(`✅ Removed ${removed.length} plant${removed.length !== 1 ? 's' : ''} from ${target.username}`)
@@ -4991,7 +5014,7 @@ async function endAuction(auctionId, fallbackChannel) {
     saveDB(db);
     const embed = new EmbedBuilder()
       .setTitle(`🔨 Auction Ended — No Bids`)
-      .setDescription(`**${auction.plant.name}** \`v${auction.plant.version || '?'}\` returned to **${auction.sellerName}**.`)
+      .setDescription(`**${auction.plant.name}** ${fmtVersion(auction.plant)} returned to **${auction.sellerName}**.`)
       .setColor(0x9E9E9E);
     if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
     return;
@@ -5015,14 +5038,14 @@ async function endAuction(auctionId, fallbackChannel) {
 
   const embed = new EmbedBuilder()
     .setTitle('🔨 Auction Complete!')
-    .setDescription(`${rCfg.emoji} **${auction.plant.name}** \`v${auction.plant.version || '?'}\`${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
+    .setDescription(`${rCfg.emoji} **${auction.plant.name}** ${fmtVersion(auction.plant)}${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
     .setColor(rCfg.color)
     .setFooter({ text: `Seller: ${auction.sellerName}` });
 
   if (fallbackChannel) fallbackChannel.send({ embeds: [embed] }).catch(() => {});
 
   // DM winner
-  try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [new EmbedBuilder().setTitle('🏆 You won an auction!').setDescription(`You won **${auction.plant.name}** \`v${auction.plant.version||'?'}\` for **${fmt(winner.amount)} coins**!`).setColor(0x00c864)] }); } catch {}
+  try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [new EmbedBuilder().setTitle('🏆 You won an auction!').setDescription(`You won **${auction.plant.name}** ${fmtVersion(auction.plant)} for **${fmt(winner.amount)} coins**!`).setColor(0x00c864)] }); } catch {}
   // DM seller
   try { const s = await client.users.fetch(auction.sellerId); await s.send({ embeds: [new EmbedBuilder().setTitle('💰 Your auction sold!').setDescription(`**${auction.plant.name}** sold to **${winner.username}** for **${fmt(winner.amount)} coins**!`).setColor(0x52b788)] }); } catch {}
   // DM outbid users
@@ -5740,7 +5763,7 @@ app.post('/api/market/list', async (req, res) => {
         const u = await client.users.fetch(alertUserId);
         await u.send({ embeds: [new EmbedBuilder()
           .setTitle('🔔 Price Alert!')
-          .setDescription(`A **${plant.rarity} ${plant.name}** \`v${plant.version || '?'}\` was just listed for **${listedPrice.toLocaleString()} coins** — within your alert threshold of **${alert.maxPrice?.toLocaleString() ?? 'any price'}**!\n\nHead to the Market to buy it.`)
+          .setDescription(`A **${plant.rarity} ${plant.name}** ${fmtVersion(plant)} was just listed for **${listedPrice.toLocaleString()} coins** — within your alert threshold of **${alert.maxPrice?.toLocaleString() ?? 'any price'}**!\n\nHead to the Market to buy it.`)
           .setColor(0xFFD700)
         ]});
       } catch {}
@@ -5789,7 +5812,7 @@ app.post('/api/market/buy/:id', async (req, res) => {
   saveListings(listings.filter(l => l.id !== req.params.id));
 
   // DM seller
-  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** \`v${listing.plant.version||'?'}\` was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
 
   broadcastAll({ type: 'market_update' });
   pushCoinUpdate(req.user.id, buyer.currency);
