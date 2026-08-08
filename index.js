@@ -5672,8 +5672,16 @@ app.post('/api/auction/create', async (req, res) => {
   if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
 
   const h          = Math.min(72, Math.max(1, parseInt(hours) || 24));
-  const start      = parseInt(startPrice) || (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
-  const buyout     = buyoutPrice ? parseInt(buyoutPrice) : null;
+  const parsedStart = parseInt(startPrice);
+  const start      = (Number.isInteger(parsedStart) && parsedStart > 0) ? parsedStart : (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
+  let buyout       = null;
+  if (buyoutPrice) {
+    const parsedBuyout = parseInt(buyoutPrice);
+    if (!Number.isInteger(parsedBuyout) || parsedBuyout <= 0) {
+      return res.status(400).json({ error: 'Buyout price must be a valid positive number' });
+    }
+    buyout = parsedBuyout;
+  }
   const minIncr    = Math.max(100, Math.round(start * 0.05));
 
   if (buyout && buyout <= start) return res.status(400).json({ error: 'Buyout must be higher than starting bid' });
@@ -5839,7 +5847,10 @@ app.get('/api/market', (req, res) => {
 app.post('/api/market/list', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
   const { plantName, version, price } = req.body;
-  if (!plantName || !price) return res.status(400).json({ error: 'Plant name and price required' });
+  const parsedPrice = parseInt(price);
+  if (!plantName || !Number.isInteger(parsedPrice) || parsedPrice <= 0) {
+    return res.status(400).json({ error: 'Plant name and a valid positive price are required' });
+  }
 
   const db   = loadDB();
   const user = getUser(db, req.user.id);
@@ -5858,7 +5869,7 @@ app.post('/api/market/list', async (req, res) => {
   saveDB(db);
 
   const listings = loadListings();
-  listings.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parseInt(price), listedAt: Date.now() });
+  listings.push({ id: listingId, sellerId: req.user.id, sellerName: req.user.username, plant: { ...plant }, price: parsedPrice, listedAt: Date.now() });
   saveListings(listings);
 
   broadcastAll({ type: 'market_update' });
@@ -5866,7 +5877,7 @@ app.post('/api/market/list', async (req, res) => {
   pushCollectionUpdate(req.user.id);
 
   // ── Price Alert: notify users who have a matching alert ──
-  const listedPrice = parseInt(price);
+  const listedPrice = parsedPrice;
   const freshDb = loadDB();
   for (const [alertUserId, alertUser] of Object.entries(freshDb)) {
     if (alertUserId === req.user.id) continue;
