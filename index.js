@@ -8,7 +8,7 @@ let pushToUser = () => {};
 let broadcastAll = () => {};
 let pushCollectionUpdate = () => {};
 let broadcastLeaderboardUpdate = () => {};
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const https = require('https');
@@ -161,6 +161,62 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
   user.currency += totalEarned;
   for (const p of soldPlants) announceDroppable(p, 'sold', guildId).catch(() => {});
   return totalEarned;
+}
+
+// ─── Shared filter-wizard helpers (used by !autosell and !sellbatch) ─────────
+function parseVersionsInput(raw) {
+  if (!raw || !raw.trim()) return null;
+  const out = new Set();
+  for (const token of raw.split(',').map(s => s.trim()).filter(Boolean)) {
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      let a = parseInt(rangeMatch[1]), b = parseInt(rangeMatch[2]);
+      if (a > b) [a, b] = [b, a];
+      for (let v = a; v <= b && v - a < 200; v++) out.add(v);
+    } else {
+      const n = parseInt(token);
+      if (!isNaN(n) && n > 0) out.add(n);
+    }
+  }
+  return out.size ? Array.from(out).sort((a, b) => a - b) : null;
+}
+
+function buildRaritySelect(selectedRarities) {
+  return new StringSelectMenuBuilder()
+    .setCustomId('fw_rarities')
+    .setPlaceholder(selectedRarities.length ? `Rarities: ${selectedRarities.join(', ')}` : 'Rarities: none selected')
+    .setMinValues(1)
+    .setMaxValues(RARITIES.length)
+    .addOptions(RARITIES.map(r => ({ label: r.name, value: r.name, emoji: r.emoji, default: selectedRarities.includes(r.name) })));
+}
+
+function buildMutationSelect(selectedMutations) {
+  return new StringSelectMenuBuilder()
+    .setCustomId('fw_mutations')
+    .setPlaceholder(selectedMutations === null ? 'Mutations: no filter (any, including none)' : `Mutations: ${selectedMutations.join(', ')}`)
+    .setMinValues(1)
+    .setMaxValues(MUTATIONS.length + 2)
+    .addOptions(
+      { label: 'No filter (any mutation)', value: 'no', default: selectedMutations === null },
+      { label: 'Unmutated only', value: 'none', default: !!selectedMutations && selectedMutations.includes('none') },
+      ...MUTATIONS.map(m => ({ label: m.name, value: m.name, default: !!selectedMutations && selectedMutations.includes(m.name) })),
+    );
+}
+
+function buildVersionButton(selectedVersions) {
+  const label = selectedVersions === null ? '✏️ Versions: any' : `✏️ Versions: ${selectedVersions.map(v => 'v' + v).join(', ')}`;
+  return new ButtonBuilder().setCustomId('fw_versions').setLabel(label.length > 80 ? label.slice(0, 77) + '...' : label).setStyle(ButtonStyle.Secondary);
+}
+
+function buildVersionModal(selectedVersions) {
+  const input = new TextInputBuilder()
+    .setCustomId('fw_versions_input')
+    .setLabel('Versions (e.g. 1,5,10 or 5-10) — blank = any')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder('1,5,10');
+  if (selectedVersions) input.setValue(selectedVersions.join(','));
+  return new ModalBuilder().setCustomId('fw_version_modal').setTitle('Set Version Filter').addComponents(new ActionRowBuilder().addComponents(input));
 }
 
 function loadTrades() {
@@ -3882,23 +3938,140 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const plantFilter    = pMatch  ? (pMatch[1] || pMatch[2]).trim().toLowerCase() : null;
 
     if (!rarityFilter && !mutationFilter && !vOp && !plantFilter) {
-      return message.reply([
-        '**Usage:** `!sellbatch [filters] [--confirm]`',
-        'Filters (combine freely):',
-        '`-r <rarity>` — e.g. `-r common`',
-        '`-m <mutation>` or `-m none` — e.g. `-m starstruck`',
-        '`-v <op><n>` — e.g. `-v >10` `-v >=5` `-v =3`',
-        '`-p "<plant name>"` — e.g. `-p "Bell Pepper"`',
-        '',
-        'Without `--confirm`: shows preview of what would be sold.',
-        'Add `--confirm` to actually execute the sale.',
-        '',
-        '**Examples:**',
-        '`!sellbatch -r common` → preview all commons',
-        '`!sellbatch -r common --confirm` → sell all commons',
-        '`!sellbatch -v >20 -m none --confirm` → sell all v20+ without mutations',
-        '`!sellbatch -p carrot -v >5 --confirm` → sell all Carrot v5+',
-      ].join('\n'));
+      // ── Wizard: no flags typed — same filter UI as !autosell, but sells now ──
+      let selectedRarities  = [];
+      let selectedVersions  = null;  // null = no filter
+      let selectedMutations = null;  // null = no filter
+
+      const BATCH_SAFE_MIN_VER = 10;
+
+      const computeCandidates = () => {
+        const db2   = loadDB();
+        const user2 = getUser(db2, message.author.id);
+        const candidates = user2.collection
+          .map((p, i) => ({ p, i }))
+          .filter(({ p }) => {
+            if (sellbatchV10Protection && (p.version || 0) <= BATCH_SAFE_MIN_VER) return false;
+            if (isLocked(message.author.id, p)) return false;
+            if (selectedRarities.length && !selectedRarities.map(x => x.toLowerCase()).includes(p.rarity.toLowerCase())) return false;
+            if (selectedMutations) {
+              const mutName = p.mutation ? p.mutation.name.toLowerCase() : null;
+              const matches = selectedMutations.some(m => (m === 'none' && !mutName) || (mutName && m.toLowerCase() === mutName));
+              if (!matches) return false;
+            }
+            if (selectedVersions && !selectedVersions.includes(p.version || 0)) return false;
+            return true;
+          });
+        return { db2, user2, candidates };
+      };
+
+      const buildEmbed = (previewText) => new EmbedBuilder()
+        .setTitle('💰 Batch Sell Setup')
+        .setDescription([
+          `Rarities: **${selectedRarities.length ? selectedRarities.join(', ') : 'any'}**`,
+          `Versions: **${selectedVersions === null ? 'any' : selectedVersions.map(v => 'v' + v).join(', ')}**`,
+          `Mutations: **${selectedMutations === null ? 'any' : selectedMutations.join(', ')}**`,
+          '',
+          previewText || 'Pick from the dropdowns below. **Preview** shows what would sell, **Sell Now** sells it.',
+          '',
+          sellbatchV10Protection ? '⚠️ *v1–v10 and locked plants are always excluded.*' : '🚨 *v1–v10 protection is currently OFF — only locked plants are excluded.*',
+        ].join('\n'))
+        .setColor(0x00C853);
+
+      const hasAnyFilter = () => selectedRarities.length > 0 || selectedMutations !== null || selectedVersions !== null;
+
+      const buildComponents = () => [
+        new ActionRowBuilder().addComponents(buildRaritySelect(selectedRarities)),
+        new ActionRowBuilder().addComponents(buildMutationSelect(selectedMutations)),
+        new ActionRowBuilder().addComponents(
+          buildVersionButton(selectedVersions),
+          new ButtonBuilder().setCustomId('fw_preview').setLabel('🔍 Preview').setStyle(ButtonStyle.Primary).setDisabled(!hasAnyFilter()),
+          new ButtonBuilder().setCustomId('fw_sellnow').setLabel('💰 Sell Now').setStyle(ButtonStyle.Success).setDisabled(!hasAnyFilter()),
+          new ButtonBuilder().setCustomId('fw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+        ),
+      ];
+
+      const wizardMsg = await message.channel.send({ embeds: [buildEmbed()], components: buildComponents() });
+      const collector = wizardMsg.createMessageComponentCollector({ time: 180_000, filter: i => i.user.id === message.author.id });
+
+      collector.on('collect', async (interaction) => {
+        if (interaction.customId === 'fw_rarities') {
+          selectedRarities = interaction.values;
+          return interaction.update({ embeds: [buildEmbed()], components: buildComponents() });
+        }
+
+        if (interaction.customId === 'fw_mutations') {
+          selectedMutations = interaction.values.includes('no') ? null : interaction.values;
+          return interaction.update({ embeds: [buildEmbed()], components: buildComponents() });
+        }
+
+        if (interaction.customId === 'fw_versions') {
+          await interaction.showModal(buildVersionModal(selectedVersions));
+          const submitted = await interaction.awaitModalSubmit({ time: 120_000, filter: i => i.user.id === message.author.id }).catch(() => null);
+          if (!submitted) return;
+          selectedVersions = parseVersionsInput(submitted.fields.getTextInputValue('fw_versions_input'));
+          return submitted.update({ embeds: [buildEmbed()], components: buildComponents() });
+        }
+
+        if (interaction.customId === 'fw_cancel') {
+          collector.stop('cancelled');
+          return interaction.update({ embeds: [new EmbedBuilder().setTitle('❌ Cancelled').setDescription('Nothing was sold.').setColor(0xFF5252)], components: [] });
+        }
+
+        if (interaction.customId === 'fw_preview') {
+          if (!hasAnyFilter()) return interaction.deferUpdate();
+          const { candidates } = computeCandidates();
+          if (!candidates.length) {
+            return interaction.update({ embeds: [buildEmbed('No plants currently match those filters.')], components: buildComponents() });
+          }
+          const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+          const byRarity = {};
+          for (const { p } of candidates) byRarity[p.rarity] = (byRarity[p.rarity] || 0) + 1;
+          const RARITY_ORDER = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+          const summaryLines = RARITY_ORDER.filter(r => byRarity[r]).map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
+          const preview = `🔍 **${candidates.length} plants** match — total payout **${fmt(totalCoins)}**\n${summaryLines.join('\n')}`;
+          return interaction.update({ embeds: [buildEmbed(preview)], components: buildComponents() });
+        }
+
+        if (interaction.customId === 'fw_sellnow') {
+          if (!hasAnyFilter()) return interaction.deferUpdate();
+          collector.stop('sold');
+
+          const { db2, user2, candidates } = computeCandidates();
+          if (!candidates.length) {
+            return interaction.update({ embeds: [new EmbedBuilder().setTitle('Nothing to sell').setDescription('No plants matched those filters.').setColor(0xFF5252)], components: [] });
+          }
+
+          const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+          const byRarity = {};
+          for (const { p } of candidates) byRarity[p.rarity] = (byRarity[p.rarity] || 0) + 1;
+          const RARITY_ORDER = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+          const summaryLines = RARITY_ORDER.filter(r => byRarity[r]).map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
+
+          const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
+          for (const idx of indexesToRemove) user2.collection.splice(idx, 1);
+          user2.currency += totalCoins;
+          touchActivity(db2, message.author.id, message.author);
+          checkAchievements(user2);
+          saveDB(db2);
+          for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
+
+          return interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle(`✅ Batch Sold — ${candidates.length} plants`)
+              .setDescription(`${summaryLines.join('\n')}\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user2.currency)}`)
+              .setColor(0x00C853)
+            ],
+            components: [],
+          });
+        }
+      });
+
+      collector.on('end', (_collected, reason) => {
+        if (reason === 'time') wizardMsg.edit({ components: [] }).catch(() => {});
+      });
+
+      return;
     }
 
     const db   = loadDB();
@@ -4002,9 +4175,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     let sub = args[1]?.toLowerCase();
     if (sub === 'add') { args.splice(1, 1); sub = args[1]?.toLowerCase(); } // legacy `!autosell add ...` still works
 
-    if (!sub || sub === 'list') {
+    if (sub === 'list') {
       const rules = getUserAutosellRules(message.author.id);
-      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell <rarity>` to create one — e.g. `!autosell common` or `!autosell common, uncommon, rare`.');
+      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell` to create one.');
       const lines = rules.map((r, i) => {
         const parts = [];
         if (r.rarity)     parts.push(`rarity: **${r.rarity}**`);
@@ -4042,98 +4215,75 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply('✅ All your autosell rules have been cleared.');
     }
 
-    // ── Wizard: `!autosell <rarity>` or `!autosell <rarity, rarity, ...>` ─────
+    // ── Wizard: `!autosell` (optionally with a pre-typed rarity list) ─────────
     const rarityInput = args.slice(1).join(' ');
-    if (!rarityInput) {
-      return message.reply([
-        'Usage: `!autosell <rarity>` — e.g. `!autosell common` or `!autosell common, uncommon, rare`',
-        'I\'ll show you dropdowns to pick versions/mutations, then hit **Add Rule**.',
-        '',
-        'Other commands: `!autosell list` · `!autosell remove <number>` · `!autosell clear`',
-      ].join('\n'));
+    let selectedRarities = [];
+    if (rarityInput) {
+      const requested = rarityInput.split(',').map(s => s.trim()).filter(Boolean);
+      const invalidRarities = [];
+      for (const r of requested) {
+        const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
+        if (found) { if (!selectedRarities.includes(found.name)) selectedRarities.push(found.name); }
+        else invalidRarities.push(r);
+      }
+      if (invalidRarities.length) {
+        return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+      }
     }
 
-    const requested = rarityInput.split(',').map(s => s.trim()).filter(Boolean);
-    const matchedRarities = [];
-    const invalidRarities = [];
-    for (const r of requested) {
-      const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
-      if (found) { if (!matchedRarities.includes(found.name)) matchedRarities.push(found.name); }
-      else invalidRarities.push(r);
-    }
-    if (invalidRarities.length) {
-      return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
-    }
-    if (!matchedRarities.length) return message.reply('❌ No valid rarities given.');
+    let selectedVersions = null;   // null = no filter
+    let selectedMutations = null;  // null = no filter
 
-    const MAX_VERSION_OPTIONS = 20; // covers v1–v20 (well past the v1–v10 decay-safe range)
-
-    const versionSelect = new StringSelectMenuBuilder()
-      .setCustomId('asw_versions')
-      .setPlaceholder('Versions: no filter (any version)')
-      .setMinValues(1)
-      .setMaxValues(MAX_VERSION_OPTIONS + 1)
-      .addOptions(
-        { label: 'No filter (any version)', value: 'no' },
-        ...Array.from({ length: MAX_VERSION_OPTIONS }, (_, i) => ({ label: `v${i + 1}`, value: String(i + 1) })),
-      );
-
-    const mutationSelect = new StringSelectMenuBuilder()
-      .setCustomId('asw_mutations')
-      .setPlaceholder('Mutations: no filter (any, including none)')
-      .setMinValues(1)
-      .setMaxValues(MUTATIONS.length + 2)
-      .addOptions(
-        { label: 'No filter (any mutation)', value: 'no' },
-        { label: 'Unmutated only', value: 'none' },
-        ...MUTATIONS.map(m => ({ label: m.name, value: m.name })),
-      );
-
-    const confirmRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('asw_confirm').setLabel('✅ Add Rule').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('asw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-    );
-
-    const buildEmbed = (selVersions, selMutations) => new EmbedBuilder()
+    const buildEmbed = (note) => new EmbedBuilder()
       .setTitle('⚡ Autosell Setup')
       .setDescription([
-        `Rarities: **${matchedRarities.join(', ')}**`,
-        `Versions: **${selVersions === null ? 'any' : selVersions.map(v => 'v' + v).join(', ')}**`,
-        `Mutations: **${selMutations === null ? 'any' : selMutations.join(', ')}**`,
+        `Rarities: **${selectedRarities.length ? selectedRarities.join(', ') : 'none selected yet'}**`,
+        `Versions: **${selectedVersions === null ? 'any' : selectedVersions.map(v => 'v' + v).join(', ')}**`,
+        `Mutations: **${selectedMutations === null ? 'any' : selectedMutations.join(', ')}**`,
         '',
-        'Pick from the dropdowns below, then hit **Add Rule**.',
+        note || 'Pick from the dropdowns below, then hit **Add Rule**.',
       ].join('\n'))
       .setColor(0x00C853);
 
-    let selectedVersions = null;  // null = no filter
-    let selectedMutations = null; // null = no filter
+    const buildComponents = () => [
+      new ActionRowBuilder().addComponents(buildRaritySelect(selectedRarities)),
+      new ActionRowBuilder().addComponents(buildMutationSelect(selectedMutations)),
+      new ActionRowBuilder().addComponents(
+        buildVersionButton(selectedVersions),
+        new ButtonBuilder().setCustomId('fw_confirm').setLabel('✅ Add Rule').setStyle(ButtonStyle.Success).setDisabled(!selectedRarities.length),
+        new ButtonBuilder().setCustomId('fw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+      ),
+    ];
 
-    const wizardMsg = await message.channel.send({
-      embeds: [buildEmbed(selectedVersions, selectedMutations)],
-      components: [new ActionRowBuilder().addComponents(versionSelect), new ActionRowBuilder().addComponents(mutationSelect), confirmRow],
-    });
-
+    const wizardMsg = await message.channel.send({ embeds: [buildEmbed()], components: buildComponents() });
     const collector = wizardMsg.createMessageComponentCollector({ time: 180_000, filter: i => i.user.id === message.author.id });
 
     collector.on('collect', async (interaction) => {
-      if (interaction.customId === 'asw_versions') {
-        selectedVersions = interaction.values.includes('no') ? null : interaction.values.map(v => parseInt(v));
-        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
-        return;
+      if (interaction.customId === 'fw_rarities') {
+        selectedRarities = interaction.values;
+        return interaction.update({ embeds: [buildEmbed()], components: buildComponents() });
       }
 
-      if (interaction.customId === 'asw_mutations') {
+      if (interaction.customId === 'fw_mutations') {
         selectedMutations = interaction.values.includes('no') ? null : interaction.values;
-        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
-        return;
+        return interaction.update({ embeds: [buildEmbed()], components: buildComponents() });
       }
 
-      if (interaction.customId === 'asw_cancel') {
+      if (interaction.customId === 'fw_versions') {
+        await interaction.showModal(buildVersionModal(selectedVersions));
+        const submitted = await interaction.awaitModalSubmit({ time: 120_000, filter: i => i.user.id === message.author.id }).catch(() => null);
+        if (!submitted) return;
+        selectedVersions = parseVersionsInput(submitted.fields.getTextInputValue('fw_versions_input'));
+        return submitted.update({ embeds: [buildEmbed()], components: buildComponents() });
+      }
+
+      if (interaction.customId === 'fw_cancel') {
         collector.stop('cancelled');
         return interaction.update({ embeds: [new EmbedBuilder().setTitle('❌ Cancelled').setDescription('No rule was added.').setColor(0xFF5252)], components: [] });
       }
 
-      if (interaction.customId === 'asw_confirm') {
+      if (interaction.customId === 'fw_confirm') {
+        if (!selectedRarities.length) return interaction.deferUpdate();
         collector.stop('confirmed');
 
         const all = loadAutosellRules();
@@ -4142,7 +4292,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
         const added = [];
         let skippedForCap = 0;
-        for (const rarityName of matchedRarities) {
+        for (const rarityName of selectedRarities) {
           if (existing.length >= 20) { skippedForCap++; continue; }
           const rule = { rarity: rarityName.toLowerCase() };
           if (selectedVersions)  rule.versions  = selectedVersions;
@@ -4979,7 +5129,6 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!llb [page]` — Level leaderboard',
               '`!mlb` — Richest players by coins',
               '`!rlb` — Fastest race times',
-              '`!streaklb` — Longest claim streaks',
             ].join('\n'),
           },
           {
