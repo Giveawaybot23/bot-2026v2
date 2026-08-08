@@ -5330,6 +5330,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const passport = require('passport');
 const { Strategy: DiscordStrategy } = require('passport-discord');
 const app = express();
@@ -5337,7 +5338,16 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
+if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+
 app.use(session({
+  store: new FileStore({
+    path: SESSIONS_DIR,
+    ttl: 7 * 24 * 60 * 60, // seconds, matches cookie maxAge below
+    retries: 1,
+    logFn: () => {}, // silence noisy default logging
+  }),
   secret: process.env.SESSION_SECRET || 'gardenhorizons_secret',
   resave: false,
   saveUninitialized: false,
