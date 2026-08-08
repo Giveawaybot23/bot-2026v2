@@ -587,7 +587,7 @@ const PLANTS = [
   { name: 'Star Fruit',      file: './images/StarFruit.png',      display: 'StarFruit.png',      rarity: 'Super' },
 
   // ── Secret ─────────────────────────────────────────────────────────────
-  // TODO: replace with your actual GAG2 secret plant name + image once decided
+  // TODO: replace with your actual GAG2 secret plant name + image once decideded
   { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
 ];
 
