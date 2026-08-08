@@ -2892,20 +2892,22 @@ function pkFlash(color='#ffffff'){
   }));
 }
 function pkBurst(x,y,color,count=24){
+  // Perf: capped particle count + no per-particle blurred box-shadow (expensive to paint on weak GPUs)
   const c=document.getElementById('pk-particles');
-  for(let i=0;i<count;i++){
+  const mainCount = Math.min(count, 18);
+  for(let i=0;i<mainCount;i++){
     const p=document.createElement('div');
     p.className='pk-particle';
     const a=Math.random()*Math.PI*2, d=60+Math.random()*180, sz=2+Math.random()*5;
-    p.style.cssText=`left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;background:${color};box-shadow:0 0 ${sz*2}px ${color};--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;animation-duration:${.7+Math.random()*.6}s;animation-delay:${Math.random()*.1}s`;
+    p.style.cssText=`left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;background:${color};--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;animation-duration:${.7+Math.random()*.6}s;animation-delay:${Math.random()*.1}s`;
     c.appendChild(p);
     p.addEventListener('animationend',()=>p.remove());
   }
-  for(let i=0;i<10;i++){
+  for(let i=0;i<5;i++){
     const p=document.createElement('div');
     p.className='pk-particle';
     const a=Math.random()*Math.PI*2, d=30+Math.random()*80, sz=1+Math.random()*3;
-    p.style.cssText=`left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;background:#fff;box-shadow:0 0 ${sz*3}px #fff;--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;animation-duration:${.5+Math.random()*.4}s;border-radius:2px;transform:rotate(45deg)`;
+    p.style.cssText=`left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;background:#fff;--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;animation-duration:${.5+Math.random()*.4}s;border-radius:2px;transform:rotate(45deg)`;
     c.appendChild(p);
     p.addEventListener('animationend',()=>p.remove());
   }
@@ -3375,20 +3377,20 @@ async function loadProfile(id) {
       1: { title:'SOVEREIGN', verse:'Unmatched. Unchallenged. First.', crown:'👑', suf:'ST',
            p:'#F7E07A', s:'#C9A84C', g:'rgba(247,224,122,', orb1:'rgba(247,224,122,0.05)', orb2:'rgba(201,168,76,0.03)',
            xpA:'#6B4E10', xpB:'#F7E07A', rSz:'clamp(96px,14vw,160px)',
-           rSh:'0 0 55px rgba(247,224,122,0.5),0 0 110px rgba(201,168,76,0.2)',
-           rShP:'0 0 75px rgba(247,224,122,0.85),0 0 160px rgba(201,168,76,0.4)',
+           rSh:'0 0 22px rgba(247,224,122,0.5),0 0 44px rgba(201,168,76,0.2)',
+           rShP:'0 0 30px rgba(247,224,122,0.85),0 0 60px rgba(201,168,76,0.4)',
            div:'rgba(247,224,122,0.22)' },
       2: { title:'CULTIVATOR', verse:'Second to none but one.', crown:'🥈', suf:'ND',
            p:'#E2E2EE', s:'#A6A6C2', g:'rgba(226,226,238,', orb1:'rgba(200,200,228,0.04)', orb2:'rgba(158,158,188,0.025)',
            xpA:'#3C3C58', xpB:'#E2E2EE', rSz:'clamp(96px,14vw,160px)',
-           rSh:'0 0 50px rgba(226,226,238,0.38),0 0 100px rgba(166,166,194,0.16)',
-           rShP:'0 0 70px rgba(226,226,238,0.7),0 0 150px rgba(166,166,194,0.34)',
+           rSh:'0 0 20px rgba(226,226,238,0.38),0 0 40px rgba(166,166,194,0.16)',
+           rShP:'0 0 28px rgba(226,226,238,0.7),0 0 55px rgba(166,166,194,0.34)',
            div:'rgba(226,226,238,0.18)' },
       3: { title:'KEEPER', verse:'Bronze runs deep as roots.', crown:'🥉', suf:'RD',
            p:'#F2B478', s:'#C47640', g:'rgba(242,180,120,', orb1:'rgba(242,180,120,0.045)', orb2:'rgba(196,118,64,0.026)',
            xpA:'#582A06', xpB:'#F2B478', rSz:'clamp(96px,14vw,160px)',
-           rSh:'0 0 50px rgba(242,180,120,0.4),0 0 100px rgba(196,118,64,0.18)',
-           rShP:'0 0 70px rgba(242,180,120,0.65),0 0 150px rgba(196,118,64,0.34)',
+           rSh:'0 0 20px rgba(242,180,120,0.4),0 0 40px rgba(196,118,64,0.18)',
+           rShP:'0 0 28px rgba(242,180,120,0.65),0 0 55px rgba(196,118,64,0.34)',
            div:'rgba(242,180,120,0.2)' },
     };
     const pk = isPodium ? podiumThemes[globalRank] : null;
@@ -3571,7 +3573,7 @@ ${isPodium ? `
       <div style="display:flex;align-items:center;justify-content:center;animation:_pReveal .75s cubic-bezier(.16,1,.3,1) both">
         <div style="display:flex;align-items:flex-start;line-height:1;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">
           <span style="font-family:'DM Serif Display',serif;font-size:clamp(38px,6.5vw,68px);color:${pk.s};opacity:.62;margin-top:.1em;margin-right:2px;text-shadow:0 0 26px ${pk.g}.3)">#</span>
-          <span style="font-family:'DM Serif Display',serif;font-size:clamp(64px,12vw,${pk.rSz});font-weight:900;letter-spacing:-.05em;color:${pk.p};line-height:.88;animation:_pRkGlow 3s ease-in-out infinite;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">${globalRank}</span>
+          <span style="font-family:'DM Serif Display',serif;font-size:clamp(64px,12vw,${pk.rSz});font-weight:900;letter-spacing:-.05em;color:${pk.p};line-height:.88;animation:_pRkGlow 3s ease-in-out 3;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">${globalRank}</span>
           <span style="font-family:'DM Sans',sans-serif;font-size:clamp(13px,2.2vw,26px);font-weight:800;color:${pk.s};margin-top:.2em;margin-left:3px;animation:_pOrdGlw 3s ease-in-out infinite;text-shadow:0 0 12px ${pk.g}.48)">${pk.suf}</span>
         </div>
         <div style="width:1px;height:clamp(48px,7vw,84px);background:linear-gradient(180deg,transparent,${pk.div},transparent);margin:0 22px;flex-shrink:0"></div>
