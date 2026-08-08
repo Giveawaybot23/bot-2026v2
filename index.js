@@ -3982,11 +3982,12 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
   // ── !autosell — persistent auto-sell rules ───────────────────────────────
   if (cmd === 'autosell' || cmd === 'asr') {
-    const sub = args[1]?.toLowerCase();
+    let sub = args[1]?.toLowerCase();
+    if (sub === 'add') { args.splice(1, 1); sub = args[1]?.toLowerCase(); } // legacy `!autosell add ...` still works
 
     if (!sub || sub === 'list') {
       const rules = getUserAutosellRules(message.author.id);
-      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell add` to create one.');
+      if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell <rarity>` to create one — e.g. `!autosell common` or `!autosell common, uncommon, rare`.');
       const lines = rules.map((r, i) => {
         const parts = [];
         if (r.rarity)     parts.push(`rarity: **${r.rarity}**`);
@@ -4001,47 +4002,6 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         .setFooter({ text: '!autosell remove <number> to delete a rule · locked plants are always safe' })
         .setColor(0x00C853)
       ]});
-    }
-
-    if (sub === 'add') {
-      const raw = args.slice(2).join(' ');
-      const rMatch = raw.match(/-r\s+([a-z]+)/i);
-      const mMatch = raw.match(/-m\s+([a-z]+(?:\s+[a-z]+)?)/i);
-      const vMatch = raw.match(/-v\s*([<>=!]+)\s*(\d+)/i);
-      const pMatch = raw.match(/-p\s+"([^"]+)"|(?:-p\s+)([\w\s]+?)(?=\s+-|$)/i);
-
-      const rule = {};
-      if (rMatch) rule.rarity     = rMatch[1].toLowerCase();
-      if (mMatch) rule.mutation   = mMatch[1].toLowerCase();
-      if (vMatch) { rule.version_op = vMatch[1]; rule.version_n = parseInt(vMatch[2]); }
-      if (pMatch) rule.plant      = (pMatch[1] || pMatch[2]).trim().toLowerCase();
-
-      if (!Object.keys(rule).length) return message.reply([
-        'Usage: `!autosell add [filters]`',
-        '`-r <rarity>` — e.g. `-r common`',
-        '`-m <mutation>` or `-m none`',
-        '`-v <op><n>` — e.g. `-v >10`',
-        '`-p "<plant name>"` — e.g. `-p carrot`',
-        '',
-        '**Examples:**',
-        '`!autosell add -r common` — auto-sell all commons as they arrive',
-        '`!autosell add -r uncommon -m none` — sell unmutated uncommons',
-        '`!autosell add -p carrot -v >5` — sell Carrot v6+',
-      ].join('\n'));
-
-      // Validate rarity
-      if (rule.rarity && !RARITIES.find(r => r.name.toLowerCase() === rule.rarity)) {
-        return message.reply(`❌ Unknown rarity **${rule.rarity}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
-      }
-
-      const all = loadAutosellRules();
-      if (!all[message.author.id]) all[message.author.id] = [];
-      if (all[message.author.id].length >= 20) return message.reply('❌ You can have at most 20 autosell rules.');
-      all[message.author.id].push(rule);
-      saveAutosellRules(all);
-
-      const desc = Object.entries(rule).map(([k, v]) => `${k}: **${v}**`).join('  ·  ');
-      return message.reply(`✅ Autosell rule added: ${desc}\nPlants matching this will be sold instantly as you get them.`);
     }
 
     if (sub === 'remove') {
@@ -4063,7 +4023,130 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply('✅ All your autosell rules have been cleared.');
     }
 
-    return message.reply('Subcommands: `add` · `list` · `remove <number>` · `clear`');
+    // ── Wizard: `!autosell <rarity>` or `!autosell <rarity, rarity, ...>` ─────
+    const rarityInput = args.slice(1).join(' ');
+    if (!rarityInput) {
+      return message.reply([
+        'Usage: `!autosell <rarity>` — e.g. `!autosell common` or `!autosell common, uncommon, rare`',
+        'I\'ll ask a couple quick questions after that to fine-tune it.',
+        '',
+        'Other commands: `!autosell list` · `!autosell remove <number>` · `!autosell clear`',
+      ].join('\n'));
+    }
+
+    const requested = rarityInput.split(',').map(s => s.trim()).filter(Boolean);
+    const matchedRarities = [];
+    const invalidRarities = [];
+    for (const r of requested) {
+      const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
+      if (found) { if (!matchedRarities.includes(found.name)) matchedRarities.push(found.name); }
+      else invalidRarities.push(r);
+    }
+    if (invalidRarities.length) {
+      return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+    }
+    if (!matchedRarities.length) return message.reply('❌ No valid rarities given.');
+
+    const wizardEmbed = new EmbedBuilder()
+      .setTitle('⚡ Autosell Setup')
+      .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n\nSell every version, or keep your best one?`)
+      .setColor(0x00C853);
+    const verRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('asw_ver_all').setLabel('Sell all versions').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('asw_ver_keep1').setLabel('Keep my v1, sell the rest').setStyle(ButtonStyle.Secondary),
+    );
+
+    const wizardMsg = await message.channel.send({ embeds: [wizardEmbed], components: [verRow] });
+    const collector = wizardMsg.createMessageComponentCollector({ time: 120_000, filter: i => i.user.id === message.author.id });
+
+    let versionRule = null;
+    let stage = 'version';
+
+    const finish = async (interaction, mutationRule) => {
+      stage = 'done';
+      collector.stop();
+
+      const all = loadAutosellRules();
+      if (!all[message.author.id]) all[message.author.id] = [];
+      const existing = all[message.author.id];
+
+      const added = [];
+      let skippedForCap = 0;
+      for (const rarityName of matchedRarities) {
+        if (existing.length >= 20) { skippedForCap++; continue; }
+        const rule = { rarity: rarityName.toLowerCase() };
+        if (versionRule) Object.assign(rule, versionRule);
+        if (mutationRule) rule.mutation = mutationRule;
+        existing.push(rule);
+        added.push(rarityName);
+      }
+      all[message.author.id] = existing;
+      saveAutosellRules(all);
+
+      const verText = versionRule ? 'keeping v1, selling the rest' : 'selling all versions';
+      const mutText = mutationRule === 'none' ? 'keeping mutated plants' : mutationRule ? `only selling ${mutationRule}-mutated ones` : 'selling mutated too';
+
+      let desc = added.length
+        ? `Auto-selling **${added.join(', ')}** — ${verText}, ${mutText}.`
+        : `No rules added — you're already at the 20-rule limit. Use \`!autosell remove <number>\` to free up space.`;
+      if (skippedForCap > 0 && added.length) desc += `\n⚠️ Skipped **${skippedForCap}** — you hit the 20-rule limit.`;
+
+      const doneEmbed = new EmbedBuilder()
+        .setTitle(added.length ? '✅ Autosell Rules Saved' : '❌ Autosell Limit Reached')
+        .setDescription(desc)
+        .setColor(added.length ? 0x00C853 : 0xFF5252);
+
+      await interaction.update({ embeds: [doneEmbed], components: [] });
+    };
+
+    collector.on('collect', async (interaction) => {
+      if (stage === 'version') {
+        versionRule = interaction.customId === 'asw_ver_keep1' ? { version_op: '>', version_n: 1 } : null;
+        stage = 'mutation';
+
+        const mutEmbed = new EmbedBuilder()
+          .setTitle('⚡ Autosell Setup')
+          .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n${versionRule ? 'Keeping v1, selling the rest.' : 'Selling all versions.'}\n\nWhat about mutated plants?`)
+          .setColor(0x00C853);
+        const mutRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('asw_mut_all').setLabel('Sell those too').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('asw_mut_none').setLabel('Keep mutated (only sell plain)').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('asw_mut_pick').setLabel('Only sell one specific mutation').setStyle(ButtonStyle.Secondary),
+        );
+        await interaction.update({ embeds: [mutEmbed], components: [mutRow] });
+        return;
+      }
+
+      if (stage === 'mutation') {
+        if (interaction.customId === 'asw_mut_pick') {
+          stage = 'mutation_pick';
+          const pickEmbed = new EmbedBuilder()
+            .setTitle('⚡ Autosell Setup')
+            .setDescription(`Setting up autosell for: **${matchedRarities.join(', ')}**\n\nWhich mutation should be auto-sold?`)
+            .setColor(0x00C853);
+          const mutButtons = MUTATIONS.map(m => new ButtonBuilder().setCustomId(`asw_mutsel_${m.name}`).setLabel(m.name).setStyle(ButtonStyle.Secondary));
+          const rows = [];
+          for (let i = 0; i < mutButtons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(mutButtons.slice(i, i + 5)));
+          await interaction.update({ embeds: [pickEmbed], components: rows });
+          return;
+        }
+        const mutationRule = interaction.customId === 'asw_mut_none' ? 'none' : null;
+        await finish(interaction, mutationRule);
+        return;
+      }
+
+      if (stage === 'mutation_pick') {
+        const mutName = interaction.customId.replace('asw_mutsel_', '');
+        await finish(interaction, mutName);
+        return;
+      }
+    });
+
+    collector.on('end', (_collected, reason) => {
+      if (stage !== 'done' && reason === 'time') wizardMsg.edit({ components: [] }).catch(() => {});
+    });
+
+    return;
   }
 
   // ── !daily ────────────────────────────────────────────────────────────────
