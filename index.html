@@ -2477,6 +2477,14 @@
 </div>
 
 <script>
+// Normalizes plant image paths — older saved data stores bare filenames
+// (e.g. "FireFern.png") instead of full paths, causing 404s. This fixes
+// both old and new data at render time without touching stored records.
+function resolveImg(src) {
+  if (!src) return '';
+  if (src.startsWith('http') || src.startsWith('/')) return src;
+  return '/images/' + src;
+}
 // ─── PACK DEFINITIONS — prices/cards/minLevel mirror CRATES in index.js ──────
 const PK_PACKS = [
   { id:'bronze',   crateKey:'bronze',   name:'Bronze Crate',  tier:'bronze',   img:'/images/1478192003274510508.webp', price:750,   minLevel:5,  cards:10,
@@ -2795,7 +2803,7 @@ function pkShowCard(){
       <div class="pk-card-rarity-bar" style="background:${rc}"></div>
       <div class="pk-card-art">
         <div class="pk-card-art-bg" style="background:${artBg}"></div>
-        ${card.image?`<img class="pk-card-img" src="${card.image}" loading="lazy" onerror="this.style.display='none'">`:`<div style="font-size:3rem;position:relative;z-index:1">🌿</div>`}
+        ${card.image?`<img class="pk-card-img" src="${resolveImg(card.image)}" loading="lazy" onerror="this.style.display='none'">`:`<div style="font-size:3rem;position:relative;z-index:1">🌿</div>`}
         ${mutBadgeHtml}
       </div>
       <div class="pk-card-body">
@@ -2842,7 +2850,7 @@ function pkEndPack(){
   const sg=document.getElementById('pk-sum-grid');
   sg.innerHTML=_pkPack.map(card=>`
     <div class="pk-sum-card ${card.rarity}" title="${card.name}">
-      ${card.image?`<img src="${card.image}" loading="lazy" onerror="this.style.display='none'">`:`<div style="font-size:1.6rem">🌿</div>`}
+      ${card.image?`<img src="${resolveImg(card.image)}" loading="lazy" onerror="this.style.display='none'">`:`<div style="font-size:1.6rem">🌿</div>`}
       <div class="pk-sum-name">${card.name}</div>
       <div style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:${PK_RARITY_COLORS[card.rarity]};box-shadow:0 0 4px ${PK_RARITY_COLORS[card.rarity]}"></div>
     </div>`).join('');
@@ -3818,7 +3826,7 @@ ${isPodium ? `
           ? `<span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)}</span>`
           : '';
         const imgContent = p.image
-          ? `<img src="${p.image}" loading="lazy" alt="${p.name}"
+          ? `<img src="${resolveImg(p.image)}" loading="lazy" alt="${p.name}"
                onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2.replace(/'/g,"\\'")}\\'>${p.emoji||'🌿'}</div>'">`
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
         return `
@@ -5072,7 +5080,7 @@ function renderInventoryPage() {
     return `
       <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer">
         <div class="market-card-rarity-bar" style="background:${color}"></div>
-        <img src="${p.image}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
+        <img src="${resolveImg(p.image)}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
         <div class="market-card-name">${p.name}</div>
         <div class="market-card-meta" style="margin-top:6px">
           <span class="market-card-version" style="color:${color};font-weight:700">${p.rarity}</span>
@@ -5112,7 +5120,7 @@ function openPlantDetail(idx) {
     <div style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
       <button onclick="document.getElementById('plant-detail-overlay').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
       <div style="width:130px;height:130px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
-        <img src="${p.image}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">
+        <img src="${resolveImg(p.image)}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">
       </div>
       <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff;margin-bottom:10px">${p.name}</div>
       <div style="display:inline-flex;align-items:center;gap:6px;background:${color}33;border:1px solid ${color}66;border-radius:100px;padding:5px 16px;margin-bottom:20px">
@@ -7318,7 +7326,6 @@ async function deletePriceAlert(alertId) {
   };
 
 })();
-// Dick
 </script>
 </body>
 </html>
