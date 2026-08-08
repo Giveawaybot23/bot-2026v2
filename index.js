@@ -568,6 +568,7 @@ const PLANTS = [
   // ── Legendary ──────────────────────────────────────────────────────────
   // NOTE: Cherry omitted — no image file present. Rocket Pop excluded (not obtainable in GAG2).
   { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
+  { name: 'Cherry', file: './images/Cherry.png', display: 'Cherry.png', rarity: 'Legendary' },
   { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
   { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
@@ -582,7 +583,7 @@ const PLANTS = [
   // ── Super ──────────────────────────────────────────────────────────────
   { name: 'Moon Bloom',      file: './images/MoonBloom.png',   display: 'MoonBloom.png',   rarity: 'Super' },
   { name: 'Hypno Bloom',     file: './images/HypnoBloom.png',  display: 'HypnoBloom.png',  rarity: 'Super' },
-  { name: "Dragon's Breath", file: './images/DragonsBreath.png', display: 'DragonsBreath.png', rarity: 'Super' },
+  { name: "Dragons Breath", file: './images/DragonsBreath.png', display: 'DragonsBreath.png', rarity: 'Super' },
   { name: 'Sun Bloom',       file: './images/SunBloom.png',    display: 'SunBloom.png',    rarity: 'Super' },
   { name: 'Star Fruit',      file: './images/StarFruit.png',      display: 'StarFruit.png',      rarity: 'Super' },
 
