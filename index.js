@@ -181,6 +181,20 @@ function parseVersionsInput(raw) {
   return out.size ? Array.from(out).sort((a, b) => a - b) : null;
 }
 
+function formatVersionRanges(versions) {
+  if (!versions || !versions.length) return 'any';
+  const sorted = Array.from(versions).sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0], end = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const v = sorted[i];
+    if (v === end + 1) { end = v; continue; }
+    ranges.push(start === end ? `v${start}` : `v${start}-v${end}`);
+    if (i < sorted.length) { start = v; end = v; }
+  }
+  return ranges.join(', ');
+}
+
 function buildRaritySelect(selectedRarities) {
   return new StringSelectMenuBuilder()
     .setCustomId('fw_rarities')
@@ -204,7 +218,7 @@ function buildMutationSelect(selectedMutations) {
 }
 
 function buildVersionButton(selectedVersions) {
-  const label = selectedVersions === null ? '✏️ Versions: any' : `✏️ Versions: ${selectedVersions.map(v => 'v' + v).join(', ')}`;
+  const label = selectedVersions === null ? '✏️ Versions: any' : `✏️ Versions: ${formatVersionRanges(selectedVersions)}`;
   return new ButtonBuilder().setCustomId('fw_versions').setLabel(label.length > 80 ? label.slice(0, 77) + '...' : label).setStyle(ButtonStyle.Secondary);
 }
 
@@ -2698,8 +2712,6 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
           newAch = checkAchievements(user);
           user.claimCooldowns[drop.rarity.name] = Date.now();
-          const claimNewPlants = [{ name: drop.plant.name, version }];
-          applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
           saveDB(db);
           recordClaim(message.author.id, message.author.username);
         }
@@ -4184,7 +4196,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         if (r.mutations && r.mutations.length) parts.push(`mutations: **${r.mutations.join(', ')}**`);
         else if (r.mutation) parts.push(`mutation: **${r.mutation}**`);
         if (r.plant)      parts.push(`plant: **${r.plant}**`);
-        if (r.versions && r.versions.length)   parts.push(`versions: **${r.versions.map(v => 'v' + v).join(', ')}**`);
+        if (r.versions && r.versions.length)   parts.push(`versions: **${formatVersionRanges(r.versions)}**`);
         else if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
         return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
       });
@@ -4238,7 +4250,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       .setTitle('⚡ Autosell Setup')
       .setDescription([
         `Rarities: **${selectedRarities.length ? selectedRarities.join(', ') : 'none selected yet'}**`,
-        `Versions: **${selectedVersions === null ? 'any' : selectedVersions.map(v => 'v' + v).join(', ')}**`,
+        `Versions: **${selectedVersions === null ? 'any' : formatVersionRanges(selectedVersions)}**`,
         `Mutations: **${selectedMutations === null ? 'any' : selectedMutations.join(', ')}**`,
         '',
         note || 'Pick from the dropdowns below, then hit **Add Rule**.',
@@ -4304,7 +4316,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         saveAutosellRules(all);
 
         let desc = added.length
-          ? `Auto-selling **${added.join(', ')}** — versions: **${selectedVersions ? selectedVersions.map(v => 'v' + v).join(', ') : 'any'}**, mutations: **${selectedMutations ? selectedMutations.join(', ') : 'any'}**.`
+          ? `Auto-selling **${added.join(', ')}** — versions: **${selectedVersions ? formatVersionRanges(selectedVersions) : 'any'}**, mutations: **${selectedMutations ? selectedMutations.join(', ') : 'any'}**.`
           : `No rules added — you're already at the 20-rule limit. Use \`!autosell remove <number>\` to free up space.`;
         if (skippedForCap > 0 && added.length) desc += `\n⚠️ Skipped **${skippedForCap}** — you hit the 20-rule limit.`;
 
@@ -4337,7 +4349,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
@@ -4360,7 +4372,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
