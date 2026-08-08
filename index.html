@@ -2483,7 +2483,7 @@
 function resolveImg(src) {
   if (!src) return '';
   if (src.startsWith('http') || src.startsWith('/')) return src;
-  return '/images/' + src;
+  return '/images/' + src.replace('.png', '.webp');
 }
 // ─── PACK DEFINITIONS — prices/cards/minLevel mirror CRATES in index.js ──────
 const PK_PACKS = [
