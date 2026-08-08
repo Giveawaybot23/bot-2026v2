@@ -5129,6 +5129,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!llb [page]` — Level leaderboard',
               '`!mlb` — Richest players by coins',
               '`!rlb` — Fastest race times',
+              '`!streaklb` — Longest claim streaks',
             ].join('\n'),
           },
           {
