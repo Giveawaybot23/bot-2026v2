@@ -4624,7 +4624,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             name: '🌱 Getting Plants',
             value: [
               '`claim <captcha>` — Claim a plant from an active drop in the drop channel',
-              '`!daily` — Free plant + coinse once per day',
+              '`!daily` — Free plant + coins once per day',
               '`!weekly` — 3 free plants + coins once per week',
             ].join('\n'),
           },
