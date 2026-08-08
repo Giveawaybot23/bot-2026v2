@@ -46,7 +46,7 @@
   padding: 0 24px;
   height: 64px;
   background: rgba(247,245,240,0.85);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
   overflow: visible;
 }
@@ -2392,10 +2392,10 @@
 .pk-card-type{font-size:.55rem;letter-spacing:.3em;text-transform:uppercase;color:var(--ink3);text-align:center;margin-bottom:8px}
 .pk-card-divider{height:1px;background:currentColor;opacity:.15;margin-bottom:8px}
 .pk-card-badge{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:.45rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;padding:3px 12px;border-radius:20px;white-space:nowrap}
-.pk-holo{position:absolute;inset:0;border-radius:16px;pointer-events:none;animation:pkHolo 3s linear infinite;background-size:300% auto}
+.pk-holo{position:absolute;inset:0;border-radius:16px;pointer-events:none;animation:pkHolo 3s linear 2;background-size:300% auto}
 @keyframes pkHolo{0%{opacity:.4;background-position:-200% center}50%{opacity:.8}100%{opacity:.4;background-position:200% center}}
 .pk-card-stars{position:absolute;inset:0;border-radius:16px;overflow:hidden;pointer-events:none}
-.pk-card-star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:pkTwinkle 2s ease-in-out infinite}
+.pk-card-star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:pkTwinkle 2s ease-in-out 3}
 @keyframes pkTwinkle{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
 /* ── NAV ROW ── */
 #pk-nav-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
@@ -2770,7 +2770,7 @@ function pkShowCard(){
 
   const isV1=false; // pack openings don't have version info from plants api, graceful
   const isLeg=card.rarity==='Legendary'||card.rarity==='Mythic'||card.rarity==='Secret';
-  const starsHtml=isLeg?[...Array(16)].map((_,i)=>`<div class="pk-card-star" style="left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*2}s;animation-duration:${1+Math.random()*2}s;opacity:${.3+Math.random()*.7}"></div>`).join(''):'';
+  const starsHtml=isLeg?[...Array(8)].map((_,i)=>`<div class="pk-card-star" style="left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${Math.random()*2}s;animation-duration:${1+Math.random()*2}s;opacity:${.3+Math.random()*.7}"></div>`).join(''):'';
   const holoHtml=isLeg?`<div class="pk-holo" style="background:linear-gradient(105deg,transparent 20%,rgba(255,255,255,.04) 30%,${rc}14 40%,rgba(255,255,255,.06) 55%,${rc}0a 65%,rgba(255,255,255,.04) 75%,transparent 85%);background-size:300% auto"></div>`:'';
 
   const artBg=`radial-gradient(ellipse at 50% 30%,${rc}cc 0%,${rc}44 40%,${rc}11 100%)`;
