@@ -4721,7 +4721,7 @@ function renderChatMsg(m) {
       ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<span style="font-size:10px;font-weight:700;color:var(--green)">${m.name[0].toUpperCase()}</span>`}
     </div>
     <div class="chat-msg-body">
-      <div class="chat-msg-name">${m.name}</div>
+      <div class="chat-msg-name">${(m.name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
       <div class="chat-msg-text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
     </div>
   </div>`;
