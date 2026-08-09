@@ -6182,15 +6182,37 @@ app.post('/api/notif-prefs', express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/rawdb', (req, res) => {
+// SECURITY: these expose/mutate the raw database and were previously
+// unauthenticated. Locked to server admins (Manage Guild permission),
+// matching the pattern used by /api/merchant/restock.
+async function requireGuildAdmin(req, res) {
+  if (!req.user) { res.status(401).json({ error: 'Not logged in' }); return false; }
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(req.user.id);
+    if (!member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+      res.status(403).json({ error: 'Missing Manage Guild permission' });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    res.status(403).json({ error: 'Could not verify permissions' });
+    return false;
+  }
+}
+
+app.get('/api/rawdb', async (req, res) => {
+  if (!(await requireGuildAdmin(req, res))) return;
   res.send(fs.readFileSync(DB_FILE, 'utf8'));
 });
 
-app.get('/api/rawmeta', (req, res) => {
+app.get('/api/rawmeta', async (req, res) => {
+  if (!(await requireGuildAdmin(req, res))) return;
   res.send(fs.readFileSync(META_FILE, 'utf8'));
 });
 
-app.get('/api/fixmeta', (req, res) => {
+app.get('/api/fixmeta', async (req, res) => {
+  if (!(await requireGuildAdmin(req, res))) return;
   try {
     const correct = {
       plantVersions: { "Tomato":53,"Strawberry":54,"Goldenberry":210,"Biohazard Melon":1262,"Banana":27,"Carrot":1312,"Corn":1252,"Bell Pepper":61,"Apple":49,"Dawn Fruit":20,"Onion":67,"Potato":30,"Birch":59,"Amberpine":58,"Dawn Blossom":37,"Lablush Berry":74,"Mango":23,"Radiant Petal":33,"Bamboo":25,"Sunpetal":1272,"Beetroot":67,"Dandelion":1336,"Orange":35,"Rose":41,"Emberwood":34,"Mushroom":59,"Cabbage":31,"Wheat":36,"Plum":44,"Octobranch":14,"Cherry":19,"Pomegranate":27,"Olive":42,"Starvine":16 },
