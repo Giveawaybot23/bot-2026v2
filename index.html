@@ -77,7 +77,8 @@
     white-space: nowrap; line-height: 0;
     transition: none;
   }
-  .nav-links > a:hover, .nav-links > a.active { background: transparent; color: var(--ink2); }
+  .nav-links > a:hover { background: transparent; color: var(--ink2); }
+  .nav-links > a.active { background: transparent; color: var(--ink); }
   .nav-links > a.active::after {
     content: '';
     position: absolute; bottom: 2px; left: 50%;
@@ -560,6 +561,7 @@
   .lb-sub { font-size: 12px; color: var(--ink3); margin-top: 1px; }
   .lb-value { font-size: 14px; font-weight: 600; color: var(--ink); text-align: right; flex-shrink: 0; }
   .lb-value small { display: block; font-size: 11px; font-weight: 400; color: var(--ink3); }
+  .lb-user .fuzzy-name-canvas { margin-left: -32px; }
 
   .lb-bar-wrap { width: 60px; height: 4px; background: var(--bg2); border-radius: 100px; overflow: hidden; }
   .lb-bar { height: 100%; background: var(--green-light); border-radius: 100px; }
@@ -2296,6 +2298,7 @@
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="inv-rarity-filters">
         <button onclick="setInvFilter('all',this)" class="shop-filter-btn active">All</button>
         <button onclick="setInvFilter('Secret',this)" class="shop-filter-btn">Secret</button>
+        <button onclick="setInvFilter('Super',this)" class="shop-filter-btn">Super</button>
         <button onclick="setInvFilter('Mythic',this)" class="shop-filter-btn">Mythic</button>
         <button onclick="setInvFilter('Legendary',this)" class="shop-filter-btn">Legendary</button>
         <button onclick="setInvFilter('Epic',this)" class="shop-filter-btn">Epic</button>
@@ -2489,24 +2492,24 @@ function resolveImg(src) {
 const PK_PACKS = [
   { id:'bronze',   crateKey:'bronze',   name:'Bronze Crate',  tier:'bronze',   img:'/images/crates/bronze.webp', price:750,   minLevel:5,  cards:10,
     color1:'#3d2000', color2:'#7a4010', accent:'#CD7F32', gemColor:'#CD7F32',
-    desc:'A humble crate. Common finds await.', odds:{ Common:74, Uncommon:17, Rare:5, Epic:3, Legendary:0.1, Mythic:0.02, Secret:0 } },
+    desc:'A humble crate. Common finds await.', odds:{ Common:74, Uncommon:17, Rare:5, Epic:3, Legendary:0.1, Mythic:0.02, Super:0.005, Secret:0 } },
   { id:'silver',   crateKey:'silver',   name:'Silver Crate',  tier:'silver',   img:'/images/crates/silver.webp', price:2500,  minLevel:10, cards:10,
     color1:'#1a1a2e', color2:'#2d2d4a', accent:'#9E9E9E', gemColor:'#C0C0C0',
-    desc:'Better odds. A reliable choice.', odds:{ Common:60, Uncommon:18, Rare:9, Epic:12, Legendary:0.4, Mythic:0.03, Secret:0 } },
+    desc:'Better odds. A reliable choice.', odds:{ Common:60, Uncommon:18, Rare:9, Epic:12, Legendary:0.4, Mythic:0.03, Super:0.026, Secret:0 } },
   { id:'gold',     crateKey:'gold',     name:'Gold Crate',    tier:'gold',     img:'/images/crates/gold.webp', price:5500,  minLevel:15, cards:10,
     color1:'#1a0a00', color2:'#3d2200', accent:'#FFD700', gemColor:'#FFD700',
-    desc:'Glittering with possibility.', odds:{ Common:45, Uncommon:17, Rare:12, Epic:24, Legendary:1.2, Mythic:0.14, Secret:0.001 } },
+    desc:'Glittering with possibility.', odds:{ Common:45, Uncommon:17, Rare:12, Epic:24, Legendary:1.2, Mythic:0.14, Super:0.098, Secret:0.001 } },
   { id:'platinum', crateKey:'diamond',  name:'Diamond Crate', tier:'platinum', img:'/images/crates/diamond.webp', price:14000, minLevel:30, cards:10,
     color1:'#001a2e', color2:'#003050', accent:'#00BFFF', gemColor:'#80dfff',
-    desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Secret:0.008 } },
+    desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Super:0.366, Secret:0.008 } },
   { id:'ruby',     crateKey:'ruby',     name:'Ruby Crate',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
-    desc:'The rarest drops. The highest stakes.', odds:{ Common:6, Uncommon:9, Rare:13, Epic:16, Legendary:10, Mythic:3.5, Secret:0.01 } },
+    desc:'The rarest drops. The highest stakes.', odds:{ Common:6, Uncommon:9, Rare:13, Epic:16, Legendary:10, Mythic:3.5, Super:1.128, Secret:0.01 } },
 ];
 
-const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#9c5fff' };
-const PK_RARITY_ORDER  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-const PK_RARITY_WEIGHT = { Secret:7,Mythic:6,Legendary:5,Epic:4,Rare:3,Uncommon:2,Common:1 };
+const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#9c5fff' };
+const PK_RARITY_ORDER  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+const PK_RARITY_WEIGHT = { Secret:8,Super:7,Mythic:6,Legendary:5,Epic:4,Rare:3,Uncommon:2,Common:1 };
 
 // Mutation images — Sandy and Flooded use emojis, others have dedicated images
 const PK_MUTATION_IMG = {
@@ -3002,7 +3005,7 @@ function pkBurst(x,y,color,count=24){
 }
 
 function rarityAccent(rarity) {
-  return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' }[rarity] || '#999';
+  return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' }[rarity] || '#999';
 }
 
 async function loadMarketHighlights() {
@@ -3075,7 +3078,7 @@ async function loadMarketHighlights() {
   function loadMorePlants(btn, rarity, grid) {
   const offset = parseInt(btn.dataset.offset);
   const plants = window._profileGrouped[rarity];
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#000000' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#000000' };
   const next = plants.slice(offset, offset + 50);
   const html = next.map((p, pi) => `
     <div class="pd-collection-item${p.version===1?' v1-item':''}" style="${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
@@ -3197,41 +3200,41 @@ window._cachedLB = lb;
 const gardenTop = lb.garden[0]?.score || 1;
 window._gardenRank1Id = lb.garden[0]?.id || lb.garden[0]?.userId || null;
 const gardenHTML = lb.garden.map((e,i) =>
-  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag)
+  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag, 'garden-full')
 ).join('');
 document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
   const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
-  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag);
+  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag, 'garden-mini');
 }).join('');
 document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
     // Level
     const levelTop = lb.level[0]?.xp || 1;
     const levelHTML = lb.level.map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag, 'level-full')
     ).join('');
     document.getElementById('lb-level-mini').innerHTML = lb.level.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag, 'level-mini')
     ).join('');
     document.getElementById('lb-level-full').innerHTML = levelHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
     // Race
     const raceTop = lb.race[0]?.bestTime || 1;
     const raceHTML = lb.race.map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag, 'race-full')
     ).join('');
     document.getElementById('lb-race-mini').innerHTML = lb.race.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag, 'race-mini')
     ).join('');
     document.getElementById('lb-race-full').innerHTML = raceHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No race times yet</div>';
 
     // Daily claims
     const dailyTop = lb.daily[0]?.count || 1;
     const dailyHTML = lb.daily.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag, 'claims-daily')
     ).join('');
     document.getElementById('lb-daily-mini').innerHTML = lb.daily.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag, 'daily-mini')
     ).join('');
     document.getElementById('lb-claims-daily').innerHTML = dailyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
 
@@ -3239,7 +3242,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
     const weekly = lb.weeklyClaims || lb.weekly || [];
     const weeklyTop = weekly[0]?.count || 1;
     const weeklyHTML = weekly.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId, e.rainbowTag)
+      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId, e.rainbowTag, 'claims-weekly')
     ).join('');
     document.getElementById('lb-claims-weekly').innerHTML = weeklyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No weekly data yet</div>';
 
@@ -3290,10 +3293,15 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
     } catch {}
   }
 
-  loadLBAvatars(lb.garden, 'id');
-  loadLBAvatars(lb.level,  'id');
-  loadLBAvatars(lb.race,   'userId');
-  loadLBAvatars(lb.daily,  'userId');
+  loadLBAvatars(lb.garden, 'id', 'garden-mini');
+  loadLBAvatars(lb.garden, 'id', 'garden-full');
+  loadLBAvatars(lb.level,  'id', 'level-mini');
+  loadLBAvatars(lb.level,  'id', 'level-full');
+  loadLBAvatars(lb.race,   'userId', 'race-mini');
+  loadLBAvatars(lb.race,   'userId', 'race-full');
+  loadLBAvatars(lb.daily,  'userId', 'daily-mini');
+  loadLBAvatars(lb.daily,  'userId', 'claims-daily');
+  loadLBAvatars(lb.weeklyClaims || lb.weekly || [], 'userId', 'claims-weekly');
 
   loadMarketHighlights();
 
@@ -3403,10 +3411,10 @@ async function loadProfile(id) {
 
     const rarityColors = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
-      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#aa88ff',
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#aa88ff',
     };
-    const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-    const rarityWeight = { Secret:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
+    const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityWeight = { Secret:8, Super:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
 
     /* ── Group collection by rarity ── */
     const grouped = {};
@@ -3900,11 +3908,11 @@ ${isPodium ? `
   } catch(err) { console.error('[loadProfile]', err); }
 }
 
-function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag) {
+function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag, avPrefix='') {
   const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
   const rankIcon  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
   const clickable = userId ? `onclick="loadProfile('${userId}')" style="cursor:pointer"` : '';
-  const avId = userId ? `lb-av-${userId}` : `lb-av-${left}`;
+  const avId = userId ? `lb-av-${avPrefix}-${userId}` : `lb-av-${avPrefix}-${left}`;
   const isFirst = i === 0;
   const nameHtml = isFirst
     ? `<canvas class="fuzzy-name-canvas" data-text="${left}" data-userid="${userId||''}" style="display:block;max-width:140px;height:28px"></canvas>`
@@ -3924,11 +3932,11 @@ function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag) {
   </div>`;
 }
 
-async function loadLBAvatars(entries, idField) {
+async function loadLBAvatars(entries, idField, avPrefix='') {
   entries.forEach(e => {
     const id = e[idField] || e.userId || e.id;
     if (!id) return;
-    const el = document.getElementById(`lb-av-${id}`);
+    const el = document.getElementById(`lb-av-${avPrefix}-${id}`);
     if (!el) return;
     if (_avatarCache[id]) {
       el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
@@ -3962,7 +3970,7 @@ function toggleMyAuctions(btn) {
 let _marketSort   = 'none';
 let _marketItems  = [];
 
-const _rarityRank = { Secret:0, Mythic:1, Legendary:2, Epic:3, Rare:4, Uncommon:5, Common:6 };
+const _rarityRank = { Secret:0, Super:1, Mythic:2, Legendary:3, Epic:4, Rare:5, Uncommon:6, Common:7 };
 
 function setMarketRarity(rarity, btn) {
   _marketRarity = rarity;
@@ -3981,7 +3989,7 @@ function setMarketSort(sort, btn) {
 }
 
 function renderMarket() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#111' };
   const grid = document.getElementById('market-grid');
   let items = [..._marketItems];
   if (_marketRarity !== 'all') items = items.filter(item => item.rarity === _marketRarity);
@@ -4264,7 +4272,7 @@ async function loadAuctionData() {
 
     const rarityBadgeColor = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
-      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#111'
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111'
     };
 
     const displayAuctions = _auctionMineOnly && window._loggedInId ? auctions.filter(a => a.sellerId === window._loggedInId) : auctions;
@@ -4719,7 +4727,7 @@ function renderChatMsg(m) {
   </div>`;
 }
 
-const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Secret:'#111' };
+const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111' };
 const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
 function mutationEmoji(name) {
@@ -5048,7 +5056,7 @@ function filterInventoryPage(val) {
 }
 
 function renderInventoryPage() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
   const grid = document.getElementById('inv-page-grid');
   if (!grid) return;
   let filtered = _invPageCollection;
@@ -5100,7 +5108,7 @@ function openPlantDetail(idx) {
   );
   const p = filtered[idx];
   if (!p) return;
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
   const rarityGradients = {
     Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
     Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
