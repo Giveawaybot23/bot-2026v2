@@ -5351,6 +5351,10 @@ app.get('/api/players', (req, res) => {
 });
 
 app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, res) => {
+  // SECURITY: locked by auction ID — multiple different bidders compete for
+  // the same auction, so this must be scoped to the resource, not the user
+  // (multi-process safeguard, same reasoning as /api/market/buy).
+  return queueForUser(`auction:${req.params.id}`, async () => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not logged in' });
     const { amount, buyout } = req.body;
@@ -5461,6 +5465,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       newMin: Math.ceil(bidAmount * 1.05),
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
+  });
 });
 
 app.get('/api/auctions', (req, res) => {
@@ -5663,6 +5668,10 @@ app.delete('/api/auction/:id', async (req, res) => {
 
 app.post('/api/auction/create', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: user-scoped lock (multi-process safeguard) — this endpoint only
+  // touches the calling user's own collection, so a per-user key is correct
+  // here, same as /api/crate/open.
+  return queueForUser(req.user.id, async () => {
   const { plantName, version, startPrice, buyoutPrice, hours } = req.body;
   if (!plantName) return res.status(400).json({ error: 'Plant name required' });
 
@@ -5710,6 +5719,7 @@ app.post('/api/auction/create', async (req, res) => {
   broadcastAll({ type: 'auction_new' });
   pushCollectionUpdate(req.user.id);
   res.json({ success: true, auctionId });
+  });
 });
 
 // ── MARKET LISTINGS ──────────────────────────────────────────────────────
@@ -6306,8 +6316,11 @@ function getMerchantPlantByRarity(rarity) {
   };
 }
 
-app.post('/api/merchant/buy', express.json(), (req, res) => {
+app.post('/api/merchant/buy', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: user-scoped lock (multi-process safeguard) — only touches the
+  // calling user's own currency/collection, same reasoning as /api/crate/open.
+  return queueForUser(req.user.id, async () => {
   const { itemId, type, price, name } = req.body;
   if (!itemId || !type || price === undefined) return res.status(400).json({ error: 'Missing fields' });
   const basePrice = MERCHANT_ITEM_PRICES[itemId];
@@ -6381,6 +6394,7 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   pushCoinUpdate(req.user.id, user.currency);
   if (type === 'seed') pushCollectionUpdate(req.user.id);
   res.json({ ok: true, newBalance: user.currency, ...extraData });
+  });
 });
 
 app.post('/api/merchant/crate', express.json(), (req, res) => {
