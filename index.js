@@ -5929,33 +5929,39 @@ app.delete('/api/market/:id', async (req, res) => {
 
 app.post('/api/market/buy/:id', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const listings = loadListings();
-  const listing  = listings.find(l => l.id === req.params.id);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
+  // SECURITY: locked by listing ID (not user ID) — the real race is between
+  // two DIFFERENT buyers hitting the same listing at once, which a per-user
+  // lock would not prevent. Existence is re-checked inside the lock in case
+  // another request already bought it while this one was queued.
+  return queueForUser(`listing:${req.params.id}`, async () => {
+    const listings = loadListings();
+    const listing  = listings.find(l => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+    if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
 
-  const db     = loadDB();
-  const buyer  = getUser(db, req.user.id);
-  const seller = getUser(db, listing.sellerId);
+    const db     = loadDB();
+    const buyer  = getUser(db, req.user.id);
+    const seller = getUser(db, listing.sellerId);
 
-  if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
+    if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
 
-  buyer.currency  -= listing.price;
-  seller.currency += listing.price;
-  buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
+    buyer.currency  -= listing.price;
+    seller.currency += listing.price;
+    buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
 
-  saveDB(db);
-  saveListings(listings.filter(l => l.id !== req.params.id));
+    saveDB(db);
+    saveListings(listings.filter(l => l.id !== req.params.id));
 
-  // DM seller
-  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+    // DM seller
+    try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
 
-  broadcastAll({ type: 'market_update' });
-  pushCoinUpdate(req.user.id, buyer.currency);
-  pushCoinUpdate(listing.sellerId, seller.currency);
-  pushCollectionUpdate(req.user.id);
-  broadcastLeaderboardUpdate();
-  res.json({ success: true });
+    broadcastAll({ type: 'market_update' });
+    pushCoinUpdate(req.user.id, buyer.currency);
+    pushCoinUpdate(listing.sellerId, seller.currency);
+    pushCollectionUpdate(req.user.id);
+    broadcastLeaderboardUpdate();
+    res.json({ success: true });
+  });
 });
 
 app.get('/api/auction/:auctionId/chats', (req, res) => {
