@@ -6067,6 +6067,11 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
 
 app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: locked by trade ID. Node's single-threaded execution already
+  // serializes this within one process (no `await` before the writes below),
+  // but this guards against the case of more than one process/replica
+  // writing to the same data files at once (has happened before on this project).
+  return queueForUser(`trade:${req.params.id}`, async () => {
   const trade = webTrades[req.params.id];
   if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
@@ -6138,6 +6143,7 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   }
   saveTrades(webTrades);
   res.json(trade);
+  });
 });
 
 app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
