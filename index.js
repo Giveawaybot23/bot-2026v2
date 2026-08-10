@@ -996,7 +996,7 @@ function getUser(db, userId) {
   const u = db[userId];
   if (!u.collection)     u.collection     = [];
   if (!u.claimed)        u.claimed        = 0;
-  if (!u.currency)       u.currency       = 500;
+  if (u.currency === undefined) u.currency = 500;
   if (!u.charms)         u.charms         = [];
   if (!u.equippedCharms) u.equippedCharms = [];
   if (!u.bestRaceTime)   u.bestRaceTime   = null;
