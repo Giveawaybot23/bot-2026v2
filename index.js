@@ -996,7 +996,7 @@ function getUser(db, userId) {
   const u = db[userId];
   if (!u.collection)     u.collection     = [];
   if (!u.claimed)        u.claimed        = 0;
-  if (!u.currency)       u.currency       = 500;
+  if (u.currency === undefined) u.currency = 500;
   if (!u.charms)         u.charms         = [];
   if (!u.equippedCharms) u.equippedCharms = [];
   if (!u.bestRaceTime)   u.bestRaceTime   = null;
@@ -5351,6 +5351,10 @@ app.get('/api/players', (req, res) => {
 });
 
 app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, res) => {
+  // SECURITY: locked by auction ID — multiple different bidders compete for
+  // the same auction, so this must be scoped to the resource, not the user
+  // (multi-process safeguard, same reasoning as /api/market/buy).
+  return queueForUser(`auction:${req.params.id}`, async () => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not logged in' });
     const { amount, buyout } = req.body;
@@ -5461,6 +5465,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       newMin: Math.ceil(bidAmount * 1.05),
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
+  });
 });
 
 app.get('/api/auctions', (req, res) => {
@@ -5663,6 +5668,10 @@ app.delete('/api/auction/:id', async (req, res) => {
 
 app.post('/api/auction/create', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: user-scoped lock (multi-process safeguard) — this endpoint only
+  // touches the calling user's own collection, so a per-user key is correct
+  // here, same as /api/crate/open.
+  return queueForUser(req.user.id, async () => {
   const { plantName, version, startPrice, buyoutPrice, hours } = req.body;
   if (!plantName) return res.status(400).json({ error: 'Plant name required' });
 
@@ -5710,6 +5719,7 @@ app.post('/api/auction/create', async (req, res) => {
   broadcastAll({ type: 'auction_new' });
   pushCollectionUpdate(req.user.id);
   res.json({ success: true, auctionId });
+  });
 });
 
 // ── MARKET LISTINGS ──────────────────────────────────────────────────────
@@ -5929,33 +5939,39 @@ app.delete('/api/market/:id', async (req, res) => {
 
 app.post('/api/market/buy/:id', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  const listings = loadListings();
-  const listing  = listings.find(l => l.id === req.params.id);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
+  // SECURITY: locked by listing ID (not user ID) — the real race is between
+  // two DIFFERENT buyers hitting the same listing at once, which a per-user
+  // lock would not prevent. Existence is re-checked inside the lock in case
+  // another request already bought it while this one was queued.
+  return queueForUser(`listing:${req.params.id}`, async () => {
+    const listings = loadListings();
+    const listing  = listings.find(l => l.id === req.params.id);
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+    if (listing.sellerId === req.user.id) return res.status(400).json({ error: "You can't buy your own listing" });
 
-  const db     = loadDB();
-  const buyer  = getUser(db, req.user.id);
-  const seller = getUser(db, listing.sellerId);
+    const db     = loadDB();
+    const buyer  = getUser(db, req.user.id);
+    const seller = getUser(db, listing.sellerId);
 
-  if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
+    if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
 
-  buyer.currency  -= listing.price;
-  seller.currency += listing.price;
-  buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
+    buyer.currency  -= listing.price;
+    seller.currency += listing.price;
+    buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
 
-  saveDB(db);
-  saveListings(listings.filter(l => l.id !== req.params.id));
+    saveDB(db);
+    saveListings(listings.filter(l => l.id !== req.params.id));
 
-  // DM seller
-  try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+    // DM seller
+    try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
 
-  broadcastAll({ type: 'market_update' });
-  pushCoinUpdate(req.user.id, buyer.currency);
-  pushCoinUpdate(listing.sellerId, seller.currency);
-  pushCollectionUpdate(req.user.id);
-  broadcastLeaderboardUpdate();
-  res.json({ success: true });
+    broadcastAll({ type: 'market_update' });
+    pushCoinUpdate(req.user.id, buyer.currency);
+    pushCoinUpdate(listing.sellerId, seller.currency);
+    pushCollectionUpdate(req.user.id);
+    broadcastLeaderboardUpdate();
+    res.json({ success: true });
+  });
 });
 
 app.get('/api/auction/:auctionId/chats', (req, res) => {
@@ -6061,6 +6077,11 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
 
 app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: locked by trade ID. Node's single-threaded execution already
+  // serializes this within one process (no `await` before the writes below),
+  // but this guards against the case of more than one process/replica
+  // writing to the same data files at once (has happened before on this project).
+  return queueForUser(`trade:${req.params.id}`, async () => {
   const trade = webTrades[req.params.id];
   if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
@@ -6132,6 +6153,7 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   }
   saveTrades(webTrades);
   res.json(trade);
+  });
 });
 
 app.post('/api/trade/:id/cancel', express.json(), async (req, res) => {
@@ -6294,8 +6316,11 @@ function getMerchantPlantByRarity(rarity) {
   };
 }
 
-app.post('/api/merchant/buy', express.json(), (req, res) => {
+app.post('/api/merchant/buy', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  // SECURITY: user-scoped lock (multi-process safeguard) — only touches the
+  // calling user's own currency/collection, same reasoning as /api/crate/open.
+  return queueForUser(req.user.id, async () => {
   const { itemId, type, price, name } = req.body;
   if (!itemId || !type || price === undefined) return res.status(400).json({ error: 'Missing fields' });
   const basePrice = MERCHANT_ITEM_PRICES[itemId];
@@ -6369,6 +6394,7 @@ app.post('/api/merchant/buy', express.json(), (req, res) => {
   pushCoinUpdate(req.user.id, user.currency);
   if (type === 'seed') pushCollectionUpdate(req.user.id);
   res.json({ ok: true, newBalance: user.currency, ...extraData });
+  });
 });
 
 app.post('/api/merchant/crate', express.json(), (req, res) => {

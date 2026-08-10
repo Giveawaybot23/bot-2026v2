@@ -2131,7 +2131,7 @@
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px">
       <button id="auction-mine-btn" onclick="toggleMyAuctions(this)" style="background:var(--card);color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s">👤 My Auctions</button>
-      <button onclick="openCreateAuctionModal()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
+      <button onclick="openAuctionFromInventory()" style="background:rgba(88,101,242,0.75);color:white;border:none;border-radius:100px;padding:16px 36px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s;backdrop-filter:blur(8px)" onmouseover="this.style.background='rgba(71,82,196,0.85)'" onmouseout="this.style.background='rgba(88,101,242,0.75)'">🔨 Create Auction</button>
     </div>
     <div class="auction-grid" id="auction-grid"></div>
   </div>
@@ -4856,7 +4856,71 @@ async function submitMarketList(plantName, version) {
   }
 }
 
-function openCreateAuctionModal() {
+async function openAuctionFromInventory() {
+  if (!window._loggedInId) { alert('Log in with Discord to create an auction.'); return; }
+  const existing = document.getElementById('auction-inventory-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'auction-inventory-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(14,13,11,0.6);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card);border-radius:20px;padding:28px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;border:1px solid var(--border);box-shadow:0 24px 80px rgba(14,13,11,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink)">🔨 Choose a Plant to Auction</div>
+        <button onclick="document.getElementById('auction-inventory-overlay').remove()" style="background:none;border:none;font-size:20px;color:var(--ink3);cursor:pointer;padding:4px" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink3)'">✕</button>
+      </div>
+      <input id="auc-inv-search" placeholder="Search plants..." oninput="filterAuctionInventoryModal(this.value)" style="width:100%;padding:10px 16px;border-radius:100px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;font-family:inherit;color:var(--ink);outline:none;margin-bottom:14px;flex-shrink:0;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+      <div id="auc-inv-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px;scrollbar-width:none">
+        <div style="text-align:center;padding:32px;color:var(--ink3);font-size:14px">Loading inventory...</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  try {
+    const res  = await fetch(`/api/profile/${window._loggedInId}`);
+    const data = await res.json();
+    const collection = (data.collection || []).slice().sort((a, b) => {
+      return rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity);
+    });
+    window._auctionInvCollection = collection;
+    renderAuctionInventoryModal(collection);
+  } catch {
+    document.getElementById('auc-inv-list').innerHTML = '<div style="text-align:center;padding:32px;color:#e53935">Failed to load inventory.</div>';
+  }
+}
+
+function filterAuctionInventoryModal(query) {
+  const q = query.toLowerCase();
+  const filtered = (window._auctionInvCollection || []).filter(p => p.name.toLowerCase().includes(q));
+  renderAuctionInventoryModal(filtered);
+}
+
+function renderAuctionInventoryModal(collection) {
+  const list = document.getElementById('auc-inv-list');
+  if (!list) return;
+  if (!collection.length) {
+    list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--ink3);font-size:14px">No plants found.</div>';
+    return;
+  }
+  list.innerHTML = collection.map((p, i) => {
+    const color = rarityColors[p.rarity] || '#999';
+    const mutStr = p.mutation ? ` · <span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</span>` : '';
+    const verStr = p.version === 1 ? v1Badge(true) : `v${p.version || '?'}`;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);transition:all 0.15s" onmouseover="this.style.borderColor='${color}44';this.style.background='var(--bg2)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg)'">
+        <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;box-shadow:0 0 6px ${color}88"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name} <span style="font-size:11px;color:var(--ink3);font-weight:400">${verStr}${mutStr}</span></div>
+          <div style="font-size:11px;color:${color};font-weight:600">${p.rarity}</div>
+        </div>
+        <button onclick="openCreateAuctionModal('${p.name}', ${p.version || 0}, ${p.sellValue || 0})" style="padding:6px 14px;border-radius:100px;background:#5865F2;color:white;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">Auction</button>
+      </div>`;
+  }).join('');
+}
+
+function openCreateAuctionModal(plantName, version, sellValue) {
   if (!window._loggedInId) { alert('Log in with Discord to create an auction.'); return; }
   const existing = document.getElementById('create-auction-overlay');
   if (existing) existing.remove();
@@ -4871,18 +4935,11 @@ function openCreateAuctionModal() {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Plant Name *</div>
-          <input id="ca-plant" placeholder="e.g. Cherry" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Version (optional)</div>
-          <input id="ca-version" type="number" placeholder="e.g. 3" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
-        </div>
+        <div style="font-size:14px;color:var(--ink2);padding:12px 16px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">Auctioning <strong style="color:var(--ink)">${plantName}</strong> v${version}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Starting Bid</div>
-            <input id="ca-start" type="number" placeholder="Default: sell value" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+            <input id="ca-start" type="number" placeholder="Default: ${sellValue || 'sell value'}" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
           </div>
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Buyout Price</div>
@@ -4899,24 +4956,20 @@ function openCreateAuctionModal() {
 
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
         <button onclick="document.getElementById('create-auction-overlay').remove()" style="padding:11px 22px;border-radius:100px;border:1.5px solid var(--border);background:transparent;font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit">Cancel</button>
-        <button onclick="submitCreateAuction()" id="ca-submit" style="padding:11px 28px;border-radius:100px;border:none;background:#5865F2;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">List Auction</button>
+        <button onclick="submitCreateAuction('${plantName}', ${version})" id="ca-submit" style="padding:11px 28px;border-radius:100px;border:none;background:#5865F2;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#4752C4'" onmouseout="this.style.background='#5865F2'">List Auction</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  setTimeout(() => document.getElementById('ca-plant')?.focus(), 50);
+  setTimeout(() => document.getElementById('ca-start')?.focus(), 50);
 }
 
-async function submitCreateAuction() {
-  const plantName  = document.getElementById('ca-plant')?.value?.trim();
-  const version    = document.getElementById('ca-version')?.value?.trim();
+async function submitCreateAuction(plantName, version) {
   const startPrice = document.getElementById('ca-start')?.value?.trim();
   const buyout     = document.getElementById('ca-buyout')?.value?.trim();
   const hours      = document.getElementById('ca-hours')?.value?.trim();
   const errEl      = document.getElementById('ca-error');
   const btn        = document.getElementById('ca-submit');
-
-  if (!plantName) { errEl.style.display='block'; errEl.textContent='Plant name is required.'; return; }
 
   btn.disabled = true; btn.textContent = 'Listing...';
 
@@ -4932,6 +4985,7 @@ async function submitCreateAuction() {
       btn.disabled = false; btn.textContent = 'List Auction'; return;
     }
     document.getElementById('create-auction-overlay').remove();
+    document.getElementById('auction-inventory-overlay')?.remove();
     await loadAuctionData();
     showAuctionDetail(data.auctionId);
   } catch {
