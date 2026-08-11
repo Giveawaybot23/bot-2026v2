@@ -5668,7 +5668,10 @@ async function refreshTrade() {
       stopTradePoll();
       if (trade.status==='complete') { showTradeResultToast('complete'); setTimeout(showTradeStartPanel,3000); }
       else if (trade.status==='expired') { showToast('⏰ Trade expired after 10 minutes.'); setTimeout(showTradeStartPanel,2000); }
-      else { showTradeResultToast('declined'); setTimeout(showTradeStartPanel,2500); }
+      else {
+        if (!_selfCancelled) showTradeResultToast('declined');
+        setTimeout(showTradeStartPanel,2500);
+      }
       return;
     }
     // If I am the initiator and the waiting overlay is visible,
@@ -5867,6 +5870,9 @@ async function confirmTrade() {
 async function cancelTrade() {
   if (!_tradeId) return;
   _selfCancelled = true;
+  stopTradePoll(); // stop polling now — otherwise the still-running poll notices the
+                    // trade is no longer active a moment later and shows a second,
+                    // overlapping "Trade declined" toast on top of this one.
   await fetch(`/api/trade/${_tradeId}/cancel`, { method:'POST', credentials:'include' });
   showTradeResultToast('declined');
   setTimeout(showTradeStartPanel, 2500);

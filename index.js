@@ -6087,8 +6087,6 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
     return res.status(403).json({ error: 'Not your trade' });
   const mySide = trade.sides[req.user.id];
-  if (!mySide.plants.length && mySide.coins === 0)
-    return res.status(400).json({ error: 'Add something to your offer first' });
   mySide.confirmed = true;
   mySide.confirmedAt = Date.now();
   if (Object.values(trade.sides).every(s => s.confirmed)) {
