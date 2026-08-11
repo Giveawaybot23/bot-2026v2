@@ -41,7 +41,7 @@
   nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto minmax(200px, 1.6fr);
+  grid-template-columns: minmax(140px, 1fr) auto minmax(200px, 1fr);
   align-items: center;
   padding: 0 24px;
   height: 64px;
@@ -66,13 +66,13 @@
     border-radius: 9999px;
     padding: 3px;
     height: 42px;
-    /* Centered independently of the grid's left/right column widths, which
-       aren't equal (1fr vs 1.6fr) — sitting it in the middle grid track put
-       it off-center. Taking it out of grid flow and centering it against the
-       whole nav bar doesn't move the logo (left-anchored) or the right-side
-       content (right-anchored via justify-content:flex-end), since neither
-       is centered within its own column to begin with. */
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    /* Sits in the grid's middle "auto" column. With the left/right columns
+       now equal (1fr / 1fr), that middle column is always the true visual
+       center of the bar — no matter how wide the right-side content gets —
+       and because it's a normal grid item (not absolutely positioned), it
+       can never overlap the logo or the right-side content; the grid just
+       shares space between all three columns. */
+    justify-self: center;
   }
   .nav-links > a {
     font-size: 14px; font-weight: 500; color: var(--ink2);
