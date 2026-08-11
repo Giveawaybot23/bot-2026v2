@@ -1092,8 +1092,8 @@
    line at the bottom gets pushed down via margin-top:auto, so the extra
    height shows up as breathing room in the middle/bottom of the card. */
 #page-trade .shop-page { display: flex; flex-direction: column; }
-#page-trade #trade-active-panel { flex: 1; flex-direction: column; }
-#page-trade #trade-active-panel > div:first-child { flex: 1; display: flex; flex-direction: column; }
+#page-trade #trade-active-panel { flex: 1; flex-direction: column; min-height: 0; }
+#page-trade #trade-active-panel > div:first-child { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 #page-trade #trade-start-panel { flex: 1; display: flex; flex-direction: column; }
 #page-trade #trade-start-panel > div:last-child { flex: 1; }
 .shop-header { margin-bottom: 40px; }
@@ -2190,18 +2190,21 @@
         </div>
 
         <!-- Two grids side by side -->
-        <div style="display:grid;grid-template-columns:1fr 48px 1fr;gap:10px;align-items:start" id="trade-grid">
+        <div style="display:grid;grid-template-columns:1fr 48px 1fr;gap:10px;align-items:stretch;flex:1;min-height:0" id="trade-grid">
 
           <!-- YOUR side -->
-          <div>
+          <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
             </div>
             <div id="trade-my-confirmed" style="font-size:12px;color:var(--ink3);margin-bottom:10px;text-align:center"></div>
-            <button onclick="confirmTrade()" id="trade-confirm-btn" style="width:100%;background:rgba(0,200,100,0.12);color:#00c864;border:1px solid rgba(0,200,100,0.3);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s">✓ Confirm Offer</button>
+            <div style="display:flex;gap:8px">
+              <button onclick="confirmTrade()" id="trade-confirm-btn" style="flex:1;background:rgba(0,200,100,0.12);color:#00c864;border:1px solid rgba(0,200,100,0.3);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s">✓ Confirm Offer</button>
+              <button onclick="unconfirmTrade()" id="trade-unconfirm-btn" style="display:none;flex:1;background:rgba(255,68,68,0.1);color:#ff4444;border:1px solid rgba(255,68,68,0.3);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s">↩ Unconfirm</button>
+            </div>
           </div>
 
           <!-- Middle arrow -->
@@ -2210,9 +2213,9 @@
           </div>
 
           <!-- THEIR side -->
-          <div>
+          <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
@@ -5756,7 +5759,13 @@ el.innerHTML = html;
   document.getElementById('trade-my-confirmed').innerHTML = mySide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ You confirmed</span>' : '<span style="color:var(--ink3)">Not confirmed yet</span>';
   const locked = mySide.confirmed;
   const confirmBtn = document.getElementById('trade-confirm-btn');
-  if (confirmBtn) { confirmBtn.style.opacity = locked ? '0.4' : '1'; confirmBtn.disabled = locked; }
+  const unconfirmBtn = document.getElementById('trade-unconfirm-btn');
+  if (confirmBtn) confirmBtn.style.display = locked ? 'none' : 'block';
+  if (unconfirmBtn) {
+    unconfirmBtn.style.display = locked ? 'block' : 'none';
+    if (locked) updateUnconfirmCountdown(mySide.confirmedAt);
+    else { clearInterval(_unconfirmCountdownInterval); _unconfirmCountdownInterval = null; }
+  }
   const myCoins = document.getElementById('trade-my-coins');
   if (myCoins) myCoins.disabled = locked;
   const theirCoinsEl = document.getElementById('trade-their-coins');
@@ -5766,7 +5775,41 @@ el.innerHTML = html;
 }
 
 function startTradePoll() { stopTradePoll(); _lastTradeSnapshot = null; _tradePollInterval = setInterval(refreshTrade, 3000); }
-function stopTradePoll() { if (_tradePollInterval) { clearInterval(_tradePollInterval); _tradePollInterval=null; } }
+function stopTradePoll() { if (_tradePollInterval) { clearInterval(_tradePollInterval); _tradePollInterval=null; } clearInterval(_unconfirmCountdownInterval); _unconfirmCountdownInterval = null; }
+
+// Client-side mirror of the server's UNCONFIRM_COOLDOWN_MS — purely cosmetic
+// (shows a live countdown on the button); the server enforces the real limit.
+const UNCONFIRM_COOLDOWN_MS = 8000;
+let _unconfirmCountdownInterval = null;
+function updateUnconfirmCountdown(confirmedAt) {
+  clearInterval(_unconfirmCountdownInterval);
+  const btn = document.getElementById('trade-unconfirm-btn');
+  if (!btn) return;
+  function tick() {
+    const remaining = Math.max(0, UNCONFIRM_COOLDOWN_MS - (Date.now() - (confirmedAt||0)));
+    if (remaining > 0) {
+      btn.disabled = true;
+      btn.style.opacity = '0.4';
+      btn.textContent = `↩ Unconfirm (${Math.ceil(remaining/1000)}s)`;
+    } else {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = '↩ Unconfirm';
+      clearInterval(_unconfirmCountdownInterval);
+      _unconfirmCountdownInterval = null;
+    }
+  }
+  tick();
+  _unconfirmCountdownInterval = setInterval(tick, 500);
+}
+
+async function unconfirmTrade() {
+  if (!_tradeId) return;
+  const res = await fetch(`/api/trade/${_tradeId}/unconfirm`, { method:'POST', credentials:'include' });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById('trade-status-msg').textContent = data.error || 'Error.'; return; }
+  await refreshTrade();
+}
 
 let _coinsDebounce = null;
 

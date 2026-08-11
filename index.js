@@ -3208,7 +3208,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !web ──────────────────────────────────────────────────────────────────
 if (cmd === 'web') {
-  return message.reply('🌿 **Sprout** — https://www.sproutapp.net/');
+  return message.reply('🌿 **Sprout** — https://sproutapp.net/#');
 }
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
@@ -6090,6 +6090,7 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   if (!mySide.plants.length && mySide.coins === 0)
     return res.status(400).json({ error: 'Add something to your offer first' });
   mySide.confirmed = true;
+  mySide.confirmedAt = Date.now();
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
     const iUser = db[trade.initiatorId];
@@ -6153,6 +6154,38 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   }
   saveTrades(webTrades);
   res.json(trade);
+  });
+});
+
+// Anti-scam cooldown: without this, someone could confirm with a good item,
+// wait for the other side to confirm, then instantly unconfirm + swap in a
+// worse item + re-confirm before the other party notices the offer changed.
+// Forcing a wait before you're allowed to unconfirm removes that reflex-timing
+// window. On top of that, unconfirming resets the OTHER side's confirmation
+// too, so they always have to look at (and accept) whatever is currently
+// offered before the trade can execute.
+const UNCONFIRM_COOLDOWN_MS = 8000;
+
+app.post('/api/trade/:id/unconfirm', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  return queueForUser(`trade:${req.params.id}`, async () => {
+    const trade = webTrades[req.params.id];
+    if (!trade || trade.status !== 'active') return res.status(400).json({ error: 'Trade not active' });
+    if (trade.initiatorId !== req.user.id && trade.targetId !== req.user.id)
+      return res.status(403).json({ error: 'Not your trade' });
+    const mySide = trade.sides[req.user.id];
+    if (!mySide.confirmed) return res.status(400).json({ error: 'You have not confirmed yet' });
+    const elapsed = Date.now() - (mySide.confirmedAt || 0);
+    if (elapsed < UNCONFIRM_COOLDOWN_MS) {
+      const remaining = Math.ceil((UNCONFIRM_COOLDOWN_MS - elapsed) / 1000);
+      return res.status(400).json({ error: `You can unconfirm in ${remaining}s` });
+    }
+    mySide.confirmed = false;
+    mySide.confirmedAt = null;
+    const otherId = trade.initiatorId === req.user.id ? trade.targetId : trade.initiatorId;
+    trade.sides[otherId].confirmed = false;
+    saveTrades(webTrades);
+    res.json(trade);
   });
 });
 
