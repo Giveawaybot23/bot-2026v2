@@ -1086,6 +1086,15 @@
 
   /* ── SHOP PAGES ── */
 .shop-page { padding: 48px; min-height: calc(100vh - 64px); }
+/* Trade page: center the active/start panel in the leftover space below the
+   header instead of letting it sit pinned to the top with dead space under it.
+   Uses #page-trade.page.active (not just #page-trade.page) so it only kicks in
+   while the page is actually the visible one — otherwise it'd override the
+   .page{display:none} rule that hides inactive pages. */
+#page-trade.page.active { display: flex; flex-direction: column; }
+#page-trade .shop-page { display: flex; flex-direction: column; }
+#page-trade #trade-active-panel,
+#page-trade #trade-start-panel { margin-top: auto; margin-bottom: auto; }
 .shop-header { margin-bottom: 40px; }
 .shop-filters {
   display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px;
@@ -5632,12 +5641,23 @@ async function cancelWaitingTrade() {
   _tradeId = null; _tradeData = null;
 }
 
+let _lastTradeSnapshot = null;
+
 async function refreshTrade() {
   if (!_tradeId) return;
   try {
     const res = await fetch(`/api/trade/${_tradeId}`, { credentials:'include' });
     if (!res.ok) { hideTradeWaitingOverlay(); showTradeStartPanel(); return; }
     const trade = await res.json(); _tradeData = trade;
+
+    // Skip re-rendering entirely if nothing actually changed since the last poll.
+    // Rebuilding the grid's innerHTML on every 3s poll — even when the offer is
+    // identical — was what caused the flicker/"glitching": images and DOM nodes
+    // were torn down and recreated for no reason.
+    const snapshot = JSON.stringify({ status: trade.status, sides: trade.sides });
+    if (snapshot === _lastTradeSnapshot) return;
+    _lastTradeSnapshot = snapshot;
+
     if (trade.status !== 'active') {
       hideTradeWaitingOverlay();
       stopTradePoll();
@@ -5684,7 +5704,7 @@ for (let i = 0; i < SLOTS; i++) {
   if (p) {
     const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
     html += `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="aspect-ratio:1;min-height:96px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden">
-      <img src="${p.image||''}" onerror="this.style.display='none'" style="width:68px;height:68px;object-fit:contain;flex-shrink:0">
+      <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:68px;height:68px;object-fit:contain;flex-shrink:0">
       <div style="font-size:10px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
       <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:center">
         <span style="font-size:9px;font-weight:700;color:${rarityColor};background:${rarityColors[p.rarity]||'var(--border)'}22;border-radius:4px;padding:1px 5px;letter-spacing:0.03em">${p.rarity}</span>
@@ -5744,7 +5764,7 @@ el.innerHTML = html;
   if (theirConfirmedEl) theirConfirmedEl.innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
 }
 
-function startTradePoll() { stopTradePoll(); _tradePollInterval = setInterval(refreshTrade, 3000); }
+function startTradePoll() { stopTradePoll(); _lastTradeSnapshot = null; _tradePollInterval = setInterval(refreshTrade, 3000); }
 function stopTradePoll() { if (_tradePollInterval) { clearInterval(_tradePollInterval); _tradePollInterval=null; } }
 
 let _coinsDebounce = null;
