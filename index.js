@@ -6093,8 +6093,16 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
   mySide.confirmedAt = Date.now();
   if (Object.values(trade.sides).every(s => s.confirmed)) {
     const db = loadDB();
-    const iUser = db[trade.initiatorId];
-    const tUser = db[trade.targetId];
+    // Use getUser() (not raw db[id] indexing) so a trader whose record hasn't
+    // been touched/initialized yet still gets a valid default object instead
+    // of `undefined`. Indexing db[id] directly here previously let iUser/tUser
+    // come back undefined, which threw on `iUser.currency` below — and because
+    // that throw happened inside an async handler wrapped by queueForUser
+    // (whose .catch(()=>{}) swallows the rejection), the request just hung
+    // forever with no response and no error: the trade would sit at "both
+    // confirmed" indefinitely instead of executing or failing visibly.
+    const iUser = getUser(db, trade.initiatorId);
+    const tUser = getUser(db, trade.targetId);
     const iSide = trade.sides[trade.initiatorId];
     const tSide = trade.sides[trade.targetId];
 
@@ -6107,50 +6115,59 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
       return res.status(400).json({ error: reason });
     };
 
-    if (iSide.coins > 0 && (iUser.currency || 0) < iSide.coins)
-      return failTrade(`${trade.initiatorName} no longer has enough coins (offered ${iSide.coins}, has ${iUser.currency || 0})`);
-    if (tSide.coins > 0 && (tUser.currency || 0) < tSide.coins)
-      return failTrade(`${trade.targetName} no longer has enough coins (offered ${tSide.coins}, has ${tUser.currency || 0})`);
+    try {
+      if (iSide.coins > 0 && (iUser.currency || 0) < iSide.coins)
+        return failTrade(`${trade.initiatorName} no longer has enough coins (offered ${iSide.coins}, has ${iUser.currency || 0})`);
+      if (tSide.coins > 0 && (tUser.currency || 0) < tSide.coins)
+        return failTrade(`${trade.targetName} no longer has enough coins (offered ${tSide.coins}, has ${tUser.currency || 0})`);
 
-    const iPlantIndices = [];
-    for (const p of iSide.plants) {
-      const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) return failTrade(`${trade.initiatorName} no longer has ${p.name} v${p.version}`);
-      iPlantIndices.push(idx);
-    }
-    const tPlantIndices = [];
-    for (const p of tSide.plants) {
-      const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
-      if (idx === -1) return failTrade(`${trade.targetName} no longer has ${p.name} v${p.version}`);
-      tPlantIndices.push(idx);
-    }
+      const iPlantIndices = [];
+      for (const p of iSide.plants) {
+        const idx = iUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+        if (idx === -1) return failTrade(`${trade.initiatorName} no longer has ${p.name} v${p.version}`);
+        iPlantIndices.push(idx);
+      }
+      const tPlantIndices = [];
+      for (const p of tSide.plants) {
+        const idx = tUser.collection.findIndex(c => c.name === p.name && c.version === p.version);
+        if (idx === -1) return failTrade(`${trade.targetName} no longer has ${p.name} v${p.version}`);
+        tPlantIndices.push(idx);
+      }
 
-    for (let i = iPlantIndices.length - 1; i >= 0; i--) {
-      const [removed] = iUser.collection.splice(iPlantIndices[i], 1);
-      tUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
-      recordTrade(removed.name);
-    }
-    for (let i = tPlantIndices.length - 1; i >= 0; i--) {
-      const [removed] = tUser.collection.splice(tPlantIndices[i], 1);
-      iUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
-      recordTrade(removed.name);
-    }
+      for (let i = iPlantIndices.length - 1; i >= 0; i--) {
+        const [removed] = iUser.collection.splice(iPlantIndices[i], 1);
+        tUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+        recordTrade(removed.name);
+      }
+      for (let i = tPlantIndices.length - 1; i >= 0; i--) {
+        const [removed] = tUser.collection.splice(tPlantIndices[i], 1);
+        iUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+        recordTrade(removed.name);
+      }
 
-    if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
-    if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+      if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
+      if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
 
-    touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
-    saveDB(db);
-    trade.status = 'complete';
-    pushToUser(trade.initiatorId, { type: 'trade_complete' });
-    pushToUser(trade.targetId,    { type: 'trade_complete' });
-    pushCoinUpdate(trade.initiatorId, iUser.currency);
-    pushCoinUpdate(trade.targetId,    tUser.currency);
-    pushCollectionUpdate(trade.initiatorId);
-    pushCollectionUpdate(trade.targetId);
-    broadcastLeaderboardUpdate();
-    try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
-    try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+      touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
+      saveDB(db);
+      trade.status = 'complete';
+      pushToUser(trade.initiatorId, { type: 'trade_complete' });
+      pushToUser(trade.targetId,    { type: 'trade_complete' });
+      pushCoinUpdate(trade.initiatorId, iUser.currency);
+      pushCoinUpdate(trade.targetId,    tUser.currency);
+      pushCollectionUpdate(trade.initiatorId);
+      pushCollectionUpdate(trade.targetId);
+      broadcastLeaderboardUpdate();
+      try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+      try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+    } catch (err) {
+      // Safety net: if anything above throws unexpectedly, fail the trade
+      // loudly (and log it) instead of letting the request hang with no
+      // response — that silent-hang failure mode is exactly what caused
+      // trades to get stuck at "both confirmed" with nothing happening.
+      console.error(`[trade ${req.params.id}] confirm/execute crashed:`, err);
+      return failTrade('Something went wrong completing the trade. Please try again.');
+    }
   }
   saveTrades(webTrades);
   res.json(trade);
