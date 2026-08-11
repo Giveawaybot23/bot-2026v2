@@ -6,8 +6,8 @@
 <title>Sprout</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap"></noscript>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap"></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1794,7 +1794,7 @@
         <span class="pill-label-stack"><span class="pill-lbl">Play ▾</span><span class="pill-lbl-hover" aria-hidden="true">Play ▾</span></span>
       </a>
       <div class="nav-dropdown">
-        <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Crate Opening</a>
+        <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Pack Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
       </div>
     </div>
@@ -1843,7 +1843,7 @@
     <div class="hero-left">
       <div class="hero-eyebrow">Live on Discord</div>
       <h1 class="hero-title">Collect.<br><em>Trade.</em><br>Grow.</h1>
-      <p class="hero-sub">A plant collecting game built into Discord. Claim rare drops, open crates, trade with friends, and build the ultimate garden.</p>
+      <p class="hero-sub">A plant collecting game built into Discord. Claim rare drops, open packs, trade with friends, and build the ultimate garden.</p>
       <div class="hero-actions">
         <button class="btn btn-primary" onclick="showPage('leaderboards')">View Leaderboards →</button>
         <button class="btn btn-secondary" onclick="showPage('profiles')" style="display:none">Browse Profiles</button>
@@ -1868,7 +1868,7 @@
           <div class="hero-step-num">03</div>
           <div class="hero-step-body">
             <div class="hero-step-title">Build your collection</div>
-            <div class="hero-step-desc">Trade, sell, open crates, and climb the leaderboard.</div>
+            <div class="hero-step-desc">Trade, sell, open packs, and climb the leaderboard.</div>
           </div>
         </div>
       </div>
@@ -1882,7 +1882,7 @@
         <div class="sp-float sp-float--tl"><span class="sp-float-icon">💰</span><span>Sells for <span class="sp-float-val" id="sp-sell">10</span> coins</span></div>
         <div class="sp-float sp-float--tr"><span class="sp-float-icon">🎲</span><span><span class="sp-float-val" id="sp-drop-rate">1 in 2</span> drops</span></div>
         <div class="sp-float sp-float--bl"><span class="sp-float-icon">⭐</span><span id="sp-rarity-label">Common rarity</span></div>
-        <div class="sp-float sp-float--br"><span class="sp-float-icon">📦</span><span id="sp-crate-hint">Bronze crate</span></div>
+        <div class="sp-float sp-float--br"><span class="sp-float-icon">📦</span><span id="sp-crate-hint">Bronze pack</span></div>
 
         <div class="spotlight-card" id="sp-card">
           <div class="spotlight-bar" id="sp-bar"></div>
@@ -1931,8 +1931,8 @@
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon">📦</div>
-        <div class="feature-title">Open Crates</div>
-        <div class="feature-desc">Five crate tiers from Bronze to Ruby. Each opens 10 plants with dramatically different odds.</div>
+        <div class="feature-title">Open Packs</div>
+        <div class="feature-desc">Five pack tiers from Bronze to Ruby. Each opens 10 plants with dramatically different odds.</div>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon">📈</div>
@@ -2341,9 +2341,9 @@
 .pk-pack-card.gold::before{background:linear-gradient(90deg,#FFD700,#ff9900)}
 .pk-pack-card.platinum::before{background:linear-gradient(90deg,#00BFFF,#80dfff)}
 .pk-pack-card.ruby::before{background:linear-gradient(90deg,#e53935,#ff8a80)}
-.pk-pack-name{font-family:'DM Serif Display',serif;font-size:1.15rem;color:var(--ink);letter-spacing:-.01em}
+.pk-pack-name{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.1rem;color:var(--ink);letter-spacing:-.01em}
 .pk-pack-desc{font-size:12px;color:var(--ink3);text-align:center;line-height:1.6}
-.pk-pack-price{font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--ink);letter-spacing:-.03em;margin-top:4px}
+.pk-pack-price{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.45rem;color:var(--ink);letter-spacing:-.02em;margin-top:4px}
 .pk-pack-price small{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:var(--ink3);margin-left:3px}
 .pk-pack-btn{width:100%;padding:11px;border-radius:100px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:4px}
 .pk-pack-card.bronze .pk-pack-btn{background:linear-gradient(90deg,#CD7F32,#e8a84a);color:#fff}
@@ -2462,8 +2462,8 @@
 <div id="pk-particles"></div>
 
 <div id="pack-scene">
-  <div id="pk-title">Guildwald's <span>Crate Shop</span></div>
-  <div id="pk-sub">Open crates · Collect plants · Build your garden</div>
+  <div id="pk-title">Guildwald's <span>Pack Shop</span></div>
+  <div id="pk-sub">Open packs · Collect plants · Build your garden</div>
 
   <!-- SHOP GRID -->
   <div id="pk-shop-grid"></div>
@@ -2503,19 +2503,19 @@ function resolveImg(src) {
 }
 // ─── PACK DEFINITIONS — prices/cards/minLevel mirror CRATES in index.js ──────
 const PK_PACKS = [
-  { id:'bronze',   crateKey:'bronze',   name:'Bronze Crate',  tier:'bronze',   img:'/images/crates/bronze.webp', price:750,   minLevel:5,  cards:10,
+  { id:'bronze',   crateKey:'bronze',   name:'Bronze Pack',  tier:'bronze',   img:'/images/crates/bronze.webp', price:750,   minLevel:5,  cards:10,
     color1:'#3d2000', color2:'#7a4010', accent:'#CD7F32', gemColor:'#CD7F32',
-    desc:'A humble crate. Common finds await.', odds:{ Common:74, Uncommon:17, Rare:5, Epic:3, Legendary:0.1, Mythic:0.02, Super:0.005, Secret:0 } },
-  { id:'silver',   crateKey:'silver',   name:'Silver Crate',  tier:'silver',   img:'/images/crates/silver.webp', price:2500,  minLevel:10, cards:10,
+    desc:'A humble pack. Common finds await.', odds:{ Common:74, Uncommon:17, Rare:5, Epic:3, Legendary:0.1, Mythic:0.02, Super:0.005, Secret:0 } },
+  { id:'silver',   crateKey:'silver',   name:'Silver Pack',  tier:'silver',   img:'/images/crates/silver.webp', price:2500,  minLevel:10, cards:10,
     color1:'#1a1a2e', color2:'#2d2d4a', accent:'#9E9E9E', gemColor:'#C0C0C0',
     desc:'Better odds. A reliable choice.', odds:{ Common:60, Uncommon:18, Rare:9, Epic:12, Legendary:0.4, Mythic:0.03, Super:0.026, Secret:0 } },
-  { id:'gold',     crateKey:'gold',     name:'Gold Crate',    tier:'gold',     img:'/images/crates/gold.webp', price:5500,  minLevel:15, cards:10,
+  { id:'gold',     crateKey:'gold',     name:'Gold Pack',    tier:'gold',     img:'/images/crates/gold.webp', price:5500,  minLevel:15, cards:10,
     color1:'#1a0a00', color2:'#3d2200', accent:'#FFD700', gemColor:'#FFD700',
     desc:'Glittering with possibility.', odds:{ Common:45, Uncommon:17, Rare:12, Epic:24, Legendary:1.2, Mythic:0.14, Super:0.098, Secret:0.001 } },
-  { id:'platinum', crateKey:'diamond',  name:'Diamond Crate', tier:'platinum', img:'/images/crates/diamond.webp', price:14000, minLevel:30, cards:10,
+  { id:'platinum', crateKey:'diamond',  name:'Diamond Pack', tier:'platinum', img:'/images/crates/diamond.webp', price:14000, minLevel:30, cards:10,
     color1:'#001a2e', color2:'#003050', accent:'#00BFFF', gemColor:'#80dfff',
     desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Super:0.366, Secret:0.008 } },
-  { id:'ruby',     crateKey:'ruby',     name:'Ruby Crate',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
+  { id:'ruby',     crateKey:'ruby',     name:'Ruby Pack',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
     desc:'The rarest drops. The highest stakes.', odds:{ Common:6, Uncommon:9, Rare:13, Epic:16, Legendary:10, Mythic:3.5, Super:1.128, Secret:0.01 } },
 ];
@@ -2580,7 +2580,7 @@ function _pkStartCooldownTicker() {
       } else if (btn.disabled) {
         // Cooldown just expired — re-enable
         btn.disabled = false;
-        btn.textContent = 'Open Crate';
+        btn.textContent = 'Open Pack';
         card.style.opacity = '';
         card.style.cursor = '';
         card.onclick = () => pkOpenModal(p.id);
@@ -2603,7 +2603,7 @@ function renderPackShop(){
     const onCd = cdMs > 0;
     const cdSecs = Math.ceil(cdMs / 1000);
     const cdStr = cdSecs >= 60 ? `${Math.floor(cdSecs/60)}m ${cdSecs%60}s` : `${cdSecs}s`;
-    const btnLabel = onCd ? `⏳ ${cdStr}` : 'Open Crate';
+    const btnLabel = onCd ? `⏳ ${cdStr}` : 'Open Pack';
     return `
     <div class="pk-pack-card ${p.tier}" data-cratekey="${p.crateKey}"
       onclick="${onCd ? '' : `pkOpenModal('${p.id}')`}"
@@ -2674,7 +2674,7 @@ async function pkDoOpen(){
 
   // Must be logged in
   if(!window._loggedInId){
-    showToast('Log in with Discord to open crates.', true);
+    showToast('Log in with Discord to open packs.', true);
     return;
   }
 
@@ -2701,7 +2701,7 @@ async function pkDoOpen(){
         const cdStr = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
         showToast(`⏳ Cooldown — ${cdStr} remaining.`, true);
       } else {
-        showToast(data.error || 'Could not open crate.', true);
+        showToast(data.error || 'Could not open pack.', true);
       }
       renderPackShop();
       return;
@@ -6986,13 +6986,13 @@ async function deletePriceAlert(alertId) {
   const spCrateHint = document.getElementById('sp-crate-hint');
 
   const RARITY_INFO = {
-    Common:    { sell: '10',      drop: '1 in 2',    crate: 'Bronze+ crate'   },
-    Uncommon:  { sell: '25',      drop: '1 in 4',    crate: 'Bronze+ crate'   },
-    Rare:      { sell: '75',      drop: '1 in 8',    crate: 'Silver+ crate'   },
-    Epic:      { sell: '2,000',   drop: '1 in 17',   crate: 'Gold+ crate'     },
-    Legendary: { sell: '10,000',  drop: '1 in 33',   crate: 'Diamond+ crate'  },
-    Mythic:    { sell: '25,000',  drop: '1 in 500',  crate: 'Ruby crate only' },
-    Secret:    { sell: '100,000', drop: '1 in 1000', crate: 'Drop only'       },
+    Common:    { sell: '10',      drop: '1 in 2',    crate: 'Bronze+ pack'   },
+    Uncommon:  { sell: '25',      drop: '1 in 4',    crate: 'Bronze+ pack'   },
+    Rare:      { sell: '75',      drop: '1 in 8',    crate: 'Silver+ pack'   },
+    Epic:      { sell: '2,000',   drop: '1 in 17',   crate: 'Gold+ pack'     },
+    Legendary: { sell: '10,000',  drop: '1 in 33',   crate: 'Diamond+ pack'  },
+    Mythic:    { sell: '25,000',  drop: '1 in 500',  crate: 'Ruby pack only' },
+    Secret:    { sell: '100,000', drop: '1 in 1000', crate: 'Drop only'      },
   };
 
   function refreshChips(plant) {
