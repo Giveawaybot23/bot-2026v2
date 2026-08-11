@@ -1130,6 +1130,37 @@
   overflow: visible !important;
 }
 
+/* ── Plant Index: glow-on-hover ── */
+#page-inventory .market-card {
+  --glow: var(--green-light);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+#page-inventory .market-card:hover {
+  transform: translateY(-5px) scale(1.015);
+  border-color: var(--glow);
+  box-shadow:
+    0 0 0 1px var(--glow),
+    0 0 24px 2px color-mix(in srgb, var(--glow) 55%, transparent),
+    0 16px 40px rgba(14,13,11,0.16);
+}
+#page-inventory .market-card:hover .market-card-rarity-bar {
+  box-shadow: 0 0 12px 2px var(--glow), 0 0 24px 4px color-mix(in srgb, var(--glow) 60%, transparent);
+  transition: box-shadow 0.25s ease;
+}
+#page-inventory .market-card img {
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+#page-inventory .market-card:hover img {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--glow) 65%, transparent));
+}
+#page-inventory .market-card.secret-electric:hover {
+  box-shadow:
+    0 0 0 1px #9c5fff,
+    0 0 30px 4px rgba(156,95,255,0.5),
+    0 0 60px 8px rgba(156,95,255,0.25);
+}
+
 .market-card-rarity-bar {
   position: absolute; top: 0; left: 0; right: 0; height: 3px;
 }
@@ -5160,7 +5191,7 @@ function renderInventoryPage() {
         </div>`;
       }
       return `
-        <div class="market-card" style="cursor:default;background:var(--bg2);position:relative;overflow:hidden">
+        <div class="market-card" style="cursor:default;background:var(--bg2);position:relative;overflow:hidden;--glow:${color}">
           <div class="market-card-rarity-bar" style="background:${color};opacity:0.55"></div>
           <div style="width:64px;height:64px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;background:${color}14;border-radius:12px;border:1px solid ${color}33">
             <span style="font-size:28px;opacity:0.5;filter:blur(0.5px);color:${color}">?</span>
@@ -5191,7 +5222,7 @@ function renderInventoryPage() {
         </div>`;
     }
     return `
-      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer">
+      <div class="market-card" onclick="openPlantDetail(${idx})" style="cursor:pointer;--glow:${color}">
         <div class="market-card-rarity-bar" style="background:${color}"></div>
         <img src="${resolveImg(p.image)}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block" onerror="this.style.display='none'">
         <div class="market-card-name">${p.name}</div>
