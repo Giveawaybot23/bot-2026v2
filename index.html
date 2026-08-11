@@ -944,7 +944,7 @@
   .lb-subtabs { flex-wrap: wrap; gap: 4px; }
   .profile-stats { grid-template-columns: 1fr 1fr; }
   ._pcols { gap: 12px !important; padding: 12px 10px 60px !important; }
-  ._pcol-center [style*="repeat(4,1fr)"] { grid-template-columns: repeat(3,1fr) !important; }
+  ._pcol-center [id$="_grid"] { grid-template-columns: repeat(3,1fr) !important; }
   ._pcol-center { min-width: 0; }
   ._sr-val { font-size: 16px; }
   .auction-panel-header { padding: 12px 14px; }
@@ -3391,6 +3391,57 @@ function applyAvatar(id, url) {
   if (el) el.innerHTML = `<img src="${url}" loading="lazy" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`;
 }
 
+/* ── Activity feed helper ──
+   The server's /api/profile/:id response has never reliably included a
+   usable activity list (field names vary, or it's just absent), which is
+   why this panel always rendered empty. This normalizes whatever shape
+   comes back, and — when you're looking at your own profile — falls back
+   to the real local notification log (the same data the bell icon uses)
+   so the feed always has something functional to show. */
+function renderActivityFeed(data, profileId, mutedColor) {
+  const raw = data.recentActivity || data.activity || data.activityFeed || data.events || [];
+
+  const normalize = a => ({
+    emoji: a.emoji || a.icon || '🌿',
+    color: a.color || 'rgba(82,183,136,0.12)',
+    title: a.text || a.description || a.message || a.action || a.label || 'Activity',
+    time:  a.time || a.ago ||
+           (a.timestamp ? formatTimeAgo(typeof a.timestamp === 'string' ? Date.parse(a.timestamp) : a.timestamp) : '') ||
+           (a.createdAt ? formatTimeAgo(typeof a.createdAt === 'string' ? Date.parse(a.createdAt) : a.createdAt) : '') ||
+           (a.date ? formatTimeAgo(Date.parse(a.date)) : ''),
+    value: a.value || a.amount || '',
+  });
+
+  let items = Array.isArray(raw) ? raw.map(normalize) : [];
+
+  // Own profile + nothing from the server → use the real local notification
+  // log instead of showing an empty panel.
+  if (!items.length && window._loggedInId && profileId === window._loggedInId && typeof getNotifs === 'function') {
+    const typeMap = typeof NOTIF_TYPES !== 'undefined' ? Object.fromEntries(NOTIF_TYPES.map(t => [t.key, t])) : {};
+    items = getNotifs().slice(0, 12).map(n => ({
+      emoji: (typeMap[n.type] || {}).emoji || '🔔',
+      color: 'rgba(82,183,136,0.12)',
+      title: n.message || (typeMap[n.type] || {}).label || 'Activity',
+      time: formatTimeAgo(n.timestamp),
+      value: '',
+    }));
+  }
+
+  if (!items.length) {
+    return `<div style="padding:28px 14px;text-align:center;color:${mutedColor};font-size:12px">No recent activity</div>`;
+  }
+
+  return items.slice(0, 12).map(a => `
+    <div class="_af-item">
+      <div class="_af-icon" style="background:${a.color}22">${a.emoji}</div>
+      <div class="_af-body">
+        <div class="_af-title">${a.title}</div>
+        <div class="_af-time">${a.time}</div>
+      </div>
+      ${a.value ? `<div class="_af-val" style="color:${a.color === 'rgba(82,183,136,0.12)' ? '#52b788' : a.color}">${a.value}</div>` : ''}
+    </div>`).join('');
+}
+
 async function loadProfile(id) {
   try {
     showPage('profile-detail');
@@ -3513,14 +3564,23 @@ ${isPodium ? `
 ._p-un{background:linear-gradient(110deg,${pk.s} 0%,#fff 30%,${pk.p} 52%,${pk.s} 72%,${pk.p} 100%);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 5s linear infinite}
 ` : ''}
 
-/* ── plant card (collection + inventory shared) ── */
-._pc{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:${card};border:1px solid ${bord};transition:transform .2s,border-color .2s,box-shadow .2s;animation:_pCardIn .28s ease both}
-._pc:hover{transform:translateY(-4px)scale(1.02);box-shadow:0 12px 32px rgba(0,0,0,.22)}
-._pc img{width:100%;aspect-ratio:1/1;object-fit:contain;padding:10px;display:block;background:${bg2}}
+/* ── plant card (collection + inventory shared) — same glow-on-hover as the Plant Index ── */
+._pc{--glow:${'#52b788'};position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:${card};border:1px solid ${bord};transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease;animation:_pCardIn .28s ease both}
+._pc:hover{
+  transform:translateY(-5px) scale(1.03);
+  border-color:var(--glow);
+  box-shadow:
+    0 0 0 1px var(--glow),
+    0 0 20px 2px color-mix(in srgb, var(--glow) 55%, transparent),
+    0 14px 34px rgba(0,0,0,.22);
+}
+._pc img{width:100%;aspect-ratio:1/1;object-fit:contain;padding:10px;display:block;background:${bg2};transition:transform .22s ease,filter .22s ease}
+._pc:hover img{transform:scale(1.09);filter:drop-shadow(0 0 8px color-mix(in srgb, var(--glow) 65%, transparent))}
 ._pc-foot{padding:7px 9px 9px}
 ._pc-name{font-size:11px;font-weight:700;color:${ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 ._pc-sub{font-size:10px;color:${ink3};display:flex;align-items:center;gap:4px}
-._pc-bar{position:absolute;top:0;left:0;right:0;height:3px}
+._pc-bar{position:absolute;top:0;left:0;right:0;height:3px;transition:box-shadow .22s ease}
+._pc:hover ._pc-bar{box-shadow:0 0 10px 2px var(--glow),0 0 20px 4px color-mix(in srgb, var(--glow) 60%, transparent)}
 
 /* ── stat row ── */
 ._sr{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:11px;background:${bg2};border:1px solid ${bord};transition:border-color .2s;animation:_pSlideL .35s ease both}
@@ -3576,15 +3636,23 @@ ${isPodium ? `
 
 ._sec{font-family:'DM Serif Display',serif;font-size:14px;color:${ink};letter-spacing:-.01em;margin-bottom:10px}
 
+/* ── desktop: real 3-column layout so activity + stats sit beside the
+      collection instead of stacking underneath it ── */
+._pcols{grid-template-columns:208px minmax(0,1fr) 300px;grid-template-areas:"left center right"}
+@media(min-width:1120px){
+  ._pcols{grid-template-columns:216px minmax(0,1fr) 320px}
+}
 @media(max-width:960px){
-  ._pcols{grid-template-columns:1fr!important;grid-template-areas:"center" "right" "left"!important}
+  ._pcols{grid-template-columns:1fr 260px!important;grid-template-areas:"center right" "left right"!important}
   ._pcol-left{grid-area:left}
   ._pcol-center{grid-area:center}
   ._pcol-right{grid-area:right}
-  ._lp,._rp{position:static;max-height:none}
+  ._rp{position:sticky;top:80px;max-height:calc(100vh - 100px)}
+  ._lp{position:static;max-height:none}
 }
-@media(max-width:600px){
+@media(max-width:700px){
   ._pcols{grid-template-columns:1fr!important;grid-template-areas:"center" "right" "left"!important}
+  ._lp,._rp{position:static;max-height:none}
 }
 </style>
 
@@ -3677,15 +3745,13 @@ ${isPodium ? `
   </div><!-- /hero -->
 
   <!-- ── 3-COLUMN BODY ── -->
-  <!-- left: ~220px activity feed | center: 1fr collection | right: ~360px stats+ach -->
+  <!-- left: ~210px activity feed | center: 1fr collection | right: ~320px stats+ach -->
   <div class="_pcols" style="
     display:grid;
-    grid-template-columns:1fr;
-    grid-template-areas:'center' 'right' 'left';
-    gap:18px;
-    max-width:1220px;
+    gap:16px;
+    max-width:1280px;
     margin:0 auto;
-    padding:20px 18px 80px;
+    padding:18px 18px 64px;
     position:relative;z-index:2;
     box-sizing:border-box">
 
@@ -3697,24 +3763,11 @@ ${isPodium ? `
           <div class="_sec" style="margin-bottom:0;font-size:13px">Activity</div>
           <div style="font-size:10px;color:${ink3}">7 days</div>
         </div>
-        <!-- feed items — rendered from data.activity or fallback placeholders -->
+        <!-- feed items — normalized from whatever the server sends, with a
+             local-notification fallback for your own profile so this panel
+             is never just permanently empty ── -->
         <div id="${pid}_feed">
-          ${(() => {
-            const acts = data.recentActivity || data.activity || [];
-            if (acts.length) {
-              return acts.slice(0,12).map(a => `
-                <div class="_af-item">
-                  <div class="_af-icon" style="background:${a.color||'rgba(82,183,136,0.12)'}22">${a.emoji||'🌿'}</div>
-                  <div class="_af-body">
-                    <div class="_af-title">${a.text||a.description||'Activity'}</div>
-                    <div class="_af-time">${a.time||a.ago||''}</div>
-                  </div>
-                  ${a.value ? `<div class="_af-val" style="color:${a.color||'#52b788'}">${a.value}</div>` : ''}
-                </div>`).join('');
-            }
-            // Graceful empty state
-            return `<div style="padding:28px 14px;text-align:center;color:${ink3};font-size:12px">No recent activity</div>`;
-          })()}
+          ${renderActivityFeed(data, id, ink3)}
         </div>
       </div>
     </div>
@@ -3751,7 +3804,7 @@ ${isPodium ? `
         </div>
 
         <!-- Plant grid — 4 cols, same card dims as inventory in v4 -->
-        <div id="${pid}_grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-height:200px"></div>
+        <div id="${pid}_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;min-height:200px"></div>
 
         <!-- Pager -->
         <div class="_pg">
@@ -3829,7 +3882,7 @@ ${isPodium ? `
     /* ════════════════════════════════════
        COLLECTION PAGINATOR + SORT/FILTER
     ════════════════════════════════════ */
-    const PER = 16; // 4×4 grid
+    const PER = 24; // auto-fill grid, ~5-8 cols depending on width
     let _filter  = 'all';
     let _sortKey = 'rarity';  // 'rarity' | 'version' | 'name'
     let _sortDir = -1;        // -1 = desc, 1 = asc
@@ -3851,11 +3904,14 @@ ${isPodium ? `
       return base;
     };
 
+    let _curSlice = [];
+
     const renderGrid = () => {
       const items = getList();
       const pages = Math.max(1, Math.ceil(items.length / PER));
       _page = Math.max(0, Math.min(_page, pages - 1));
       const slice = items.slice(_page * PER, (_page + 1) * PER);
+      _curSlice = slice;
       const grid  = document.getElementById(`${pid}_grid`);
       const pnum  = document.getElementById(`${pid}_pnum`);
       const prev  = document.getElementById(`${pid}_prev`);
@@ -3883,8 +3939,9 @@ ${isPodium ? `
           ? `<img src="${resolveImg(p.image)}" loading="lazy" alt="${p.name}"
                onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2.replace(/'/g,"\\'")}\\'>${p.emoji||'🌿'}</div>'">`
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
+        const glow = isV1 ? '#c9a84c' : rc;
         return `
-          <div class="_pc" style="animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
+          <div class="_pc" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
             <div class="_pc-bar" style="background:${barBg}"></div>
             ${imgContent}
             <div class="_pc-foot">
@@ -3947,6 +4004,54 @@ ${isPodium ? `
     };
 
     window[`${pid}_pg`] = dir => { _page += dir; renderGrid(); };
+
+    /* Click-to-view — neat single-plant viewer, same spirit as the Plant Index modal */
+    const rarityGradients = {
+      Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
+      Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
+      Rare:     'linear-gradient(160deg, #0a2a50 0%, #051525 100%)',
+      Epic:     'linear-gradient(160deg, #2a0850 0%, #150328 100%)',
+      Legendary:'linear-gradient(160deg, #503a00 0%, #281e00 100%)',
+      Mythic:   'linear-gradient(160deg, #500808 0%, #280404 100%)',
+      Super:    'linear-gradient(160deg, #003a4a 0%, #001e28 100%)',
+      Secret:   'linear-gradient(160deg, #1a0a3a 0%, #0a0520 100%)',
+    };
+    window[`${pid}_view`] = i => {
+      const p = _curSlice[i];
+      if (!p) return;
+      const rc    = rarityColors[p.rarity] || '#999';
+      const bg    = rarityGradients[p.rarity] || rarityGradients.Common;
+      const isV1  = p.version === 1;
+      const glow  = isV1 ? '#c9a84c' : rc;
+      const mut   = p.mutation
+        ? `<div style="display:inline-flex;align-items:center;gap:6px;background:${mutationColor(p.mutation.name)}22;border:1px solid ${mutationColor(p.mutation.name)}55;border-radius:100px;padding:4px 14px;margin-top:10px;font-size:12px;font-weight:700;color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)} ${p.mutation.name}</div>`
+        : '';
+      const existing = document.getElementById('profile-plant-viewer');
+      if (existing) existing.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'profile-plant-viewer';
+      overlay.style.cssText = 'position:fixed;inset:0;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,0.5)';
+      overlay.innerHTML = `
+        <div style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid ${glow}44;box-shadow:0 32px 80px rgba(0,0,0,0.5),0 0 40px ${glow}22;text-align:center;position:relative;background:${bg}">
+          <button onclick="document.getElementById('profile-plant-viewer').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
+          ${isV1 ? `<div style="position:absolute;top:14px;left:14px;font-size:11px;font-weight:800;color:#c9a84c;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:100px;padding:4px 10px">👑 v1</div>` : ''}
+          <div style="width:130px;height:130px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${glow}55;box-shadow:0 0 40px ${glow}44">
+            ${p.image ? `<img src="${resolveImg(p.image)}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">` : `<span style="font-size:52px">${p.emoji||'🌿'}</span>`}
+          </div>
+          <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff;margin-bottom:10px">${p.name}</div>
+          <div style="display:inline-flex;align-items:center;gap:6px;background:${rc}33;border:1px solid ${rc}66;border-radius:100px;padding:5px 16px">
+            <span style="font-size:13px;font-weight:700;color:${rc}">${p.rarity} · v${p.version||'?'}</span>
+          </div>
+          ${mut}
+          ${p.sellPrice ? `
+          <div style="margin-top:20px;background:rgba(255,255,255,0.07);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)">
+            <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Sell Value</div>
+            <div style="font-size:28px;font-weight:800;color:#fff">${p.sellPrice.toLocaleString()}</div>
+          </div>` : ''}
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    };
 
     renderGrid();
 
