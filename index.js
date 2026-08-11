@@ -5852,10 +5852,8 @@ app.get('/api/market', (req, res) => {
     const listings = loadListings();
     const db = loadDB();
     const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Secret:'#111111' };
-    const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
     const now = Date.now();
     res.json(listings
-      .filter(l => allowedRarities.includes(l.plant.rarity))
       .map(l => {
         const plantMatch = PLANTS.find(p => p.name === l.plant.name);
         const seller = db[l.sellerId];
@@ -5896,8 +5894,6 @@ app.post('/api/market/list', async (req, res) => {
 
   const { p: plant, i: plantIndex } = candidates[0];
   if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${plant.name} v${plant.version} is locked.` });
-  const allowedRarities = ['Epic', 'Legendary', 'Mythic', 'Secret'];
-  if (!allowedRarities.includes(plant.rarity)) return res.status(400).json({ error: `Only Epic, Legendary, Mythic, and Secret plants can be listed on the market.` });
 
   const listingId = `l_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
   user.collection.splice(plantIndex, 1);
