@@ -2195,7 +2195,7 @@
           <!-- YOUR side -->
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
-            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
+            <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
@@ -2215,7 +2215,7 @@
           <!-- THEIR side -->
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
-            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
+            <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
@@ -4740,7 +4740,7 @@ function renderChatMsg(m) {
   </div>`;
 }
 
-const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111' };
+const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF' };
 const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
 function mutationEmoji(name) {
@@ -5707,19 +5707,19 @@ for (let i = 0; i < SLOTS; i++) {
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
     const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
-    html += `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="aspect-ratio:1;min-height:96px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden">
-      <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:68px;height:68px;object-fit:contain;flex-shrink:0">
-      <div style="font-size:10px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
-      <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:center">
-        <span style="font-size:9px;font-weight:700;color:${rarityColor};background:${rarityColors[p.rarity]||'var(--border)'}22;border-radius:4px;padding:1px 5px;letter-spacing:0.03em">${p.rarity}</span>
-        <span style="font-size:9px;font-weight:600;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</span>
+    html += `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="min-height:150px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;position:relative;overflow:hidden">
+      <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:64px;height:64px;object-fit:contain;flex-shrink:0">
+      <div style="font-size:12px;font-weight:700;color:var(--ink);text-align:center;line-height:1.25;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center">
+        <span style="font-size:10px;font-weight:700;color:${rarityColor};background:${rarityColors[p.rarity]||'var(--border)'}22;border-radius:4px;padding:2px 6px;letter-spacing:0.03em">${p.rarity}</span>
+        <span style="font-size:10px;font-weight:600;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</span>
       </div>
-      ${isMyGrid && !mySide.confirmed ? `<div onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:3px;right:3px;font-size:10px;color:var(--ink3);cursor:pointer;background:var(--bg2);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;line-height:1" title="Remove">✕</div>` : ''}
+      ${isMyGrid && !mySide.confirmed ? `<div onclick="removePlantFromTrade('${p.name}',${p.version})" style="position:absolute;top:5px;right:5px;font-size:10px;color:var(--ink3);cursor:pointer;background:var(--bg2);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;line-height:1" title="Remove">✕</div>` : ''}
     </div>`;
   } else if (isAddSlot) {
-    html += `<div onclick="openAddPlantModal()" style="aspect-ratio:1;min-height:72px;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ink3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
+    html += `<div onclick="openAddPlantModal()" style="min-height:150px;background:var(--bg2);border:2px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--ink3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='rgba(88,101,242,0.5)';this.style.color='rgba(88,101,242,1)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">+</div>`;
   } else {
-    html += `<div style="aspect-ratio:1;min-height:72px;background:transparent;border:1.5px dashed rgba(14,13,11,0.15);border-radius:10px;"></div>`;
+    html += `<div style="min-height:150px;background:transparent;border:1.5px dashed rgba(14,13,11,0.15);border-radius:10px;"></div>`;
 ;
   }
 }
