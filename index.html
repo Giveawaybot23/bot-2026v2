@@ -105,6 +105,7 @@
   .pill-lbl-hover {
     position: absolute; left: 0; top: 0;
     color: var(--bg); display: inline-block;
+    opacity: 0;
     will-change: transform, opacity;
   }
 
@@ -4161,6 +4162,7 @@ async function initAuth() {
       refreshNotifBadge();
       syncNotifPrefsFromServer();
       document.getElementById('nav-inventory').style.display = '';
+      window.refreshPillNav?.();
       window._loggedInUsername = data.user.username;
       window._loggedInAvatarUrl = avatarUrl;
       loadNavCoins(data.user.id);
@@ -7320,6 +7322,16 @@ async function deletePriceAlert(alertId) {
     window.addEventListener('resize', layout);
     if (document.fonts?.ready) document.fonts.ready.then(layout).catch(() => {});
   }
+
+  // Re-run layout for any pill that was hidden (display:none, 0×0 rect) during
+  // the initial pass — e.g. #nav-inventory, which only appears after login —
+  // so its hover-circle and hover-label get positioned instead of sitting
+  // uninitialized on top of the real label.
+  window.refreshPillNav = function () {
+    collectPills();
+    layout();
+    attachEvents();
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
