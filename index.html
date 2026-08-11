@@ -1411,6 +1411,7 @@
 }
 .chat-msg-body { flex: 1; }
 .chat-msg-name { font-size: 11px; font-weight: 700; color: var(--green); }
+.chat-msg-name[onclick]:hover, .chat-msg-avatar[onclick]:hover { text-decoration: underline; opacity: 0.85; }
 .chat-msg-text { font-size: 13px; color: var(--ink2); line-height: 1.4; word-break: break-word; overflow-wrap: anywhere; }
 .chat-input-wrap {
   display: flex; gap: 8px; padding: 12px 16px;
@@ -1822,11 +1823,12 @@
     <div class="nav-dropdown-wrap" id="nav-play-wrap">
       <a class="nav-dropdown-trigger" id="nav-play-trigger">
         <span class="pill-hover-circle" aria-hidden="true"></span>
-        <span class="pill-label-stack"><span class="pill-lbl">Play ▾</span><span class="pill-lbl-hover" aria-hidden="true">Play ▾</span></span>
+        <span class="pill-label-stack"><span class="pill-lbl">Shop ▾</span><span class="pill-lbl-hover" aria-hidden="true">Shop ▾</span></span>
       </a>
       <div class="nav-dropdown">
         <a onclick="showPage('packs')" class="nav-dropdown-item" id="nav-packs">📦 Pack Opening</a>
         <a onclick="showPage('merchant')" class="nav-dropdown-item" id="nav-merchant">🧙 Merchant</a>
+        <a onclick="showPage('rankshop')" class="nav-dropdown-item" id="nav-rankshop">🎨 Rank Colors</a>
       </div>
     </div>
     <a onclick="showPage('trade')" id="nav-trade">
@@ -3036,6 +3038,19 @@ function pkBurst(x,y,color,count=24){
   </div>
 </div>
 
+<!-- ── RANK COLOR SHOP PAGE ── -->
+<div class="page" id="page-rankshop">
+  <div class="shop-page">
+    <div class="shop-header reveal">
+      <div class="section-eyebrow">Shop</div>
+      <h1 class="section-title" style="margin-bottom:8px">Rank Colors</h1>
+      <p style="font-size:15px;color:var(--ink2)">Hold the #1 spot in a leaderboard category to unlock a custom glow color for that badge.</p>
+    </div>
+    <div id="rankshop-content"></div>
+  </div>
+</div>
+
+
 
 
 <script>
@@ -3183,12 +3198,13 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'inventory') loadInventoryPage();
   if (name === 'trade') loadTradePage();
   if (name === 'merchant') { renderMerchantPage(); loadBoostStatus(); }
+  if (name === 'rankshop') { loadRankShopPage(); }
   if (name === 'market' || name === 'auctions' || name === 'auction-detail') {
     document.getElementById('nav-market-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
     document.getElementById('nav-market-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
   }
-  if (name === 'packs' || name === 'merchant') {
+  if (name === 'packs' || name === 'merchant' || name === 'rankshop') {
     document.getElementById('nav-play-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
     document.getElementById('nav-play-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.remove('active');
@@ -3207,7 +3223,7 @@ function showPage(name, { skipHash = false } = {}) {
 // Restore page from URL hash on load or back/forward navigation
 function restorePageFromHash() {
   const hash = location.hash.replace('#', '') || 'home';
-  const valid = ['home','leaderboards','profiles','market','auctions','trade','inventory','merchant','packs'];
+  const valid = ['home','leaderboards','profiles','market','auctions','trade','inventory','merchant','packs','rankshop'];
   const target = valid.includes(hash) ? hash : 'home';
   showPage(target, { skipHash: true });
 }
@@ -3299,7 +3315,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
           <div class="profile-mini-avatar" id="av-${p.id}">${p.rankEmoji}</div>
           <div>
             <div class="profile-mini-name" style="${window._gardenRank1Id && p.id === window._gardenRank1Id ? 'display:flex;justify-content:flex-start;' : ''}">${window._gardenRank1Id && p.id === window._gardenRank1Id ? `<canvas class="fuzzy-name-canvas" data-text="${p.username}" style="display:block;height:20px"></canvas>` : p.username}</div>
-            <div class="profile-mini-rank">${p.rankEmoji} ${p.rankName}</div>
+            <div class="profile-mini-rank"><span style="display:inline-block;transform:scale(1.55);transform-origin:left center;margin-right:3px">${p.rankEmoji}</span>${p.rankName}</div>
           </div>
         </div>
         <div class="profile-mini-tier">
@@ -3442,6 +3458,180 @@ function renderActivityFeed(data, profileId, mutedColor) {
     </div>`).join('');
 }
 
+/* ── Leaderboard rank lookup for profile stat badges & the rank-color shop ──
+   Garden Score and Level ranks come straight from /api/leaderboards. Plants
+   is derived from the full /api/players roster. Coins and Total Claims only
+   get a rank if that roster actually carries those fields — if it doesn't,
+   the badge is simply omitted rather than showing a made-up number. */
+async function getCategoryRanks(userId) {
+  try {
+    const [lb, players] = await Promise.all([
+      window._cachedLB ? Promise.resolve(window._cachedLB) : fetch('/api/leaderboards').then(r => r.json()),
+      window._rankPlayers ? Promise.resolve(window._rankPlayers) : fetch('/api/players').then(r => r.json()),
+    ]);
+    window._cachedLB = lb;
+    window._rankPlayers = players;
+
+    const rankOf = (list, idFn, cmp) => {
+      if (!Array.isArray(list) || !list.length) return null;
+      const sorted = [...list].sort(cmp);
+      const idx = sorted.findIndex(e => idFn(e) === userId);
+      return idx === -1 ? null : idx + 1;
+    };
+
+    const hasCoins  = Array.isArray(players) && players.some(p => typeof p.coins === 'number' || typeof p.currency === 'number');
+    const hasClaims = Array.isArray(players) && players.some(p => typeof p.totalClaims === 'number');
+
+    return {
+      gardenScore: rankOf(lb.garden, e => e.id || e.userId, (a,b) => (b.score||0) - (a.score||0)),
+      level:       rankOf(lb.level,  e => e.id || e.userId, (a,b) => (b.level||0) - (a.level||0) || (b.xp||0) - (a.xp||0)),
+      plants:      rankOf(players,   e => e.id,              (a,b) => (b.plants||0) - (a.plants||0)),
+      coins:       hasCoins  ? rankOf(players, e => e.id, (a,b) => ((b.coins ?? b.currency ?? 0) - (a.coins ?? a.currency ?? 0))) : null,
+      totalClaims: hasClaims ? rankOf(players, e => e.id, (a,b) => (b.totalClaims||0) - (a.totalClaims||0)) : null,
+    };
+  } catch { return {}; }
+}
+
+const RANK_CATEGORIES = {
+  level:       { label: 'Level',        icon: '📈' },
+  plants:      { label: 'Plants',       icon: '🌿' },
+  gardenScore: { label: 'Garden Score', icon: '⭐' },
+  coins:       { label: 'Coins',        icon: '🪙' },
+  totalClaims: { label: 'Total Claims', icon: '⚡' },
+};
+
+/* ── Custom #1 rank colors ──
+   Ideally these live server-side (via GET/POST /api/rank-color) so every
+   visitor sees the same purchased color. That endpoint doesn't exist yet in
+   this build, so calls to it are wrapped in try/catch and fall back to a
+   per-browser localStorage cache — the feature still works end-to-end for
+   the buyer, it just won't be visible from other people's browsers until
+   that endpoint is added server-side. */
+function _rankColorKey(userId, category) { return `rankColor:${category}:${userId}`; }
+
+async function loadRankColor(userId, category) {
+  try {
+    const res = await fetch(`/api/rank-color/${userId}/${category}`);
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.color) { try { localStorage.setItem(_rankColorKey(userId, category), d.color); } catch {} return d.color; }
+    }
+  } catch {}
+  try { return localStorage.getItem(_rankColorKey(userId, category)) || null; } catch { return null; }
+}
+
+async function saveRankColor(userId, category, color) {
+  try { localStorage.setItem(_rankColorKey(userId, category), color); } catch {}
+  try {
+    await fetch('/api/rank-color', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, color }),
+    });
+  } catch {}
+}
+
+/* ── Rank Colors shop page ──
+   Only the current #1 in a category can unlock/change that category's
+   badge color. One-time unlock cost, then free re-picking afterward.
+   NOTE: coin deduction is optimistic on the client — a real deployment
+   should have the server validate + deduct balance in the /api/rank-color
+   handler and reject the request if the caller isn't actually #1 or can't
+   afford it. */
+const RANK_COLOR_PRICE = 15000;
+const RANK_COLOR_SWATCHES = ['#ffd54a','#ff5c8a','#5ce1ff','#7c5cff','#5cff9d','#ff8a5c','#ffffff','#ff2fd0'];
+
+async function loadRankShopPage() {
+  const el = document.getElementById('rankshop-content');
+  if (!el) return;
+
+  if (!window._loggedInId) {
+    el.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--ink2)">
+      <div style="font-size:36px;margin-bottom:12px">🔒</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Log in to check your ranks</div>
+      <div style="font-size:13px;color:var(--ink3)">You need to be signed in with Discord to see whether you're #1 in a category.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--ink3);font-size:13px">Checking your leaderboard standings…</div>`;
+
+  let ranks = {};
+  let coins = 0;
+  try {
+    ranks = await getCategoryRanks(window._loggedInId);
+    const pRes = await fetch(`/api/profile/${window._loggedInId}`);
+    const pData = await pRes.json();
+    coins = pData.currency || 0;
+  } catch {}
+
+  const cards = await Promise.all(Object.entries(RANK_CATEGORIES).map(async ([cat, meta]) => {
+    const rank = ranks[cat];
+    const isChampion = rank === 1;
+    const owned = isChampion ? await loadRankColor(window._loggedInId, cat) : null;
+
+    if (!isChampion) {
+      return `
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;opacity:0.55">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:20px">${meta.icon}</span>
+            <span style="font-size:15px;font-weight:700;color:var(--ink)">${meta.label}</span>
+          </div>
+          <div style="font-size:13px;color:var(--ink3);margin-bottom:4px">🔒 Reach #1 in ${meta.label} to unlock</div>
+          <div style="font-size:12px;color:var(--ink3)">${rank ? `You're currently #${rank}` : 'Not ranked yet'}</div>
+        </div>`;
+    }
+
+    const current = owned || RANK_COLOR_SWATCHES[0];
+    const swatches = RANK_COLOR_SWATCHES.map(c => `
+      <button onclick="pickRankColor('${cat}','${c}')" style="width:28px;height:28px;border-radius:50%;background:${c};border:2px solid ${owned === c ? 'var(--ink)' : 'transparent'};box-shadow:0 0 0 1px var(--border)${owned === c ? ',0 0 10px '+c+'aa' : ''};cursor:pointer;padding:0"></button>
+    `).join('');
+
+    return `
+      <div style="background:var(--card);border:1px solid ${current}55;border-radius:16px;padding:20px;box-shadow:0 0 24px ${current}22">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">${meta.icon}</span>
+            <span style="font-size:15px;font-weight:700;color:var(--ink)">${meta.label}</span>
+          </div>
+          <div style="font-size:10px;font-weight:800;color:${current};background:${current}22;border:1px solid ${current}66;border-radius:100px;padding:3px 10px;text-shadow:0 0 8px ${current}aa">#1</div>
+        </div>
+        ${owned ? `
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">Your #1 badge glows this color. Pick a new one anytime — it's free once unlocked.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="rankshop-swatches-${cat}">${swatches}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="color" value="${owned}" onchange="pickRankColor('${cat}', this.value)" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer;padding:0">
+            <span style="font-size:12px;color:var(--ink3)">Custom shade</span>
+          </div>
+        ` : `
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:14px">You're #1! Unlock a custom glow color for this badge.</div>
+          <button onclick="buyRankColor('${cat}', ${coins})" style="width:100%;background:var(--ink);color:var(--bg);border:none;border-radius:100px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--ink)'">🪙 Unlock for ${RANK_COLOR_PRICE.toLocaleString()} coins</button>
+        `}
+      </div>`;
+  }));
+
+  el.innerHTML = `
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:16px">Your balance: <strong style="color:var(--ink)">🪙 ${coins.toLocaleString()}</strong></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px">${cards.join('')}</div>
+  `;
+}
+
+async function pickRankColor(category, color) {
+  await saveRankColor(window._loggedInId, category, color);
+  showToast('Rank color updated!');
+  loadRankShopPage();
+}
+
+async function buyRankColor(category, coins) {
+  if (coins < RANK_COLOR_PRICE) {
+    showToast(`Not enough coins — you need ${RANK_COLOR_PRICE.toLocaleString()}`);
+    return;
+  }
+  await saveRankColor(window._loggedInId, category, RANK_COLOR_SWATCHES[0]);
+  showToast('Custom rank color unlocked! 🎨');
+  loadRankShopPage();
+}
+
 async function loadProfile(id) {
   try {
     showPage('profile-detail');
@@ -3535,6 +3725,25 @@ async function loadProfile(id) {
 
     /* ── Helpers ── */
     const fmt = n => n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'k' : (n||0).toLocaleString();
+
+    /* ── Leaderboard rank badges for the stat boxes ── */
+    const ranks = await getCategoryRanks(id);
+    const rankColors = {};
+    await Promise.all(Object.entries(ranks).map(async ([cat, rank]) => {
+      if (rank === 1) rankColors[cat] = await loadRankColor(id, cat);
+    }));
+    const DEFAULT_RANK1_COLOR = '#ffd54a';
+    const rankBadge = (rank, cat) => {
+      if (!rank) return { boxStyle: '', html: '' };
+      const isTop1  = rank === 1;
+      const isTop10 = rank <= 10;
+      const color   = isTop1 ? (rankColors[cat] || DEFAULT_RANK1_COLOR) : tc;
+      const boxStyle = isTop10
+        ? `border-color:${color}77;box-shadow:0 0 0 1px ${color}44,0 0 ${isTop1 ? '26px 4px' : '14px 2px'} ${color}${isTop1 ? 'bb' : '55'};`
+        : '';
+      const html = `<div style="flex-shrink:0;font-size:10px;font-weight:800;color:${color};background:${color}22;border:1px solid ${color}66;border-radius:100px;padding:3px 9px;white-space:nowrap;${isTop1 ? 'text-shadow:0 0 8px '+color+'aa;' : ''}">#${rank}</div>`;
+      return { boxStyle, html };
+    };
 
     document.getElementById('profile-detail-content').innerHTML = `
 <style>
@@ -3821,11 +4030,11 @@ ${isPodium ? `
     <div class="_rp _pcol-right" style="grid-area:right">
 
       <!-- XP / Level card -->
-      <div style="background:${card};border:1px solid ${isPodium ? pk?.g+'.1)' : bord};border-radius:13px;padding:15px;position:relative;overflow:hidden">
+      <div style="background:${card};border:1px solid ${isPodium ? pk?.g+'.1)' : bord};border-radius:13px;padding:15px;position:relative;overflow:hidden;${rankBadge(ranks.level,'level').boxStyle}">
         ${isPodium ? `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${pk.g}.04) 0%,transparent 55%);pointer-events:none"></div>` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;position:relative">
-          <div style="font-size:13px;font-weight:700;color:${ink}">Level ${data.level}</div>
-          <div style="font-size:10px;color:${ink3}">${data.pct}% to ${data.level+1}</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;position:relative;gap:8px">
+          <div style="font-size:13px;font-weight:700;color:${ink};display:flex;align-items:center;gap:6px">Level ${data.level}${rankBadge(ranks.level,'level').html}</div>
+          <div style="font-size:10px;color:${ink3};white-space:nowrap">${data.pct}% to ${data.level+1}</div>
         </div>
         <div style="height:7px;background:${isPodium ? 'rgba(255,255,255,.06)' : 'var(--bg2)'};border-radius:100px;overflow:hidden;position:relative">
           <div class="${isPodium ? '_p-xp' : ''}" style="${isPodium ? '' : 'background:linear-gradient(90deg,'+tc+','+tc+'88);box-shadow:0 0 10px '+tc+'55;border-radius:100px;transition:width 1.4s cubic-bezier(.16,1,.3,1);'}height:100%;width:${data.pct}%"></div>
@@ -3839,18 +4048,22 @@ ${isPodium ? `
       <!-- Stats -->
       <div style="display:flex;flex-direction:column;gap:7px">
         ${[
-          { icon:'🌿', lbl:'Plants',       val: (data.plants||0).toLocaleString(),   d:0 },
-          { icon:'⭐', lbl:'Garden Score', val: fmt(data.gardenScore||0),             d:1 },
-          { icon:'🪙', lbl:'Coins',        val: fmt(data.currency||0),               d:2 },
-          { icon:'⚡', lbl:'Total Claims', val: (data.totalClaims||0).toLocaleString(), d:3 },
-        ].map(s => `
-          <div class="_sr" style="animation-delay:${s.d*.07}s">
+          { key:'plants',      icon:'🌿', lbl:'Plants',       val: (data.plants||0).toLocaleString(),   d:0 },
+          { key:'gardenScore', icon:'⭐', lbl:'Garden Score', val: fmt(data.gardenScore||0),             d:1 },
+          { key:'coins',       icon:'🪙', lbl:'Coins',        val: fmt(data.currency||0),               d:2 },
+          { key:'totalClaims', icon:'⚡', lbl:'Total Claims', val: (data.totalClaims||0).toLocaleString(), d:3 },
+        ].map(s => {
+          const rb = rankBadge(ranks[s.key], s.key);
+          return `
+          <div class="_sr" style="animation-delay:${s.d*.07}s;${rb.boxStyle}">
             <div class="_sr-icon">${s.icon}</div>
             <div style="flex:1;min-width:0">
               <div class="_sr-lbl">${s.lbl}</div>
               <div class="_sr-val">${s.val}</div>
             </div>
-          </div>`).join('')}
+            ${rb.html}
+          </div>`;
+        }).join('')}
       </div>
 
       <!-- Achievements -->
@@ -4035,7 +4248,7 @@ ${isPodium ? `
       const rc      = rarityColors[p.rarity] || '#999';
       const cardBg  = rarityGradients[p.rarity] || rarityGradients.Common;
       const isV1    = p.version === 1;
-      const glow    = isV1 ? '#c9a84c' : rc;
+      const glow    = rc; // live glow always matches the plant's rarity color, even for v1
       const highTier= ['Legendary','Mythic','Super','Secret'].includes(p.rarity);
       const obtained = readObtained(p);
 
@@ -4056,11 +4269,14 @@ ${isPodium ? `
           @keyframes _pvSpin{to{transform:rotate(360deg)}}
           @keyframes _pvFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
           @keyframes _pvPulse{0%,100%{box-shadow:0 0 30px 2px ${glow}44,0 0 0 1px ${glow}55}50%{box-shadow:0 0 50px 6px ${glow}77,0 0 0 1px ${glow}aa}}
+          @keyframes _pvCardGlow{0%,100%{box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 30px ${glow}33,0 0 0 1.5px ${glow}77}50%{box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 68px ${glow}99,0 0 0 2.5px ${glow}}}
           .pv-card{animation:_pvIn .32s cubic-bezier(.16,1,.3,1) both}
+          .pv-card-live{animation:_pvIn .32s cubic-bezier(.16,1,.3,1) both,_pvCardGlow 2.2s ease-in-out infinite}
           .pv-ring{position:absolute;inset:-10px;border-radius:50%;background:conic-gradient(from 0deg,${glow},transparent 30%,transparent 70%,${glow});animation:_pvSpin 5s linear infinite;opacity:.55}
-          .pv-art{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
+          .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
+          .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
 
           <!-- ambient texture -->
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 0%,${glow}22 0%,transparent 55%),radial-gradient(circle at 100% 100%,${glow}14 0%,transparent 50%);pointer-events:none"></div>
@@ -4069,7 +4285,7 @@ ${isPodium ? `
           <button onclick="document.getElementById('profile-plant-viewer').remove()" style="position:absolute;top:16px;right:16px;z-index:3;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.75);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
 
           <!-- owner strip -->
-          <div style="position:relative;z-index:2;display:flex;align-items:center;gap:9px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,0.08)">
+          <div style="position:relative;z-index:2;display:flex;align-items:center;gap:9px;padding:16px 54px 16px 18px;border-bottom:1px solid rgba(255,255,255,0.08)">
             <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">
               ${avatarUrl ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">` : '🌱'}
             </div>
@@ -4084,7 +4300,7 @@ ${isPodium ? `
           <div style="position:relative;z-index:2;padding:30px 32px 6px;text-align:center">
             <div style="position:relative;width:150px;height:150px;margin:0 auto 22px">
               <div class="pv-ring"></div>
-              <div class="pv-art" style="position:relative;width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:2px solid ${glow}66">
+              <div class="pv-art${isV1 ? ' pv-art-live' : ''}" style="position:relative;width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:2px solid ${glow}66">
                 ${p.image ? `<img src="${resolveImg(p.image)}" style="width:108px;height:108px;object-fit:contain" onerror="this.style.display='none'">` : `<span style="font-size:56px">${p.emoji||'🌿'}</span>`}
               </div>
             </div>
@@ -4672,7 +4888,7 @@ function connectAuctionWS(auctionId) {
       if (msg.type === 'history') {
         if (container) {
           container.innerHTML = msg.messages.length
-            ? msg.messages.map(m => renderChatMsg({ name: m.username, text: m.text, avatarUrl: m.avatarUrl })).join('')
+            ? msg.messages.map(m => renderChatMsg({ name: m.username, text: m.text, avatarUrl: m.avatarUrl, userId: m.userId })).join('')
             : '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>';
           container.scrollTop = container.scrollHeight;
         }
@@ -4680,7 +4896,7 @@ function connectAuctionWS(auctionId) {
         if (container) {
           const placeholder = container.querySelector('div[style*="No messages"]');
           if (placeholder) placeholder.remove();
-          container.innerHTML += renderChatMsg({ name: msg.username, text: msg.text, avatarUrl: msg.avatarUrl });
+          container.innerHTML += renderChatMsg({ name: msg.username, text: msg.text, avatarUrl: msg.avatarUrl, userId: msg.userId });
           container.scrollTop = container.scrollHeight;
         }
       } else if (msg.type === 'bid') {
@@ -4939,12 +5155,13 @@ async function showAuctionDetail(auctionId) {
 }
 
 function renderChatMsg(m) {
+  const clickable = m.userId ? `onclick="loadProfile('${m.userId}')" style="cursor:pointer"` : '';
   return `<div class="chat-msg">
-    <div class="chat-msg-avatar" style="overflow:hidden;padding:0;background:var(--green-pale)">
+    <div class="chat-msg-avatar" ${clickable} style="overflow:hidden;padding:0;background:var(--green-pale)${m.userId ? ';cursor:pointer' : ''}">
       ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<span style="font-size:10px;font-weight:700;color:var(--green)">${m.name[0].toUpperCase()}</span>`}
     </div>
     <div class="chat-msg-body">
-      <div class="chat-msg-name">${(m.name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div class="chat-msg-name" ${clickable}>${(m.name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
       <div class="chat-msg-text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
     </div>
   </div>`;
