@@ -770,16 +770,16 @@ function loadDB() {
 }
 function saveDB(db) { atomicWriteFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
-// Adds a plant to a user's collection. Also permanently records Secret-rarity
-// discoveries on the user (user.discoveredSecrets) so the Bestiary/Collection
-// page keeps a Secret plant revealed forever, even after it's later sold,
+// Adds a plant to a user's collection. Also permanently records the plant as
+// "discovered" on the user (user.discoveredPlants) so the Plant Index page
+// keeps any plant revealed forever once found, even after it's later sold,
 // traded away, or otherwise removed from their live collection.
 function grantPlant(user, entry) {
   user.collection = user.collection || [];
   user.collection.push(entry);
-  if (entry && entry.rarity === 'Secret' && entry.name) {
-    user.discoveredSecrets = user.discoveredSecrets || [];
-    if (!user.discoveredSecrets.includes(entry.name)) user.discoveredSecrets.push(entry.name);
+  if (entry && entry.name) {
+    user.discoveredPlants = user.discoveredPlants || [];
+    if (!user.discoveredPlants.includes(entry.name)) user.discoveredPlants.push(entry.name);
   }
   return entry;
 }
@@ -5335,7 +5335,7 @@ app.get('/api/profile/:id', (req, res) => {
       plants: user.collection?.length || 0,
       achievements: user.achievements?.length || 0,
       collection: (user.collection||[]),
-      discoveredSecrets: (user.discoveredSecrets||[]),
+      discoveredPlants: Array.from(new Set([...(user.discoveredPlants||[]), ...(user.collection||[]).map(p => p.name)])),
       gardenScore: score,
       gardenTier: { name: tier.name, emoji: tier.emoji, color: tier.color },
       title,
@@ -5587,7 +5587,8 @@ pushCollectionUpdate = function(userId) {
         sellPrice: getLiveSellValue(p),
       };
     });
-    pushToUser(userId, { type: 'collection_update', collection, discoveredSecrets: user.discoveredSecrets || [] });
+    const discoveredPlants = Array.from(new Set([...(user.discoveredPlants||[]), ...(user.collection||[]).map(p => p.name)]));
+    pushToUser(userId, { type: 'collection_update', collection, discoveredPlants });
   } catch {}
 };
 
