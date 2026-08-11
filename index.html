@@ -61,11 +61,18 @@
   .nav-logo span { color: var(--green); }
   .nav-links {
     display: flex; gap: 3px; align-items: stretch;
-    overflow: visible; position: relative;
+    overflow: visible;
     background: rgba(14,13,11,0.06);
     border-radius: 9999px;
     padding: 3px;
     height: 42px;
+    /* Centered independently of the grid's left/right column widths, which
+       aren't equal (1fr vs 1.6fr) — sitting it in the middle grid track put
+       it off-center. Taking it out of grid flow and centering it against the
+       whole nav bar doesn't move the logo (left-anchored) or the right-side
+       content (right-anchored via justify-content:flex-end), since neither
+       is centered within its own column to begin with. */
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   }
   .nav-links > a {
     font-size: 14px; font-weight: 500; color: var(--ink2);
