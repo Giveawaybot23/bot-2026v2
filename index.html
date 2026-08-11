@@ -4742,7 +4742,7 @@ function renderChatMsg(m) {
 }
 
 const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF' };
-const rarityOrder  = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
 function mutationEmoji(name) {
   return { Starstruck:'⭐', Shocked:'⚡', Soaked:'💧', Snowy:'❄️', Flooded:'🌊', Sandy:'🏜️' }[name] || '✨';
@@ -5095,14 +5095,12 @@ async function loadInventoryPage() {
     const plants = await plantsRes.json();
     const profile = profileRes ? await profileRes.json() : null;
 
-    // Build a set of secret plant names the user owns
-    window._unlockedSecrets = new Set(
-      (profile?.collection || [])
-        .filter(p => p.rarity === 'Secret')
-        .map(p => p.name)
-    );
+    // Build a set of secret plant names the user has ever discovered. This is
+    // read from the persistent discoveredSecrets list (not the live collection)
+    // so a Secret plant stays revealed even after it's sold or traded away.
+    window._unlockedSecrets = new Set(profile?.discoveredSecrets || []);
 
-    const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
     document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
     renderInventoryPage();
@@ -5130,14 +5128,15 @@ function renderInventoryPage() {
   let filtered = _invPageCollection;
   if (_invPageFilter !== 'all') filtered = filtered.filter(p => p.rarity === _invPageFilter);
   if (_invPageSearch) filtered = filtered.filter(p => {
-    if (p.rarity === 'Secret') return 'secret'.includes(_invPageSearch.toLowerCase());
+    if (p.rarity === 'Secret' && !window._unlockedSecrets?.has(p.name)) return 'secret'.includes(_invPageSearch.toLowerCase());
     return p.name.toLowerCase().includes(_invPageSearch);
   });
   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>'; return; }
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
-    const isSecret = p.rarity === 'Secret' && !window._unlockedSecrets?.has(p.name);
-    if (isSecret) {
+    const isSecretRarity = p.rarity === 'Secret';
+    const isDiscovered = isSecretRarity && window._unlockedSecrets?.has(p.name);
+    if (isSecretRarity && !isDiscovered) {
       return `
         <div class="market-card secret-electric" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
           <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#4a0080,#9c5fff,#4a0080);box-shadow:0 0 10px #9c5fff88,0 0 20px #9c5fff44"></div>
@@ -5150,6 +5149,21 @@ function renderInventoryPage() {
           </div>
           <div style="margin-top:10px;font-size:12px;color:rgba(156,95,255,0.4);background:rgba(156,95,255,0.07);border:1px solid rgba(156,95,255,0.15);border-radius:100px;padding:4px 12px;display:inline-block">
             🪙 ???
+          </div>
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(156,95,255,0.02) 8px,rgba(156,95,255,0.02) 16px);pointer-events:none"></div>
+        </div>`;
+    }
+    if (isSecretRarity && isDiscovered) {
+      return `
+        <div class="market-card secret-electric" onclick="openPlantDetail(${idx})" style="cursor:pointer;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
+          <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#4a0080,#9c5fff,#4a0080);box-shadow:0 0 10px #9c5fff88,0 0 20px #9c5fff44"></div>
+          <img src="${resolveImg(p.image)}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block;filter:drop-shadow(0 0 10px rgba(156,95,255,0.55))" onerror="this.style.display='none'">
+          <div class="market-card-name" style="color:#9c5fff;font-weight:800;letter-spacing:0.02em;text-shadow:0 0 12px rgba(156,95,255,0.9),0 0 24px rgba(156,95,255,0.5)">${p.name}</div>
+          <div class="market-card-meta" style="margin-top:6px">
+            <span class="market-card-version" style="color:#9c5fff;font-weight:700;background:rgba(156,95,255,0.12);border-color:rgba(156,95,255,0.3)">Secret</span>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:rgba(156,95,255,0.4);background:rgba(156,95,255,0.07);border:1px solid rgba(156,95,255,0.15);border-radius:100px;padding:4px 12px;display:inline-block">
+            🪙 ${p.sellPrice.toLocaleString()} coins
           </div>
           <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(156,95,255,0.02) 8px,rgba(156,95,255,0.02) 16px);pointer-events:none"></div>
         </div>`;
@@ -6284,7 +6298,8 @@ if (msg.type === 'trade_complete') {
 }
 if (msg.type === 'collection_update') {
   // Live-refresh the inventory page if it's currently visible
-  const rarityOrder = ['Secret','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+  if (msg.discoveredSecrets) window._unlockedSecrets = new Set(msg.discoveredSecrets);
+  const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
   _invPageCollection = msg.collection.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
   const invCount = document.getElementById('inv-page-count');
   if (invCount) invCount.textContent = `${_invPageCollection.length} plants in the game.`;

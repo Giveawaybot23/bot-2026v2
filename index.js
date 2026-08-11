@@ -770,6 +770,20 @@ function loadDB() {
 }
 function saveDB(db) { atomicWriteFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
+// Adds a plant to a user's collection. Also permanently records Secret-rarity
+// discoveries on the user (user.discoveredSecrets) so the Bestiary/Collection
+// page keeps a Secret plant revealed forever, even after it's later sold,
+// traded away, or otherwise removed from their live collection.
+function grantPlant(user, entry) {
+  user.collection = user.collection || [];
+  user.collection.push(entry);
+  if (entry && entry.rarity === 'Secret' && entry.name) {
+    user.discoveredSecrets = user.discoveredSecrets || [];
+    if (!user.discoveredSecrets.includes(entry.name)) user.discoveredSecrets.push(entry.name);
+  }
+  return entry;
+}
+
 function loadMeta() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
@@ -2640,7 +2654,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         const rCfg     = drop.rarity, mutation = drop.mutation;
         const sellValue = calcSellValue(drop.plant, rCfg, mutation, version);
         if (!TEST_IDS.has(message.author.id)) {
-          user.collection.push({ name: drop.plant.name, image: drop.plant.display, rarity: drop.rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue, claimedAt: new Date().toISOString() });
+          grantPlant(user, { name: drop.plant.name, image: drop.plant.display, rarity: drop.rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue, claimedAt: new Date().toISOString() });
           user.claimed++;
         }
 
@@ -2735,7 +2749,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
         const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? { name: p.mutation.name, emoji: p.mutation.emoji, multiplier: p.mutation.multiplier } : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
         if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
-          user.collection.push(entry);
+          grantPlant(user, entry);
           addedCratePlants.push(entry);
         } else {
           console.warn(`[DUPE GUARD] Blocked duplicate in captcha crate: ${entry.name} v${entry.version}`);
@@ -2906,7 +2920,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       }
       const db = loadDB();
       const seller = getUser(db, auction.sellerId);
-      seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      grantPlant(seller, { ...auction.plant, claimedAt: new Date().toISOString() });
       if (auction.bids.length) {
         const topBid = auction.bids[auction.bids.length - 1];
         const bidder = getUser(db, topBid.userId);
@@ -2996,7 +3010,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
       seller.currency += auction.buyoutPrice;
-      buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
       auctions.splice(idx, 1);
@@ -4194,7 +4208,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const coins = Math.floor(Math.random()*200)+100, sellVal = calcSellValue(plant, rarity, mutation, version);
     if (!TEST_IDS.has(message.author.id)) {
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
-      user.collection.push({ name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
+      grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
       addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
     }
@@ -4216,7 +4230,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       if (user.lastWeekly && now - user.lastWeekly < WEEK) return message.reply(`⏳ Already claimed this week.`);
       for (const p of plants) {
-        user.collection.push({ name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
+        grantPlant(user, { name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
       addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
@@ -4332,7 +4346,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           const sv = calcSellValue(p, p.rarityConfig, p.mutation, ver);
           const entry = { name: p.name, image: p.display, rarity: p.rarity, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: ver, sellValue: sv, claimedAt: new Date().toISOString() };
           if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
-            user.collection.push(entry);
+            grantPlant(user, entry);
             addedPlants.push(entry);
           } else {
             console.warn(`[DUPE GUARD] Blocked duplicate in !buy: ${entry.name} v${entry.version}`);
@@ -4441,7 +4455,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     const sellValue = calcSellValue(plant, rarity, mutation, version);
 
-    user.collection.push({
+    grantPlant(user, {
       name: plant.name,
       image: plant.display,
       rarity: rarity.name,
@@ -4516,7 +4530,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       }
 
       const sellValue = calcSellValue(plant, rarity, mutation, version);
-      user.collection.push({
+      grantPlant(user, {
         name: plant.name,
         image: plant.display,
         rarity: rarity.name,
@@ -5125,7 +5139,7 @@ async function endAuction(auctionId, fallbackChannel) {
     // No bids — return plant to seller
     const db = loadDB();
     const seller = getUser(db, auction.sellerId);
-    seller.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+    grantPlant(seller, { ...auction.plant, claimedAt: new Date().toISOString() });
     saveDB(db);
     const embed = new EmbedBuilder()
       .setTitle(`🔨 Auction Ended — No Bids`)
@@ -5142,7 +5156,7 @@ async function endAuction(auctionId, fallbackChannel) {
 
   // Coins were already deducted from the winner at bid time — just pay the seller
   seller.currency += winner.amount;
-  buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+  grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
   broadcastAll({ type: 'auction_ended', auctionId });
@@ -5321,6 +5335,7 @@ app.get('/api/profile/:id', (req, res) => {
       plants: user.collection?.length || 0,
       achievements: user.achievements?.length || 0,
       collection: (user.collection||[]),
+      discoveredSecrets: (user.discoveredSecrets||[]),
       gardenScore: score,
       gardenTier: { name: tier.name, emoji: tier.emoji, color: tier.color },
       title,
@@ -5374,7 +5389,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
       seller.currency += auction.buyoutPrice;
-      buyer.collection.push({ ...auction.plant, claimedAt: new Date().toISOString() });
+      grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       saveDB(db);
       auctions.splice(idx, 1);
       saveAuctions(auctions);
@@ -5572,7 +5587,7 @@ pushCollectionUpdate = function(userId) {
         sellPrice: getLiveSellValue(p),
       };
     });
-    pushToUser(userId, { type: 'collection_update', collection });
+    pushToUser(userId, { type: 'collection_update', collection, discoveredSecrets: user.discoveredSecrets || [] });
   } catch {}
 };
 
@@ -5658,7 +5673,7 @@ app.delete('/api/auction/:id', async (req, res) => {
   if (auction.bids.length) return res.status(400).json({ error: 'Cannot remove — auction already has bids' });
   const db   = loadDB();
   const user = getUser(db, req.user.id);
-  user.collection.push({ ...auction.plant });
+  grantPlant(user, { ...auction.plant });
   saveDB(db);
   saveAuctions(auctions.filter(a => a.id !== req.params.id));
   broadcastAll({ type: 'auction_ended', auctionId: req.params.id });
@@ -5766,7 +5781,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
           version: ver, sellValue: sv, claimedAt: new Date().toISOString(),
         };
         if (!user.collection.some(c => c.name === entry.name && c.version === entry.version)) {
-          user.collection.push(entry);
+          grantPlant(user, entry);
           addedPlants.push(entry);
         }
         db[req.user.id] = user;
@@ -5928,7 +5943,7 @@ app.delete('/api/market/:id', async (req, res) => {
   if (listing.sellerId !== req.user.id) return res.status(403).json({ error: 'Not your listing' });
   const db   = loadDB();
   const user = getUser(db, req.user.id);
-  user.collection.push({ ...listing.plant });
+  grantPlant(user, { ...listing.plant });
   saveDB(db);
   saveListings(listings.filter(l => l.id !== req.params.id));
   broadcastAll({ type: 'market_update' });
@@ -5957,7 +5972,7 @@ app.post('/api/market/buy/:id', async (req, res) => {
 
     buyer.currency  -= listing.price;
     seller.currency += listing.price;
-    buyer.collection.push({ ...listing.plant, claimedAt: new Date().toISOString() });
+    grantPlant(buyer, { ...listing.plant, claimedAt: new Date().toISOString() });
 
     saveDB(db);
     saveListings(listings.filter(l => l.id !== req.params.id));
@@ -6134,12 +6149,12 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
 
       for (let i = iPlantIndices.length - 1; i >= 0; i--) {
         const [removed] = iUser.collection.splice(iPlantIndices[i], 1);
-        tUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+        grantPlant(tUser, { ...removed, claimedAt: new Date().toISOString() });
         recordTrade(removed.name);
       }
       for (let i = tPlantIndices.length - 1; i >= 0; i--) {
         const [removed] = tUser.collection.splice(tPlantIndices[i], 1);
-        iUser.collection.push({ ...removed, claimedAt: new Date().toISOString() });
+        grantPlant(iUser, { ...removed, claimedAt: new Date().toISOString() });
         recordTrade(removed.name);
       }
 
@@ -6428,7 +6443,7 @@ app.post('/api/merchant/buy', express.json(), async (req, res) => {
     const rarity = rarityMap[itemId];
     if (rarity) {
       const plant = getMerchantPlantByRarity(rarity);
-      if (plant) { user.collection = user.collection || []; user.collection.push(plant); }
+      if (plant) { user.collection = user.collection || []; grantPlant(user, plant); }
     }
   } else if (type === 'upgrade') {
     user.merchantUpgrades = user.merchantUpgrades || {};
@@ -6460,7 +6475,7 @@ app.post('/api/merchant/crate', express.json(), (req, res) => {
 
   const rarity = merchantWeightedPick(pool);
   const plant = getMerchantPlantByRarity(rarity);
-  if (plant) { user.collection = user.collection || []; user.collection.push(plant); }
+  if (plant) { user.collection = user.collection || []; grantPlant(user, plant); }
 
   saveDB(db);
   pushCoinUpdate(req.user.id, user.currency);
