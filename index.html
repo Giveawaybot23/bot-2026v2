@@ -1086,15 +1086,16 @@
 
   /* ── SHOP PAGES ── */
 .shop-page { padding: 48px; min-height: calc(100vh - 64px); }
-/* Trade page: center the active/start panel in the leftover space below the
-   header instead of letting it sit pinned to the top with dead space under it.
-   Uses #page-trade.page.active (not just #page-trade.page) so it only kicks in
-   while the page is actually the visible one — otherwise it'd override the
-   .page{display:none} rule that hides inactive pages. */
-#page-trade.page.active { display: flex; flex-direction: column; }
+/* Trade page: stretch the trade card itself to fill leftover vertical space
+   (rather than repositioning the whole card) so it doesn't leave dead black
+   space beneath it. The card becomes a column flex container and the status
+   line at the bottom gets pushed down via margin-top:auto, so the extra
+   height shows up as breathing room in the middle/bottom of the card. */
 #page-trade .shop-page { display: flex; flex-direction: column; }
-#page-trade #trade-active-panel,
-#page-trade #trade-start-panel { margin-top: auto; margin-bottom: auto; }
+#page-trade #trade-active-panel { flex: 1; flex-direction: column; }
+#page-trade #trade-active-panel > div:first-child { flex: 1; display: flex; flex-direction: column; }
+#page-trade #trade-start-panel { flex: 1; display: flex; flex-direction: column; }
+#page-trade #trade-start-panel > div:last-child { flex: 1; }
 .shop-header { margin-bottom: 40px; }
 .shop-filters {
   display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px;
@@ -2220,7 +2221,7 @@
           </div>
         </div>
 
-        <div id="trade-status-msg" style="margin-top:16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink2)"></div>
+        <div id="trade-status-msg" style="margin-top:auto;padding-top:16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink2)"></div>
       </div>
     </div>
     <div id="trade-start-panel">
@@ -5688,7 +5689,7 @@ function renderActiveTrade(trade) {
   const myId = window._loggedInId;
   const theirId = trade.initiatorId===myId ? trade.targetId : trade.initiatorId;
   const mySide = trade.sides[myId], theirSide = trade.sides[theirId];
-  document.getElementById('trade-active-panel').style.display = 'block';
+  document.getElementById('trade-active-panel').style.display = 'flex';
   document.getElementById('trade-start-panel').style.display = 'none';
   const theirName = trade.initiatorId===myId ? trade.targetName : trade.initiatorName;
   document.getElementById('trade-title').textContent = `🔄 Trading with ${theirName}`;
@@ -5877,7 +5878,7 @@ function renderTradeCollectionList(q) {
     return `<div onclick="${inTrade?'':`addPlantToTrade(${origIdx})`}"
       style="aspect-ratio:1;background:var(--bg2);border:2px solid ${inTrade?'rgba(0,200,100,0.5)':rarityColors[p.rarity]||'var(--border)'};border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;cursor:${inTrade?'default':'pointer'};opacity:${inTrade?'0.5':'1'};position:relative;transition:all 0.15s"
       onmouseover="${inTrade?'':`this.style.transform='scale(1.04)'`}" onmouseout="${inTrade?'':`this.style.transform='scale(1)'`}">
-      <img src="${p.image||''}" onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain">
+      <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain">
       <div style="font-size:9px;font-weight:700;color:var(--ink);text-align:center;line-height:1.2">${p.name}</div>
       <div style="font-size:8px;color:var(--ink3)">v${p.version}${p.mutation?' ✨':''}</div>
       ${inTrade?'<div style="position:absolute;top:4px;right:4px;font-size:9px;color:#00c864;font-weight:700">✓</div>':''}
