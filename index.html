@@ -41,7 +41,7 @@
   nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto minmax(200px, 1fr);
+  grid-template-columns: minmax(140px, 1fr) auto minmax(200px, 1.6fr);
   align-items: center;
   padding: 0 24px;
   height: 64px;
@@ -61,18 +61,11 @@
   .nav-logo span { color: var(--green); }
   .nav-links {
     display: flex; gap: 3px; align-items: stretch;
-    overflow: visible;
+    overflow: visible; position: relative;
     background: rgba(14,13,11,0.06);
     border-radius: 9999px;
     padding: 3px;
     height: 42px;
-    /* Sits in the grid's middle "auto" column. With the left/right columns
-       now equal (1fr / 1fr), that middle column is always the true visual
-       center of the bar — no matter how wide the right-side content gets —
-       and because it's a normal grid item (not absolutely positioned), it
-       can never overlap the logo or the right-side content; the grid just
-       shares space between all three columns. */
-    justify-self: center;
   }
   .nav-links > a {
     font-size: 14px; font-weight: 500; color: var(--ink2);
@@ -1167,6 +1160,12 @@
     0 0 30px 4px rgba(156,95,255,0.5),
     0 0 60px 8px rgba(156,95,255,0.25);
 }
+#page-inventory .market-card.secret-electric-v1:hover {
+  box-shadow:
+    0 0 0 1px #c9a84c,
+    0 0 30px 4px rgba(201,168,76,0.5),
+    0 0 60px 8px rgba(201,168,76,0.25);
+}
 
 .market-card-rarity-bar {
   position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -2199,11 +2198,10 @@
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
             <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
-              <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" oninput="document.getElementById('trade-my-coins-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'They net') + '.' : '';" onchange="updateMyCoins(this.value)">
+              <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
             </div>
-            <div id="trade-my-coins-tax-note" style="font-size:11px;color:var(--ink3);margin-bottom:8px;min-height:14px"></div>
             <div id="trade-my-confirmed" style="font-size:12px;color:var(--ink3);margin-bottom:10px;text-align:center"></div>
             <div style="display:flex;gap:8px">
               <button onclick="confirmTrade()" id="trade-confirm-btn" style="flex:1;background:rgba(0,200,100,0.12);color:#00c864;border:1px solid rgba(0,200,100,0.3);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s">✓ Confirm Offer</button>
@@ -2220,11 +2218,10 @@
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
             <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
             </div>
-            <div id="trade-their-coins-tax-note" style="font-size:11px;color:var(--ink3);margin-bottom:8px;min-height:14px"></div>
             <div id="trade-their-confirmed" style="font-size:12px;color:var(--ink3);text-align:center"></div>
           </div>
         </div>
@@ -3065,7 +3062,7 @@ async function loadMarketHighlights() {
       const rColor = rarityAccent(item.rarity);
       const mutStr = item.mutation ? `<span style="font-size:11px;font-weight:700;color:${mutationColor(item.mutation.name)}">${mutationEmoji(item.mutation.name)} ${item.mutation.name}</span>` : '';
       const cachedAv = _avatarCache[item.sellerId];
-      return `<div class="highlight-card reveal${item.rarity==='Secret' ? ' secret-electric' : ''}" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
+      return `<div class="highlight-card reveal${item.rarity==='Secret' ? ((item.version||99)===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
         <div class="highlight-card-visual" style="background:${h.accent}14">
           ${item.localImage ? `<img src="${item.localImage}" onerror="this.style.display='none'">` : `<span style="font-size:36px">${item.emoji||'🌿'}</span>`}
           ${(item.version||99)===1 ? `<div style="position:absolute;bottom:3px;right:3px;font-size:9px;background:rgba(201,168,76,0.92);color:#fff;border-radius:4px;padding:1px 5px;font-weight:800">v1</div>` : ''}
@@ -4189,7 +4186,7 @@ ${isPodium ? `
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
         const glow = isV1 ? '#c9a84c' : rc;
         return `
-          <div class="_pc${p.rarity === 'Secret' ? ' secret-electric' : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
+          <div class="_pc${p.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
             <div class="_pc-bar" style="background:${barBg}"></div>
             ${imgContent}
             <div class="_pc-foot">
@@ -4310,7 +4307,7 @@ ${isPodium ? `
           .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
           .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? ' secret-electric' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
 
           <!-- ambient texture -->
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 0%,${glow}22 0%,transparent 55%),radial-gradient(circle at 100% 100%,${glow}14 0%,transparent 50%);pointer-events:none"></div>
@@ -4522,7 +4519,7 @@ function renderMarket() {
   }
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
-    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? ' secret-electric' : ''}" data-rarity="${item.rarity}" style="position:relative">
+    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? (item.version===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" data-rarity="${item.rarity}" style="position:relative">
       ${item.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
@@ -4795,7 +4792,7 @@ async function loadAuctionData() {
       const badge = rarityBadgeColor[a.plant.rarity] || '#999';
       const isV1 = a.plant.version === 1;
       return `
-        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? ' secret-electric' : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
+        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
           ${a.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
           ${isV1 ? `<div class="auction-v1-crown">👑 v1 · First Copy</div>` : ''}
           <div class="auction-card-live">LIVE</div>
@@ -5137,10 +5134,9 @@ async function showAuctionDetail(auctionId) {
           <!-- Bid / buy card -->
           <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
             ${a.buyoutPrice ? `
-            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:4px">
+            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:14px">
               ⚡ Buy Now — ${a.buyoutPrice.toLocaleString()} coins
-            </button>
-            <div style="font-size:11px;color:var(--ink3);text-align:center;margin-bottom:14px">Seller nets ${taxNet(a.buyoutPrice).toLocaleString()} coins after ${Math.round(MARKET_TAX_RATE*100)}% market tax</div>` : ''}
+            </button>` : ''}
 
             <div id="bid-feedback-${auctionId}" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:12px;text-align:center"></div>
 
@@ -5246,26 +5242,6 @@ function renderChatMsg(m) {
 const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF' };
 const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
-// ── Market Tax (client-side mirror) ─────────────────────────────────────────
-// Cosmetic only — purely so players can see what they'll net BEFORE confirming
-// a sale/trade. The server (TRADE_TAX_RATE / applyTax in index.js) is the real
-// source of truth and computes the actual balances; this just needs to match
-// it so the preview numbers are accurate. Keep this in sync if you change the
-// server-side rate.
-const MARKET_TAX_RATE = 0.05;
-function taxNet(amount) {
-  amount = Math.max(0, parseInt(amount) || 0);
-  if (amount <= 0) return 0;
-  const tax = Math.max(1, Math.floor(amount * MARKET_TAX_RATE));
-  return Math.max(0, amount - tax);
-}
-function taxNote(amount, prefix) {
-  amount = Math.max(0, parseInt(amount) || 0);
-  if (amount <= 0) return '';
-  const pct = Math.round(MARKET_TAX_RATE * 100);
-  return `${prefix} ${taxNet(amount).toLocaleString()} coins after ${pct}% market tax`;
-}
-
 function mutationEmoji(name) {
   return { Starstruck:'⭐', Shocked:'⚡', Soaked:'💧', Snowy:'❄️', Flooded:'🌊', Sandy:'🏜️' }[name] || '✨';
 }
@@ -5356,8 +5332,7 @@ function openMarketListModal(plantName, version) {
       </div>
       <div style="font-size:14px;color:var(--ink2);margin-bottom:20px">Listing <strong style="color:var(--ink)">${plantName}</strong> v${version} on the market.</div>
       <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Price (coins)</div>
-      <input id="ml-price" type="number" placeholder="Enter price..." style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;margin-bottom:8px;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ml-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You will receive') + '.' : '';">
-      <div id="ml-tax-note" style="font-size:12px;color:var(--ink3);margin-bottom:16px;min-height:16px"></div>
+      <input id="ml-price" type="number" placeholder="Enter price..." style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;margin-bottom:16px;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
       <div id="ml-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:12px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="document.getElementById('market-list-overlay').remove()" style="padding:11px 22px;border-radius:100px;border:1.5px solid var(--border);background:transparent;font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit">Cancel</button>
@@ -5476,13 +5451,11 @@ function openCreateAuctionModal(plantName, version, sellValue) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Starting Bid</div>
-            <input id="ca-start" type="number" placeholder="Default: ${sellValue || 'sell value'}" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ca-start-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You net') + '.' : '';">
-            <div id="ca-start-tax-note" style="font-size:11px;color:var(--ink3);margin-top:4px;min-height:14px"></div>
+            <input id="ca-start" type="number" placeholder="Default: ${sellValue || 'sell value'}" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
           </div>
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Buyout Price</div>
-            <input id="ca-buyout" type="number" placeholder="Optional" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ca-buyout-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You net') + '.' : '';">
-            <div id="ca-buyout-tax-note" style="font-size:11px;color:var(--ink3);margin-top:4px;min-height:14px"></div>
+            <input id="ca-buyout" type="number" placeholder="Optional" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
           </div>
         </div>
         <div>
@@ -5668,7 +5641,7 @@ function renderInventoryPage() {
     if (!isDiscovered) {
       if (isSecretRarity) {
         return `
-        <div class="market-card secret-electric" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
+        <div class="market-card secret-electric${p.version===1 ? ' secret-electric-v1' : ''}" style="cursor:default;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
           <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#4a0080,#9c5fff,#4a0080);box-shadow:0 0 10px #9c5fff88,0 0 20px #9c5fff44"></div>
           <div style="width:64px;height:64px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;background:rgba(156,95,255,0.08);border-radius:12px;border:1px solid rgba(156,95,255,0.2)">
             <span style="font-size:28px;opacity:0.5;filter:blur(1px)">?</span>
@@ -5701,7 +5674,7 @@ function renderInventoryPage() {
 
     if (isSecretRarity) {
       return `
-        <div class="market-card secret-electric" onclick="openPlantDetail(${idx})" style="cursor:pointer;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
+        <div class="market-card secret-electric${p.version===1 ? ' secret-electric-v1' : ''}" onclick="openPlantDetail(${idx})" style="cursor:pointer;background:#050308;border-color:rgba(156,95,255,0.25);position:relative;overflow:visible">
           <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#4a0080,#9c5fff,#4a0080);box-shadow:0 0 10px #9c5fff88,0 0 20px #9c5fff44"></div>
           <img src="${resolveImg(p.image)}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block;filter:drop-shadow(0 0 10px rgba(156,95,255,0.55))" onerror="this.style.display='none'">
           <div class="market-card-name" style="color:#9c5fff;font-weight:800;letter-spacing:0.02em;text-shadow:0 0 12px rgba(156,95,255,0.9),0 0 24px rgba(156,95,255,0.5)">${p.name}</div>
@@ -5756,7 +5729,7 @@ function openPlantDetail(idx) {
   overlay.id = 'plant-detail-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,0.5)';
   overlay.innerHTML = `
-    <div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
+    <div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
       <button onclick="document.getElementById('plant-detail-overlay').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
       <div style="width:130px;height:130px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
         <img src="${resolveImg(p.image)}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">
@@ -5801,8 +5774,7 @@ function confirmMarketBuy(listingId, plantName, price) {
       <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Confirm Purchase</div>
       <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">Are you sure you want to buy</div>
       <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px">${plantName}</div>
-      <div style="font-size:14px;color:var(--green);font-weight:700;margin-bottom:8px">for ${price.toLocaleString()} coins?</div>
-      <div style="font-size:11px;color:var(--ink3);margin-bottom:24px">A ${Math.round(MARKET_TAX_RATE*100)}% market tax applies to the seller's proceeds — this doesn't change what you pay.</div>
+      <div style="font-size:14px;color:var(--green);font-weight:700;margin-bottom:24px">for ${price.toLocaleString()} coins?</div>
       <div id="mbuy-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:14px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
       <div style="display:flex;gap:10px">
         <button onclick="document.getElementById('market-buy-overlay').remove()" style="flex:1;padding:13px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Cancel</button>
@@ -6070,7 +6042,7 @@ async function declineTradeRequest() {
   showTradeResultToast('declined');
 }
 
-function showTradeResultToast(result, taxInfo) {
+function showTradeResultToast(result) {
   const isComplete = result === 'complete';
   // Backdrop
   const backdrop = document.createElement('div');
@@ -6078,11 +6050,8 @@ function showTradeResultToast(result, taxInfo) {
   // Card
   const el = document.createElement('div');
   el.style.cssText = 'background:var(--card);border:1.5px solid var(--border);border-radius:20px;padding:36px 48px;box-shadow:0 24px 80px rgba(14,13,11,0.28);font-size:20px;font-weight:700;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:14px;transform:scale(0.88);transition:transform 0.25s;text-align:center';
-  const taxLine = (isComplete && taxInfo && taxInfo.received !== undefined)
-    ? `<span style="font-size:13px;font-weight:500;color:var(--ink3)">You received ${Number(taxInfo.received).toLocaleString()} coins after ${Math.round((taxInfo.taxRate||0)*100)}% market tax</span>`
-    : '';
   el.innerHTML = isComplete
-    ? `<span style="font-size:48px">✅</span>Trade complete!${taxLine}`
+    ? '<span style="font-size:48px">✅</span>Trade complete!'
     : '<span style="font-size:48px">❌</span>Trade declined.';
   backdrop.appendChild(el);
   document.body.appendChild(backdrop);
@@ -6277,7 +6246,7 @@ for (let i = 0; i < SLOTS; i++) {
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
     const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
-    html += `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" style="min-height:150px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;position:relative;overflow:hidden">
+    html += `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" style="min-height:150px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;position:relative;overflow:hidden">
       <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:64px;height:64px;object-fit:contain;flex-shrink:0">
       <div style="font-size:12px;font-weight:700;color:var(--ink);text-align:center;line-height:1.25;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center">
@@ -6326,8 +6295,6 @@ el.innerHTML = html;
   if (valueLabel) valueLabel.textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
 
   if (!document.getElementById('trade-my-coins').dataset.edited) document.getElementById('trade-my-coins').value = mySide.coins||0;
-  const myTaxNote = document.getElementById('trade-my-coins-tax-note');
-  if (myTaxNote) myTaxNote.textContent = (mySide.coins||0) > 0 ? taxNote(mySide.coins, 'They net') + '.' : '';
   document.getElementById('trade-my-confirmed').innerHTML = mySide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ You confirmed</span>' : '<span style="color:var(--ink3)">Not confirmed yet</span>';
   const locked = mySide.confirmed;
   const confirmBtn = document.getElementById('trade-confirm-btn');
@@ -6342,8 +6309,6 @@ el.innerHTML = html;
   if (myCoins) myCoins.disabled = locked;
   const theirCoinsEl = document.getElementById('trade-their-coins');
   if (theirCoinsEl) theirCoinsEl.textContent = (theirSide.coins||0).toLocaleString() + ' coins';
-  const theirTaxNote = document.getElementById('trade-their-coins-tax-note');
-  if (theirTaxNote) theirTaxNote.textContent = (theirSide.coins||0) > 0 ? taxNote(theirSide.coins, 'You net') + '.' : '';
   const theirConfirmedEl = document.getElementById('trade-their-confirmed');
   if (theirConfirmedEl) theirConfirmedEl.innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
 }
@@ -6495,7 +6460,7 @@ function renderTradeCollectionList(q) {
   listEl.innerHTML = plants.map((p,i)=>{
     const inTrade = alreadyAdded.some(a=>a.name===p.name&&a.version===p.version);
     const origIdx = _myTradeCollection.indexOf(p);
-    return `<div class="${p.rarity === 'Secret' ? 'secret-electric' : ''}" onclick="${inTrade?'':`addPlantToTrade(${origIdx})`}"
+    return `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" onclick="${inTrade?'':`addPlantToTrade(${origIdx})`}"
       style="aspect-ratio:1;background:var(--bg2);border:2px solid ${inTrade?'rgba(0,200,100,0.5)':rarityColors[p.rarity]||'var(--border)'};border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;cursor:${inTrade?'default':'pointer'};opacity:${inTrade?'0.5':'1'};position:relative;transition:all 0.15s"
       onmouseover="${inTrade?'':`this.style.transform='scale(1.04)'`}" onmouseout="${inTrade?'':`this.style.transform='scale(1)'`}">
       <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain">
@@ -6848,7 +6813,7 @@ if (msg.type === 'trade_declined') {
 if (msg.type === 'trade_complete') {
   stopTradePoll();
   removeTradePill();
-  showTradeResultToast('complete', msg.paidCoins ? { received: msg.received, taxRate: msg.taxRate } : null);
+  showTradeResultToast('complete');
   loadNavCoins(window._loggedInId, true);
   setTimeout(showTradeStartPanel, 3000);
 }
@@ -7595,17 +7560,20 @@ async function deletePriceAlert(alertId) {
 (function() {
   // Tuned to feel calm and "stable" rather than chaotic — a steady current,
   // not a glitch effect — in the game's canonical Secret-rarity purple.
-  const SPEED = 1;
-  const CHAOS = 0.12;
-  const DISPLACEMENT = 14;
+  const SPEED = 1.1;
+  const CHAOS = 0.16;
+  const DISPLACEMENT = 22;
   const OCTAVES = 8;
   const LACUNARITY = 1.6;
   const GAIN = 0.7;
   const FREQUENCY = 10;
 
-  const COLOR_CORE = '#c9a8ff';
-  const COLOR_MID  = 'rgba(156,95,255,0.65)';
-  const COLOR_OUTER = 'rgba(156,95,255,0.28)';
+  // Standard Secret rarity: purple. Secret v1 (first copy ever pulled): gold,
+  // matching the site's existing v1 crown/badge color (#c9a84c).
+  const PALETTES = {
+    purple: { core: '#d6bbff', mid: 'rgba(156,95,255,0.8)',  outer: 'rgba(156,95,255,0.4)' },
+    gold:   { core: '#ffe9a8', mid: 'rgba(201,168,76,0.85)', outer: 'rgba(201,168,76,0.42)' }
+  };
 
   function rand(x) { return ((Math.sin(x * 12.9898) * 43758.5453) % 1 + 1) % 1; }
 
@@ -7657,6 +7625,9 @@ async function deletePriceAlert(alertId) {
     if (container._ebInit) return;
     container._ebInit = true;
 
+    // .secret-electric-v1 (first-copy Secret pulls) renders gold instead of purple.
+    const palette = container.classList.contains('secret-electric-v1') ? PALETTES.gold : PALETTES.purple;
+
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;width:100%;height:100%;border-radius:inherit;';
     // Container must be position:relative (or already positioned) for the
@@ -7674,8 +7645,12 @@ async function deletePriceAlert(alertId) {
       lastFrame = now;
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = container.offsetWidth;
-      const h = container.offsetHeight;
+      // clientWidth/clientHeight (padding-box) — NOT offsetWidth/offsetHeight
+      // (border-box) — because the canvas is positioned with inset:0, which
+      // resolves against the container's padding edge. Sizing off offsetWidth
+      // included the border and pushed the drawn border off by border-width.
+      const w = container.clientWidth;
+      const h = container.clientHeight;
 
       if (w === 0 || h === 0) { raf = requestAnimationFrame(draw); return; }
 
@@ -7711,11 +7686,11 @@ async function deletePriceAlert(alertId) {
 
       // Outer wide glow
       ctx.save();
-      ctx.strokeStyle = COLOR_OUTER;
-      ctx.lineWidth = 10;
+      ctx.strokeStyle = palette.outer;
+      ctx.lineWidth = 15;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.filter = 'blur(6px)';
+      ctx.filter = 'blur(8px)';
       ctx.beginPath();
       pts.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
       ctx.closePath();
@@ -7724,11 +7699,11 @@ async function deletePriceAlert(alertId) {
 
       // Mid glow
       ctx.save();
-      ctx.strokeStyle = COLOR_MID;
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = palette.mid;
+      ctx.lineWidth = 4.5;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.filter = 'blur(2px)';
+      ctx.filter = 'blur(2.5px)';
       ctx.beginPath();
       pts.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
       ctx.closePath();
@@ -7737,8 +7712,8 @@ async function deletePriceAlert(alertId) {
 
       // Core bright line
       ctx.save();
-      ctx.strokeStyle = COLOR_CORE;
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = palette.core;
+      ctx.lineWidth = 1.8;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.filter = 'none';
