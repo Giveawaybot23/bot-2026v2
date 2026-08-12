@@ -7628,8 +7628,18 @@ async function deletePriceAlert(alertId) {
     // .secret-electric-v1 (first-copy Secret pulls) renders gold instead of purple.
     const palette = container.classList.contains('secret-electric-v1') ? PALETTES.gold : PALETTES.purple;
 
+    // The noise displacement swings the path up to DISPLACEMENT px outward
+    // from the card edge in any direction. If the canvas were sized to the
+    // container exactly, that outward half of the jitter gets clipped at the
+    // canvas boundary (only the inward half ever renders) — that's what
+    // produced the "slapped on" / one-sided look. MARGIN gives the canvas
+    // extra overhang on every side (DISPLACEMENT plus room for the glow's
+    // stroke width + blur bleed) and it's centered via equal negative
+    // offsets on all four sides, so the extra space is symmetric.
+    const MARGIN = DISPLACEMENT + 20;
+
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;width:100%;height:100%;border-radius:inherit;transform:translate(-9px,-9px);';
+    canvas.style.cssText = `position:absolute;left:-${MARGIN}px;top:-${MARGIN}px;right:-${MARGIN}px;bottom:-${MARGIN}px;width:calc(100% + ${MARGIN*2}px);height:calc(100% + ${MARGIN*2}px);pointer-events:none;z-index:10;`;
     // Container must be position:relative (or already positioned) for the
     // absolutely-positioned canvas to line up with its bounds.
     const cs = getComputedStyle(container);
@@ -7646,27 +7656,38 @@ async function deletePriceAlert(alertId) {
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       // clientWidth/clientHeight (padding-box) — NOT offsetWidth/offsetHeight
-      // (border-box) — because the canvas is positioned with inset:0, which
-      // resolves against the container's padding edge. Sizing off offsetWidth
-      // included the border and pushed the drawn border off by border-width.
+      // (border-box) — because the canvas is centered on the container's own
+      // box, which resolves against the container's padding edge. Sizing off
+      // offsetWidth included the border and pushed the drawn border off by
+      // border-width.
       const w = container.clientWidth;
       const h = container.clientHeight;
 
       if (w === 0 || h === 0) { raf = requestAnimationFrame(draw); return; }
 
-      const pw = Math.round(w * dpr);
-      const ph = Math.round(h * dpr);
+      // Canvas pixel buffer is the container's size PLUS the MARGIN overhang
+      // on every side (matching the CSS box set up above), giving the noise
+      // displacement room to swing fully outward without being clipped.
+      const cw = w + MARGIN * 2;
+      const ch = h + MARGIN * 2;
+      const pw = Math.round(cw * dpr);
+      const ph = Math.round(ch * dpr);
       if (canvas.width !== pw || canvas.height !== ph) {
         canvas.width = pw;
         canvas.height = ph;
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, 0, cw, ch);
 
-      // Inset slightly so the glow doesn't clip at the container edge
+      // Inset slightly so the glow doesn't clip against the drawn path's own
+      // stroke width, then shift by MARGIN so the *base* (undisplaced)
+      // rounded-rect path still traces the card's real edge — the canvas's
+      // (0,0) is now MARGIN px above/left of the container's (0,0), so the
+      // path origin has to move with it. The noise jitter is added on top of
+      // this in both directions with equal room to render on every side.
       const pad = 3;
-      const left = pad, top = pad, bw = w - pad*2, bh = h - pad*2;
+      const left = MARGIN + pad, top = MARGIN + pad, bw = w - pad*2, bh = h - pad*2;
       const cs2 = getComputedStyle(container);
       const rawR = parseFloat(cs2.borderRadius) || 14;
       const r = Math.min(rawR, bw/2, bh/2);
