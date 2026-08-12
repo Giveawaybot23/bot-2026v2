@@ -893,6 +893,9 @@
   .profile-stats { grid-template-columns: 1fr 1fr; }
   .auction-detail { padding: 16px 16px 60px; }
   .auction-detail-grid { grid-template-columns: 1fr !important; }
+  #auction-detail-grid { grid-template-columns: 1fr !important; }
+  #auction-detail-subgrid { grid-template-columns: 1fr !important; }
+  #auction-detail-grid > div:first-child { position: static !important; }
   .auction-plant-card { position: static !important; }
   #trade-grid { grid-template-columns: 1fr !important; }
   #trade-grid > div:nth-child(2) { display: none; }
@@ -1253,6 +1256,8 @@
 }
 @media (max-width: 768px) {
   .auction-detail-grid { grid-template-columns: 1fr !important; }
+  #auction-detail-grid { grid-template-columns: 1fr !important; }
+  #auction-detail-subgrid { grid-template-columns: 1fr !important; }
 }
 
 /* ── AUCTION DETAIL GLOW SYSTEM ── */
@@ -1403,7 +1408,7 @@
 
 /* chat */
 .chat-messages {
-  height: 500px; overflow-y: auto; overflow-x: hidden; padding: 12px 20px;
+  height: 560px; overflow-y: auto; overflow-x: hidden; padding: 12px 20px;
   display: flex; flex-direction: column; gap: 10px;
   scrollbar-width: none;
 }
@@ -3189,9 +3194,20 @@ function showPage(name, { skipHash = false } = {}) {
   }
 }
 
-// Restore page from URL hash on load or back/forward navigation
+// Restore page from URL hash on load or back/forward navigation.
+// Deep links: #profile/<id> reopens a specific profile and #auction/<id>
+// reopens a specific auction, so refreshing or hitting back lands back on
+// the same detail view instead of bouncing to home.
 function restorePageFromHash() {
   const hash = location.hash.replace('#', '') || 'home';
+  if (hash.startsWith('profile/')) {
+    const id = decodeURIComponent(hash.slice('profile/'.length));
+    if (id) { loadProfile(id, { skipHash: true }); return; }
+  }
+  if (hash.startsWith('auction/')) {
+    const id = decodeURIComponent(hash.slice('auction/'.length));
+    if (id) { showAuctionDetail(id, { skipHash: true }); return; }
+  }
   const valid = ['home','leaderboards','profiles','market','auctions','trade','inventory','merchant','packs','rankshop'];
   const target = valid.includes(hash) ? hash : 'home';
   showPage(target, { skipHash: true });
@@ -3655,9 +3671,15 @@ async function buyProfileColor(coins) {
   loadRankShopPage();
 }
 
-async function loadProfile(id) {
+async function loadProfile(id, { skipHash = false } = {}) {
   try {
     showPage('profile-detail');
+    // Deep-link this specific profile into the URL (skipped when we're the
+    // ones restoring FROM that hash, to avoid a redundant history entry).
+    if (!skipHash) {
+      const newHash = '#profile/' + encodeURIComponent(id);
+      if (location.hash !== newHash) history.pushState(null, '', newHash);
+    }
     document.getElementById('profile-detail-content').innerHTML = `
       <div style="display:flex;align-items:center;justify-content:center;height:60vh">
         <style>@keyframes _ls{to{transform:rotate(360deg)}}</style>
@@ -3823,31 +3845,31 @@ ${isPodium ? `
 ._pc:hover ._pc-bar{box-shadow:0 0 10px 2px var(--glow),0 0 20px 4px color-mix(in srgb, var(--glow) 60%, transparent)}
 
 /* ── stat row ── */
-._sr{display:flex;align-items:center;gap:13px;padding:15px 17px;border-radius:12px;background:${bg2};border:1px solid ${bord};transition:border-color .2s;animation:_pSlideL .35s ease both}
+._sr{display:flex;align-items:center;gap:15px;padding:18px 20px;border-radius:12px;background:${bg2};border:1px solid ${bord};transition:border-color .2s;animation:_pSlideL .35s ease both}
 ._sr:hover{border-color:${isPodium ? pk?.g+'.22)' : tc+'44'}}
-._sr-icon{font-size:22px;width:32px;text-align:center;flex-shrink:0}
-._sr-lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};line-height:1;margin-bottom:2px}
-._sr-val{font-family:'DM Serif Display',serif;font-size:24px;letter-spacing:-.02em;color:${(isPodium && isDark) ? pk?.p : 'var(--ink)'};line-height:1.15}
+._sr-icon{font-size:24px;width:36px;text-align:center;flex-shrink:0}
+._sr-lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};line-height:1;margin-bottom:3px}
+._sr-val{font-family:'DM Serif Display',serif;font-size:26px;letter-spacing:-.02em;color:${(isPodium && isDark) ? pk?.p : 'var(--ink)'};line-height:1.15}
 
 /* ── achievement badge ── */
-._ab{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid ${bord};background:${bg2};transition:all .15s;cursor:default;animation:_pCardIn .3s ease both}
+._ab{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;border:1px solid ${bord};background:${bg2};transition:all .15s;cursor:default;animation:_pCardIn .3s ease both}
 ._ab.on{cursor:pointer}
 ._ab.on:hover{transform:scale(1.18);border-color:${isPodium ? pk?.g+'.38)' : tc+'55'};box-shadow:0 4px 12px ${isPodium ? pk?.g+'.14)' : tc+'22'}}
 
 /* ── collection rarity tabs ── */
-._ct{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
-._ct-btn{padding:4px 10px;border-radius:7px;font-size:10px;font-weight:700;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s}
+._ct{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+._ct-btn{padding:8px 16px;border-radius:9px;font-size:12px;font-weight:700;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s}
 ._ct-btn.on{background:${isPodium ? pk?.g+'.16)' : 'var(--ink)'};color:${isPodium ? pk?.p : 'var(--bg)'};border-color:${isPodium ? pk?.g+'.38)' : 'var(--ink)'}}
 ._ct-btn:not(.on):hover{opacity:.75}
 
 /* ── collection sort bar ── */
-._csb{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
-._csb-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};margin-right:2px;white-space:nowrap}
-._cs-btn{padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+._csb{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+._csb-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};margin-right:2px;white-space:nowrap}
+._cs-btn{padding:8px 15px;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
 ._cs-btn.on{background:${isPodium ? pk?.g+'.14)' : 'rgba(82,183,136,0.1)'};color:${isPodium ? pk?.p : '#52b788'};border-color:${isPodium ? pk?.g+'.32)' : 'rgba(82,183,136,0.35)'}}
 ._cs-btn:not(.on):hover{color:${ink2};border-color:${bord}}
-._cs-sep{width:1px;height:14px;background:${bord};flex-shrink:0}
-._cs-toggle{padding:4px 9px;border-radius:6px;font-size:10px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap}
+._cs-sep{width:1px;height:18px;background:${bord};flex-shrink:0}
+._cs-toggle{padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;border:1.5px solid ${bord};background:transparent;cursor:pointer;font-family:inherit;color:${ink3};transition:all .15s;white-space:nowrap}
 ._cs-toggle.on{background:rgba(201,168,76,0.12);color:#c9a84c;border-color:rgba(201,168,76,0.32)}
 ._cs-toggle:not(.on):hover{color:${ink2};border-color:${bord}}
 
@@ -3872,7 +3894,7 @@ ${isPodium ? `
 /* ── panel sticky scroll ── */
 ._lp{display:flex;flex-direction:column;gap:0;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none}
 ._lp::-webkit-scrollbar{display:none}
-._rp{position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:12px}
+._rp{position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:16px}
 ._rp::-webkit-scrollbar{display:none}
 
 ._sec{font-family:'DM Serif Display',serif;font-size:14px;color:${ink};letter-spacing:-.01em;margin-bottom:10px}
@@ -4077,7 +4099,7 @@ ${isPodium ? `
       </div>
 
       <!-- Stats -->
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:14px">
         ${[
           { key:'plants',      icon:'🌿', lbl:'Plants',       val: (data.plants||0).toLocaleString(),   d:0 },
           { key:'gardenScore', icon:'⭐', lbl:'Garden Score', val: fmt(data.gardenScore||0),             d:1 },
@@ -4098,12 +4120,12 @@ ${isPodium ? `
       </div>
 
       <!-- Achievements -->
-      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+      <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <div class="_sec" style="margin-bottom:0">Achievements</div>
           <div style="font-family:'DM Serif Display',serif;font-size:19px;line-height:1;color:${isPodium ? pk?.p : tc}">${data.achievements||0}</div>
         </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <div style="display:flex;gap:9px;flex-wrap:wrap">
           ${(() => {
             const list = data.achievementList;
             if (list && list.length) {
@@ -5029,9 +5051,15 @@ function connectAuctionWS(auctionId) {
   };
 }
 
-async function showAuctionDetail(auctionId) {
+async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
   window._currentAuctionDetailId = auctionId;
   showPage('auction-detail');
+  // Deep-link this specific auction into the URL, same as profiles, so
+  // refresh/back returns to the same listing instead of the auctions list.
+  if (!skipHash) {
+    const newHash = '#auction/' + encodeURIComponent(auctionId);
+    if (location.hash !== newHash) history.pushState(null, '', newHash);
+  }
   const content = document.getElementById('auction-detail-content');
   content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:60vh;font-size:32px;opacity:0.3">🔨</div>`;
 
@@ -5091,31 +5119,34 @@ async function showAuctionDetail(auctionId) {
       : '';
 
     content.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start" id="auction-detail-grid">
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start" id="auction-detail-grid">
 
-        <!-- LEFT: plant hero + bid controls -->
-        <div style="display:flex;flex-direction:column;gap:16px">
+        <!-- LEFT: plant image only — kept as a compact side card (sticky while
+             scrolling) so the wide right column has real room for bid history
+             and, especially, live chat instead of squeezing them into a
+             narrow fixed sidebar. -->
+        <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:84px">
 
           <!-- Hero image card -->
           <div class="${glowClass}" style="border-radius:18px;border:1px solid var(--border);overflow:hidden;position:relative;background:var(--card)">
             ${secretV1Crown}
             <!-- Image zone -->
-            <div style="position:relative;width:100%;aspect-ratio:4/3;max-height:420px;overflow:hidden;background:var(--bg2)">
+            <div style="position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:var(--bg2)">
               <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};z-index:3"></div>
               ${a.plant.localImage
-                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:32px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:22px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
                 : ''}
-              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:110px">${a.plant.emoji}</div>
+              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:80px">${a.plant.emoji}</div>
               <!-- Bottom gradient overlay: name + seller + badges -->
-              <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 20px 18px;background:linear-gradient(0deg,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.28) 60%,transparent 100%);z-index:3">
-                <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px">${a.plant.name}</div>
-                <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:9px">Listed by <strong style="color:rgba(255,255,255,0.82)">${a.sellerName}</strong></div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                  <span style="background:${color}cc;color:#fff;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px 13px;background:linear-gradient(0deg,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.28) 60%,transparent 100%);z-index:3">
+                <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px">${a.plant.name}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:8px">Listed by <strong style="color:rgba(255,255,255,0.82)">${a.sellerName}</strong></div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+                  <span style="background:${color}cc;color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
                   ${a.plant.version === 1
-                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
-                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:11px;font-weight:600;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
-                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:11px;font-weight:700;padding:4px 11px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
+                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:10px;font-weight:600;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
+                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
                 </div>
               </div>
             </div>
@@ -5126,6 +5157,13 @@ async function showAuctionDetail(auctionId) {
                 : `<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--ink3);text-align:center;background:var(--bg2)">🔒 Can't remove — bids have been placed</div>`)
               : ''}
           </div>
+
+        </div><!-- /left -->
+
+        <!-- RIGHT: stats + bid controls, then bid history + live chat — this
+             column now carries most of the page width so the chat has real
+             room to breathe instead of living in a cramped fixed sidebar. -->
+        <div style="display:flex;flex-direction:column;gap:16px">
 
           <!-- Stat tiles row: timer + current bid -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -5162,33 +5200,34 @@ async function showAuctionDetail(auctionId) {
             <div style="font-size:11px;color:var(--ink3);margin-top:9px">Min increment +5% · next min: <strong style="color:var(--ink2)">${minBid.toLocaleString()} coins</strong></div>
           </div>
 
-        </div><!-- /left -->
+          <!-- Bid history + live chat side by side — chat gets the lion's
+               share of this now much-wider row. -->
+          <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start" id="auction-detail-subgrid">
 
-        <!-- RIGHT sidebar: bid history + chat -->
-        <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:84px">
+            <!-- Bid history -->
+            <div class="auction-panel">
+              <div class="auction-panel-header">
+                Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtml}</div>
+            </div>
 
-          <!-- Bid history -->
-          <div class="auction-panel">
-            <div class="auction-panel-header">
-              Bid History <span>${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>
+            <!-- Live chat -->
+            <div class="auction-panel">
+              <div class="auction-panel-header">
+                💬 Live Chat <span>auction room</span>
+              </div>
+              <div class="chat-messages" id="chat-msgs-${auctionId}">
+                ${(_auctionChats[auctionId]||[]).map(m => renderChatMsg(m)).join('')}
+                ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
+              </div>
+              <div class="chat-input-wrap">
+                <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
+                  onkeydown="if(event.key==='Enter')sendChatMsg('${auctionId}')">
+                <button class="chat-send" onclick="sendChatMsg('${auctionId}')">Send</button>
+              </div>
             </div>
-            <div class="bid-history-scroll" id="bid-history-${auctionId}">${bidsHtml}</div>
-          </div>
 
-          <!-- Live chat -->
-          <div class="auction-panel">
-            <div class="auction-panel-header">
-              💬 Live Chat <span>auction room</span>
-            </div>
-            <div class="chat-messages" id="chat-msgs-${auctionId}">
-              ${(_auctionChats[auctionId]||[]).map(m => renderChatMsg(m)).join('')}
-              ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
-            </div>
-            <div class="chat-input-wrap">
-              <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
-                onkeydown="if(event.key==='Enter')sendChatMsg('${auctionId}')">
-              <button class="chat-send" onclick="sendChatMsg('${auctionId}')">Send</button>
-            </div>
           </div>
 
         </div><!-- /right -->
