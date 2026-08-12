@@ -7686,8 +7686,13 @@ async function deletePriceAlert(alertId) {
       // (0,0) is now MARGIN px above/left of the container's (0,0), so the
       // path origin has to move with it. The noise jitter is added on top of
       // this in both directions with equal room to render on every side.
+      // STRETCH_TOP/STRETCH_LEFT then nudge just the top and left edges of
+      // the base rect outward a bit further (bottom/right stay put), so the
+      // border reads slightly larger on those two sides.
       const pad = 3;
-      const left = MARGIN + pad, top = MARGIN + pad, bw = w - pad*2, bh = h - pad*2;
+      const STRETCH_TOP = 5, STRETCH_LEFT = 5;
+      const left = MARGIN + pad - STRETCH_LEFT, top = MARGIN + pad - STRETCH_TOP;
+      const bw = (w - pad*2) + STRETCH_LEFT, bh = (h - pad*2) + STRETCH_TOP;
       const cs2 = getComputedStyle(container);
       const rawR = parseFloat(cs2.borderRadius) || 14;
       const r = Math.min(rawR, bw/2, bh/2);
