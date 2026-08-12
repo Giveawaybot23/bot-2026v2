@@ -2810,7 +2810,7 @@ function pkShowCard(){
   const cardEl=document.createElement('div');
   cardEl.className='pk-card';
   cardEl.innerHTML=`
-    <div class="pk-card-inner" style="background:${cardBg};border:2px solid ${rc}88;box-shadow:0 0 24px ${rc}44,0 16px 48px rgba(0,0,0,.6)">
+    <div class="pk-card-inner${card.rarity==='Secret' ? ' secret-electric' : ''}" style="background:${cardBg};border:2px solid ${rc}88;box-shadow:0 0 24px ${rc}44,0 16px 48px rgba(0,0,0,.6)">
       <div class="pk-card-stars">${starsHtml}</div>
       <div class="pk-card-rarity-bar" style="background:${rc}"></div>
       <div class="pk-card-art">
@@ -3056,7 +3056,7 @@ async function loadMarketHighlights() {
       const rColor = rarityAccent(item.rarity);
       const mutStr = item.mutation ? `<span style="font-size:11px;font-weight:700;color:${mutationColor(item.mutation.name)}">${mutationEmoji(item.mutation.name)} ${item.mutation.name}</span>` : '';
       const cachedAv = _avatarCache[item.sellerId];
-      return `<div class="highlight-card reveal" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
+      return `<div class="highlight-card reveal${item.rarity==='Secret' ? ' secret-electric' : ''}" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
         <div class="highlight-card-visual" style="background:${h.accent}14">
           ${item.localImage ? `<img src="${item.localImage}" onerror="this.style.display='none'">` : `<span style="font-size:36px">${item.emoji||'🌿'}</span>`}
           ${(item.version||99)===1 ? `<div style="position:absolute;bottom:3px;right:3px;font-size:9px;background:rgba(201,168,76,0.92);color:#fff;border-radius:4px;padding:1px 5px;font-weight:800">v1</div>` : ''}
@@ -4301,7 +4301,7 @@ ${isPodium ? `
           .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
           .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card${isV1 ? ' pv-card-live' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? ' secret-electric' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
 
           <!-- ambient texture -->
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 0%,${glow}22 0%,transparent 55%),radial-gradient(circle at 100% 100%,${glow}14 0%,transparent 50%);pointer-events:none"></div>
@@ -7546,15 +7546,25 @@ async function deletePriceAlert(alertId) {
 </script>
 
 <script>
-// ── ELECTRIC BORDER ENGINE ──────────────────────────────────────────────────
+// ── ELECTRIC BORDER ENGINE (Secret rarity) ──────────────────
+// Canvas-drawn, noise-displaced glowing border. Auto-applies to ANY element
+// carrying .secret-electric, anywhere in the DOM, via MutationObserver — so
+// any Secret-rarity card added later (market, auctions, pack pulls, trade,
+// collection grid, plant viewer, highlights) gets the effect for free.
 (function() {
-  const SPEED = 1.2;
+  // Tuned to feel calm and "stable" rather than chaotic — a steady current,
+  // not a glitch effect — in the game's canonical Secret-rarity purple.
+  const SPEED = 1;
+  const CHAOS = 0.12;
   const DISPLACEMENT = 14;
   const OCTAVES = 8;
   const LACUNARITY = 1.6;
   const GAIN = 0.7;
   const FREQUENCY = 10;
-  const CHAOS = 0.18;
+
+  const COLOR_CORE = '#c9a8ff';
+  const COLOR_MID  = 'rgba(156,95,255,0.65)';
+  const COLOR_OUTER = 'rgba(156,95,255,0.28)';
 
   function rand(x) { return ((Math.sin(x * 12.9898) * 43758.5453) % 1 + 1) % 1; }
 
@@ -7608,7 +7618,8 @@ async function deletePriceAlert(alertId) {
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;width:100%;height:100%;border-radius:inherit;';
-    // Container must be position:relative for absolute canvas to work
+    // Container must be position:relative (or already positioned) for the
+    // absolutely-positioned canvas to line up with its bounds.
     const cs = getComputedStyle(container);
     if (cs.position === 'static') container.style.position = 'relative';
     container.appendChild(canvas);
@@ -7646,24 +7657,20 @@ async function deletePriceAlert(alertId) {
       const perim = 2*(bw+bh) + 2*Math.PI*r;
       const samples = Math.max(80, Math.floor(perim / 1.2));
 
-      // Build displaced path
+      // Build displaced path — independent x/y noise per point, like current
+      // through a real conductor, rather than a uniform outward puff.
       const pts = [];
       for (let i = 0; i <= samples; i++) {
         const p = i / samples;
         const pt = getRRPoint(p, left, top, bw, bh, r);
-        const nx = octNoise(p * 8, timeRef, 0);
-        const ny = octNoise(p * 8, timeRef, 1);
-        // Normal direction: approximate outward normal from center
-        const cx2 = left + bw/2, cy2 = top + bh/2;
-        const dx = pt.x - cx2, dy = pt.y - cy2;
-        const len = Math.sqrt(dx*dx + dy*dy) || 1;
-        const disp = (nx + ny) * DISPLACEMENT;
-        pts.push({ x: pt.x + (dx/len) * disp, y: pt.y + (dy/len) * disp });
+        const xNoise = octNoise(p * 8, timeRef, 0);
+        const yNoise = octNoise(p * 8, timeRef, 1);
+        pts.push({ x: pt.x + xNoise * DISPLACEMENT, y: pt.y + yNoise * DISPLACEMENT });
       }
 
       // Outer wide glow
       ctx.save();
-      ctx.strokeStyle = 'rgba(156,95,255,0.25)';
+      ctx.strokeStyle = COLOR_OUTER;
       ctx.lineWidth = 10;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -7676,7 +7683,7 @@ async function deletePriceAlert(alertId) {
 
       // Mid glow
       ctx.save();
-      ctx.strokeStyle = 'rgba(180,120,255,0.55)';
+      ctx.strokeStyle = COLOR_MID;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -7689,7 +7696,7 @@ async function deletePriceAlert(alertId) {
 
       // Core bright line
       ctx.save();
-      ctx.strokeStyle = '#e0c8ff';
+      ctx.strokeStyle = COLOR_CORE;
       ctx.lineWidth = 1.2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
