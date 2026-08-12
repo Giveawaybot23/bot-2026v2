@@ -2199,10 +2199,11 @@
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Your Offer</div>
             <div id="trade-my-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
-              <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" onchange="updateMyCoins(this.value)">
+              <input id="trade-my-coins" type="number" min="0" placeholder="0 coins" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--ink);font-family:inherit" oninput="document.getElementById('trade-my-coins-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'They net') + '.' : '';" onchange="updateMyCoins(this.value)">
             </div>
+            <div id="trade-my-coins-tax-note" style="font-size:11px;color:var(--ink3);margin-bottom:8px;min-height:14px"></div>
             <div id="trade-my-confirmed" style="font-size:12px;color:var(--ink3);margin-bottom:10px;text-align:center"></div>
             <div style="display:flex;gap:8px">
               <button onclick="confirmTrade()" id="trade-confirm-btn" style="flex:1;background:rgba(0,200,100,0.12);color:#00c864;border:1px solid rgba(0,200,100,0.3);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s">✓ Confirm Offer</button>
@@ -2219,10 +2220,11 @@
           <div style="display:flex;flex-direction:column;min-height:0">
             <div style="font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em" id="trade-their-label">Their Offer</div>
             <div id="trade-their-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;margin-bottom:8px;position:relative;flex:1;align-content:start"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
               <span style="font-size:13px;color:var(--ink2)">🪙</span>
               <span id="trade-their-coins" style="font-size:13px;color:var(--ink)">0 coins</span>
             </div>
+            <div id="trade-their-coins-tax-note" style="font-size:11px;color:var(--ink3);margin-bottom:8px;min-height:14px"></div>
             <div id="trade-their-confirmed" style="font-size:12px;color:var(--ink3);text-align:center"></div>
           </div>
         </div>
@@ -5135,9 +5137,10 @@ async function showAuctionDetail(auctionId) {
           <!-- Bid / buy card -->
           <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
             ${a.buyoutPrice ? `
-            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:14px">
+            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:4px">
               ⚡ Buy Now — ${a.buyoutPrice.toLocaleString()} coins
-            </button>` : ''}
+            </button>
+            <div style="font-size:11px;color:var(--ink3);text-align:center;margin-bottom:14px">Seller nets ${taxNet(a.buyoutPrice).toLocaleString()} coins after ${Math.round(MARKET_TAX_RATE*100)}% market tax</div>` : ''}
 
             <div id="bid-feedback-${auctionId}" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:12px;text-align:center"></div>
 
@@ -5243,6 +5246,26 @@ function renderChatMsg(m) {
 const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF' };
 const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
+// ── Market Tax (client-side mirror) ─────────────────────────────────────────
+// Cosmetic only — purely so players can see what they'll net BEFORE confirming
+// a sale/trade. The server (TRADE_TAX_RATE / applyTax in index.js) is the real
+// source of truth and computes the actual balances; this just needs to match
+// it so the preview numbers are accurate. Keep this in sync if you change the
+// server-side rate.
+const MARKET_TAX_RATE = 0.05;
+function taxNet(amount) {
+  amount = Math.max(0, parseInt(amount) || 0);
+  if (amount <= 0) return 0;
+  const tax = Math.max(1, Math.floor(amount * MARKET_TAX_RATE));
+  return Math.max(0, amount - tax);
+}
+function taxNote(amount, prefix) {
+  amount = Math.max(0, parseInt(amount) || 0);
+  if (amount <= 0) return '';
+  const pct = Math.round(MARKET_TAX_RATE * 100);
+  return `${prefix} ${taxNet(amount).toLocaleString()} coins after ${pct}% market tax`;
+}
+
 function mutationEmoji(name) {
   return { Starstruck:'⭐', Shocked:'⚡', Soaked:'💧', Snowy:'❄️', Flooded:'🌊', Sandy:'🏜️' }[name] || '✨';
 }
@@ -5333,7 +5356,8 @@ function openMarketListModal(plantName, version) {
       </div>
       <div style="font-size:14px;color:var(--ink2);margin-bottom:20px">Listing <strong style="color:var(--ink)">${plantName}</strong> v${version} on the market.</div>
       <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Price (coins)</div>
-      <input id="ml-price" type="number" placeholder="Enter price..." style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;margin-bottom:16px;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+      <input id="ml-price" type="number" placeholder="Enter price..." style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;margin-bottom:8px;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ml-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You will receive') + '.' : '';">
+      <div id="ml-tax-note" style="font-size:12px;color:var(--ink3);margin-bottom:16px;min-height:16px"></div>
       <div id="ml-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:12px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
       <div style="display:flex;justify-content:flex-end;gap:10px">
         <button onclick="document.getElementById('market-list-overlay').remove()" style="padding:11px 22px;border-radius:100px;border:1.5px solid var(--border);background:transparent;font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;font-family:inherit">Cancel</button>
@@ -5452,11 +5476,13 @@ function openCreateAuctionModal(plantName, version, sellValue) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Starting Bid</div>
-            <input id="ca-start" type="number" placeholder="Default: ${sellValue || 'sell value'}" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+            <input id="ca-start" type="number" placeholder="Default: ${sellValue || 'sell value'}" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ca-start-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You net') + '.' : '';">
+            <div id="ca-start-tax-note" style="font-size:11px;color:var(--ink3);margin-top:4px;min-height:14px"></div>
           </div>
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Buyout Price</div>
-            <input id="ca-buyout" type="number" placeholder="Optional" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'">
+            <input id="ca-buyout" type="number" placeholder="Optional" style="width:100%;padding:11px 16px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:border-color 0.2s" onfocus="this.style.borderColor='#5865F2'" onblur="this.style.borderColor='var(--border)'" oninput="document.getElementById('ca-buyout-tax-note').textContent = this.value > 0 ? taxNote(this.value, 'You net') + '.' : '';">
+            <div id="ca-buyout-tax-note" style="font-size:11px;color:var(--ink3);margin-top:4px;min-height:14px"></div>
           </div>
         </div>
         <div>
@@ -5775,7 +5801,8 @@ function confirmMarketBuy(listingId, plantName, price) {
       <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);margin-bottom:8px">Confirm Purchase</div>
       <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">Are you sure you want to buy</div>
       <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px">${plantName}</div>
-      <div style="font-size:14px;color:var(--green);font-weight:700;margin-bottom:24px">for ${price.toLocaleString()} coins?</div>
+      <div style="font-size:14px;color:var(--green);font-weight:700;margin-bottom:8px">for ${price.toLocaleString()} coins?</div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:24px">A ${Math.round(MARKET_TAX_RATE*100)}% market tax applies to the seller's proceeds — this doesn't change what you pay.</div>
       <div id="mbuy-error" style="display:none;color:#e53935;font-size:13px;margin-bottom:14px;padding:10px 14px;background:rgba(229,57,53,0.08);border-radius:8px;border:1px solid rgba(229,57,53,0.2)"></div>
       <div style="display:flex;gap:10px">
         <button onclick="document.getElementById('market-buy-overlay').remove()" style="flex:1;padding:13px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">Cancel</button>
@@ -6043,7 +6070,7 @@ async function declineTradeRequest() {
   showTradeResultToast('declined');
 }
 
-function showTradeResultToast(result) {
+function showTradeResultToast(result, taxInfo) {
   const isComplete = result === 'complete';
   // Backdrop
   const backdrop = document.createElement('div');
@@ -6051,8 +6078,11 @@ function showTradeResultToast(result) {
   // Card
   const el = document.createElement('div');
   el.style.cssText = 'background:var(--card);border:1.5px solid var(--border);border-radius:20px;padding:36px 48px;box-shadow:0 24px 80px rgba(14,13,11,0.28);font-size:20px;font-weight:700;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:14px;transform:scale(0.88);transition:transform 0.25s;text-align:center';
+  const taxLine = (isComplete && taxInfo && taxInfo.received !== undefined)
+    ? `<span style="font-size:13px;font-weight:500;color:var(--ink3)">You received ${Number(taxInfo.received).toLocaleString()} coins after ${Math.round((taxInfo.taxRate||0)*100)}% market tax</span>`
+    : '';
   el.innerHTML = isComplete
-    ? '<span style="font-size:48px">✅</span>Trade complete!'
+    ? `<span style="font-size:48px">✅</span>Trade complete!${taxLine}`
     : '<span style="font-size:48px">❌</span>Trade declined.';
   backdrop.appendChild(el);
   document.body.appendChild(backdrop);
@@ -6296,6 +6326,8 @@ el.innerHTML = html;
   if (valueLabel) valueLabel.textContent = diff < 0.1 ? '✓ Fair trade' : myVal > theirVal ? "You're offering more" : "They're offering more";
 
   if (!document.getElementById('trade-my-coins').dataset.edited) document.getElementById('trade-my-coins').value = mySide.coins||0;
+  const myTaxNote = document.getElementById('trade-my-coins-tax-note');
+  if (myTaxNote) myTaxNote.textContent = (mySide.coins||0) > 0 ? taxNote(mySide.coins, 'They net') + '.' : '';
   document.getElementById('trade-my-confirmed').innerHTML = mySide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ You confirmed</span>' : '<span style="color:var(--ink3)">Not confirmed yet</span>';
   const locked = mySide.confirmed;
   const confirmBtn = document.getElementById('trade-confirm-btn');
@@ -6310,6 +6342,8 @@ el.innerHTML = html;
   if (myCoins) myCoins.disabled = locked;
   const theirCoinsEl = document.getElementById('trade-their-coins');
   if (theirCoinsEl) theirCoinsEl.textContent = (theirSide.coins||0).toLocaleString() + ' coins';
+  const theirTaxNote = document.getElementById('trade-their-coins-tax-note');
+  if (theirTaxNote) theirTaxNote.textContent = (theirSide.coins||0) > 0 ? taxNote(theirSide.coins, 'You net') + '.' : '';
   const theirConfirmedEl = document.getElementById('trade-their-confirmed');
   if (theirConfirmedEl) theirConfirmedEl.innerHTML = theirSide.confirmed ? '<span style="color:#00c864;font-weight:700">✓ They confirmed</span>' : '<span style="color:var(--ink3)">Waiting for them...</span>';
 }
@@ -6814,7 +6848,7 @@ if (msg.type === 'trade_declined') {
 if (msg.type === 'trade_complete') {
   stopTradePoll();
   removeTradePill();
-  showTradeResultToast('complete');
+  showTradeResultToast('complete', msg.paidCoins ? { received: msg.received, taxRate: msg.taxRate } : null);
   loadNavCoins(window._loggedInId, true);
   setTimeout(showTradeStartPanel, 3000);
 }
