@@ -4307,7 +4307,14 @@ ${isPodium ? `
           .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
           .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:hidden;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:visible;position:relative;background:${cardBg}">
+
+          <!-- inner wrapper clips the decorative background/texture to the card's
+               rounded corners; the outer pv-card stays overflow:visible so the
+               electric-border canvas (a direct child of pv-card, appended by
+               initElectricBorder) isn't clipped and can wrap the card the same
+               way it does on market/index cards. -->
+          <div style="position:relative;border-radius:inherit;overflow:hidden">
 
           <!-- ambient texture -->
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 0%,${glow}22 0%,transparent 55%),radial-gradient(circle at 100% 100%,${glow}14 0%,transparent 50%);pointer-events:none"></div>
@@ -4358,6 +4365,7 @@ ${isPodium ? `
               <div class="_pv-stat-lbl">Obtained</div>
               <div class="_pv-stat-val" style="font-size:12.5px">${obtained || 'In collection'}</div>
             </div>
+          </div>
           </div>
         </div>`;
       // scoped stat styles (kept out of the huge template above for readability)
