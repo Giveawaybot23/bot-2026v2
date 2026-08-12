@@ -2520,7 +2520,7 @@ const PK_PACKS = [
     desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Super:0.366, Secret:0.008 } },
   { id:'ruby',     crateKey:'ruby',     name:'Ruby Pack',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
-    desc:'The rarest drops. The highest stakes.', odds:{ Common:6, Uncommon:9, Rare:13, Epic:16, Legendary:10, Mythic:3.5, Super:1.128, Secret:0.01 } },
+    desc:'The rarest drops. The highest stakes.', odds:{ Common:0, Uncommon:0, Rare:0, Epic:0, Legendary:0, Mythic:0, Super:0, Secret:100 } },
 ];
 
 const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#9c5fff' };
@@ -3911,7 +3911,7 @@ ${isPodium ? `
   <!-- ── HERO ── -->
   <div style="position:relative;overflow:hidden;${isPodium
     ? 'background:linear-gradient(180deg,rgba(6,5,3,1) 0%,rgba(10,9,7,.97) 100%)'
-    : 'background:linear-gradient(180deg,'+tc+'12 0%,transparent 100%)'}">
+    : 'background:linear-gradient(180deg,'+rtColor+'12 0%,transparent 100%)'}">
 
     <!-- Back button -->
     <button onclick="showPage('profiles')"
@@ -3959,7 +3959,7 @@ ${isPodium ? `
           background:${isPodium ? pk?.g+'.07)' : 'var(--green-pale)'};
           display:flex;align-items:center;justify-content:center;font-size:38px;
           margin-bottom:16px;position:relative;
-          ${!isPodium ? 'box-shadow:0 0 0 3px var(--card),0 0 0 5px '+tc+'55,0 0 28px '+tc+'30;animation:_pFloat 4s ease-in-out infinite' : ''}">
+          ${!isPodium ? 'box-shadow:0 0 0 3px var(--card),0 0 0 5px '+rtColor+'55,0 0 28px '+rtColor+'30;animation:_pFloat 4s ease-in-out infinite' : ''}">
         ${avatarUrl ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">` : (data.rank?.emoji || '🌱')}
         ${isPodium ? `<div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${pk.g}.22);pointer-events:none"></div>` : ''}
       </div>
@@ -3978,7 +3978,7 @@ ${isPodium ? `
       </div>` : ''}
 
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:center;animation:_pFadeUp .6s ease both">
-        <div style="background:${tc}22;border:1px solid ${tc}55;border-radius:100px;padding:6px 14px;font-size:12px;font-weight:700;color:${tc}">
+        <div style="background:${rtColor}22;border:1px solid ${rtColor}55;border-radius:100px;padding:6px 14px;font-size:12px;font-weight:700;color:${rtColor}">
           <img src="/images/tiers/${data.gardenTier?.name?.toLowerCase()}.webp" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">${data.gardenTier?.name}
         </div>
       </div>
