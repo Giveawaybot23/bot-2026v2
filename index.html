@@ -3786,7 +3786,7 @@ async function loadProfile(id, { skipHash = false } = {}) {
     }));
     const DEFAULT_RANK1_COLOR = '#ffd54a';
     const rankBadge = (rank, cat) => {
-      if (!rank) return { boxStyle: '', html: '' };
+      if (!rank) return { boxStyle: '', html: '', color: '', isTop10: false };
       const isTop1  = rank === 1;
       const isTop10 = rank <= 10;
       const color   = isTop1 ? (rankColors[cat] || DEFAULT_RANK1_COLOR) : tc;
@@ -3794,7 +3794,7 @@ async function loadProfile(id, { skipHash = false } = {}) {
         ? `border-color:${color}77;box-shadow:0 0 0 1px ${color}44,0 0 ${isTop1 ? '26px 4px' : '14px 2px'} ${color}${isTop1 ? 'bb' : '55'};`
         : '';
       const html = `<div style="flex-shrink:0;font-size:11px;font-weight:800;color:${color};background:${color}22;border:1px solid ${color}66;border-radius:100px;padding:4px 10px;white-space:nowrap;${isTop1 ? 'text-shadow:0 0 8px '+color+'aa;' : ''}">#${rank}</div>`;
-      return { boxStyle, html };
+      return { boxStyle, html, color, isTop10 };
     };
 
     document.getElementById('profile-detail-content').innerHTML = `
@@ -3850,6 +3850,15 @@ ${isPodium ? `
 ._sr-icon{font-size:24px;width:36px;text-align:center;flex-shrink:0}
 ._sr-lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};line-height:1;margin-bottom:3px}
 ._sr-val{font-family:'DM Serif Display',serif;font-size:26px;letter-spacing:-.02em;color:${(isPodium && isDark) ? pk?.p : 'var(--ink)'};line-height:1.15}
+
+/* ── star border (rank glow on top-10 stat pills) ── */
+._sb{display:block;position:relative;border-radius:12px;overflow:hidden}
+._sb ._sr{position:relative;z-index:1;animation:none}
+._sb-g{position:absolute;width:300%;height:50%;opacity:.75;border-radius:50%;pointer-events:none;z-index:0}
+._sb-g.is-bottom{bottom:-12px;right:-250%;animation-name:_sbMoveBottom;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
+._sb-g.is-top{top:-12px;left:-250%;animation-name:_sbMoveTop;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
+@keyframes _sbMoveBottom{0%{transform:translate(0%,0%);opacity:1}100%{transform:translate(-100%,0%);opacity:0}}
+@keyframes _sbMoveTop{0%{transform:translate(0%,0%);opacity:1}100%{transform:translate(100%,0%);opacity:0}}
 
 /* ── achievement badge ── */
 ._ab{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;border:1px solid ${bord};background:${bg2};transition:all .15s;cursor:default;animation:_pCardIn .3s ease both}
@@ -4062,7 +4071,7 @@ ${isPodium ? `
           ${rarityOrder.filter(r=>grouped[r]?.length).map(r =>
             `<button class="_ct-btn" onclick="window['${pid}_sf']('${r}',this)"
               style="border-color:${rarityColors[r]||'#999'}44;color:${rarityColors[r]||'#999'}"
-              >${r.slice(0,3)}</button>`
+              >${r}</button>`
           ).join('')}
         </div>
 
@@ -4107,14 +4116,22 @@ ${isPodium ? `
           { key:'totalClaims', icon:'⚡', lbl:'Total Claims', val: (data.totalClaims||0).toLocaleString(), d:3 },
         ].map(s => {
           const rb = rankBadge(ranks[s.key], s.key);
-          return `
-          <div class="_sr" style="animation-delay:${s.d*.07}s;${rb.boxStyle}">
+          const sr = `
+          <div class="_sr" style="animation-delay:${s.d*.07}s">
             <div class="_sr-icon">${s.icon}</div>
             <div style="flex:1;min-width:0">
               <div class="_sr-lbl">${s.lbl}</div>
               <div class="_sr-val">${s.val}</div>
             </div>
             ${rb.html}
+          </div>`;
+          if (!rb.isTop10) return sr;
+          const grad = `radial-gradient(circle, ${rb.color}, transparent 10%)`;
+          return `
+          <div class="_sb" style="padding:2.5px 0;animation:_pSlideL .35s ease both;animation-delay:${s.d*.07}s">
+            <div class="_sb-g is-bottom" style="background:${grad};animation-duration:1.25s"></div>
+            <div class="_sb-g is-top" style="background:${grad};animation-duration:1.25s"></div>
+            ${sr}
           </div>`;
         }).join('')}
       </div>
