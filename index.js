@@ -79,6 +79,26 @@ const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
 const SERVER_NAME     = 'GAG2';
 const WATERMARK       = 'LA';
 
+// ─── Market/Trade Tax (coin sink) ──────────────────────────────────────────────
+// Applied to any coins actually changing hands between players — auction
+// payouts, market listing sales, and the coin side(s) of a direct !trade.
+// The skimmed amount is NOT given to anyone (not the buyer, not a "house"
+// balance) — it is destroyed, which is what makes this an actual sink instead
+// of just moving coins around. Item-for-item barter (no coins involved) is
+// NEVER taxed — there's no currency flow to skim, and taxing pure swaps would
+// just add friction to healthy dupe/collection trading without removing a
+// single coin from the economy.
+const TRADE_TAX_RATE = 0.05; // 5% — tune to taste
+function applyTax(amount) {
+  if (!amount || amount <= 0) return 0;
+  const tax = Math.max(1, Math.floor(amount * TRADE_TAX_RATE));
+  return Math.max(0, amount - tax);
+}
+function taxAmount(amount) {
+  if (!amount || amount <= 0) return 0;
+  return Math.max(1, Math.floor(amount * TRADE_TAX_RATE));
+}
+
 let auctionChannels = {};
 let payoutChannels = {};
 
@@ -3009,7 +3029,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (buyer.currency < auction.buyoutPrice) return message.reply(`❌ Need ${fmt(auction.buyoutPrice)}.`);
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
-      seller.currency += auction.buyoutPrice;
+      const sellerReceives = applyTax(auction.buyoutPrice);
+      seller.currency += sellerReceives;
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
@@ -3017,7 +3038,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveAuctions(auctions);
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('🔨 Auction Bought Out!')
-        .setDescription(`**${message.author.username}** bought **${auction.plant.name}** ${fmtVersion(auction.plant)} for ${fmt(auction.buyoutPrice)}!`)
+        .setDescription(`**${message.author.username}** bought **${auction.plant.name}** ${fmtVersion(auction.plant)} for ${fmt(auction.buyoutPrice)}!\n*Seller receives ${fmt(sellerReceives)} after ${Math.round(TRADE_TAX_RATE * 100)}% market tax.*`)
         .setColor(0x00C853)
       ]});
     }
@@ -5155,7 +5176,9 @@ async function endAuction(auctionId, fallbackChannel) {
   const seller = getUser(db, auction.sellerId);
 
   // Coins were already deducted from the winner at bid time — just pay the seller
-  seller.currency += winner.amount;
+  // (minus market tax — see TRADE_TAX_RATE/applyTax above)
+  const sellerReceives = applyTax(winner.amount);
+  seller.currency += sellerReceives;
   grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
@@ -5167,7 +5190,7 @@ async function endAuction(auctionId, fallbackChannel) {
 
   const embed = new EmbedBuilder()
     .setTitle('🔨 Auction Complete!')
-    .setDescription(`${rCfg.emoji} **${auction.plant.name}** ${fmtVersion(auction.plant)}${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!`)
+    .setDescription(`${rCfg.emoji} **${auction.plant.name}** ${fmtVersion(auction.plant)}${auction.plant.mutation ? ` ${auction.plant.mutation.emoji} ${auction.plant.mutation.name}` : ''}\n\n🏆 Won by **${winner.username}** for ${fmt(winner.amount)}!\n*Seller receives ${fmt(sellerReceives)} after ${Math.round(TRADE_TAX_RATE * 100)}% market tax.*`)
     .setColor(rCfg.color)
     .setFooter({ text: `Seller: ${auction.sellerName}` });
 
@@ -5176,7 +5199,7 @@ async function endAuction(auctionId, fallbackChannel) {
   // DM winner
   try { const u = await client.users.fetch(winner.userId); await u.send({ embeds: [new EmbedBuilder().setTitle('🏆 You won an auction!').setDescription(`You won **${auction.plant.name}** ${fmtVersion(auction.plant)} for **${fmt(winner.amount)} coins**!`).setColor(0x00c864)] }); } catch {}
   // DM seller
-  try { const s = await client.users.fetch(auction.sellerId); await s.send({ embeds: [new EmbedBuilder().setTitle('💰 Your auction sold!').setDescription(`**${auction.plant.name}** sold to **${winner.username}** for **${fmt(winner.amount)} coins**!`).setColor(0x52b788)] }); } catch {}
+  try { const s = await client.users.fetch(auction.sellerId); await s.send({ embeds: [new EmbedBuilder().setTitle('💰 Your auction sold!').setDescription(`**${auction.plant.name}** sold to **${winner.username}** for **${fmt(winner.amount)} coins**!\nYou received **${fmt(sellerReceives)}** after ${Math.round(TRADE_TAX_RATE * 100)}% market tax.`).setColor(0x52b788)] }); } catch {}
   // DM outbid users
   for (const bid of auction.bids.slice(0,-1)) {
     if (bid.userId === winner.userId) continue;
@@ -5388,7 +5411,8 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       if (buyer.currency < auction.buyoutPrice) return res.status(400).json({ error: `Not enough coins`, balance: buyer.currency });
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
-      seller.currency += auction.buyoutPrice;
+      const sellerReceives = applyTax(auction.buyoutPrice);
+      seller.currency += sellerReceives;
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       saveDB(db);
       auctions.splice(idx, 1);
@@ -5398,7 +5422,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       pushCoinUpdate(auction.sellerId, seller.currency);
       pushCollectionUpdate(req.user.id);
       broadcastLeaderboardUpdate();
-      return res.json({ success: true, buyout: true });
+      return res.json({ success: true, buyout: true, sellerReceived: sellerReceives, taxRate: TRADE_TAX_RATE });
     }
 
     const bidAmount = parseInt(amount);
@@ -5968,21 +5992,22 @@ app.post('/api/market/buy/:id', async (req, res) => {
     if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
 
     buyer.currency  -= listing.price;
-    seller.currency += listing.price;
+    const sellerReceives = applyTax(listing.price);
+    seller.currency += sellerReceives;
     grantPlant(buyer, { ...listing.plant, claimedAt: new Date().toISOString() });
 
     saveDB(db);
     saveListings(listings.filter(l => l.id !== req.params.id));
 
     // DM seller
-    try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!`).setColor(0x00c864)] }); } catch {}
+    try { const u = await client.users.fetch(listing.sellerId); await u.send({ embeds: [new EmbedBuilder().setTitle('💰 Your plant sold!').setDescription(`**${listing.plant.name}** ${fmtVersion(listing.plant)} was bought by **${req.user.username}** for **${listing.price.toLocaleString()} coins**!\nYou received **${sellerReceives.toLocaleString()} coins** after ${Math.round(TRADE_TAX_RATE * 100)}% market tax.`).setColor(0x00c864)] }); } catch {}
 
     broadcastAll({ type: 'market_update' });
     pushCoinUpdate(req.user.id, buyer.currency);
     pushCoinUpdate(listing.sellerId, seller.currency);
     pushCollectionUpdate(req.user.id);
     broadcastLeaderboardUpdate();
-    res.json({ success: true });
+    res.json({ success: true, sellerReceived: sellerReceives, taxRate: TRADE_TAX_RATE });
   });
 });
 
@@ -6155,8 +6180,13 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
         recordTrade(removed.name);
       }
 
-      if (iSide.coins > 0) { iUser.currency -= iSide.coins; tUser.currency += iSide.coins; }
-      if (tSide.coins > 0) { tUser.currency -= tSide.coins; iUser.currency += tSide.coins; }
+      // Market tax applies to coins actually changing hands (see TRADE_TAX_RATE
+      // above). Pure item-for-item swaps (both coins fields are 0) are never
+      // taxed — there's no currency flow to skim. Each direction is taxed
+      // independently since a trade can have coins moving both ways at once.
+      let iReceivedNet = 0, tReceivedNet = 0;
+      if (iSide.coins > 0) { iUser.currency -= iSide.coins; tReceivedNet = applyTax(iSide.coins); tUser.currency += tReceivedNet; }
+      if (tSide.coins > 0) { tUser.currency -= tSide.coins; iReceivedNet = applyTax(tSide.coins); iUser.currency += iReceivedNet; }
 
       touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
       saveDB(db);
@@ -6168,8 +6198,12 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
       pushCollectionUpdate(trade.initiatorId);
       pushCollectionUpdate(trade.targetId);
       broadcastLeaderboardUpdate();
-      try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
-      try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!`).setColor(0x00c864)] }); } } catch {}
+      const taxPct = Math.round(TRADE_TAX_RATE * 100);
+      const iTaxNote = tSide.coins > 0 ? `\nYou received **${iReceivedNet.toLocaleString()} coins** after ${taxPct}% market tax.` : '';
+      const tTaxNote = iSide.coins > 0 ? `\nYou received **${tReceivedNet.toLocaleString()} coins** after ${taxPct}% market tax.` : '';
+      try { if (canBotDM(trade.initiatorId, 'trade_complete')) { const u = await client.users.fetch(trade.initiatorId); await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.targetName}** completed successfully!${iTaxNote}`).setColor(0x00c864)] }); } } catch {}
+      try { if (canBotDM(trade.targetId,    'trade_complete')) { const u = await client.users.fetch(trade.targetId);    await u.send({ embeds: [new EmbedBuilder().setTitle('✅ Trade Complete!').setDescription(`Your trade with **${trade.initiatorName}** completed successfully!${tTaxNote}`).setColor(0x00c864)] }); } } catch {}
+      trade.taxApplied = { rate: TRADE_TAX_RATE, initiatorReceived: iReceivedNet, targetReceived: tReceivedNet };
     } catch (err) {
       // Safety net: if anything above throws unexpectedly, fail the trade
       // loudly (and log it) instead of letting the request hang with no
