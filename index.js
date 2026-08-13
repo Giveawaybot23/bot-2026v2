@@ -111,6 +111,19 @@ const AUCTION_EXTEND_THRESHOLD_2 = 30 * 1000;       // last 30s → add 45s
 const AUCTION_EXTEND_AMOUNT_2    = 45 * 1000;
 const AUCTION_MAX_EXTENSION      = 10 * 60 * 1000;  // cap: 10 min total added
 
+// Single source of truth for minimum bid increment — previously the Discord
+// command path used a flat increment fixed at auction creation (5% of start
+// price, never revisited) while the web API path required 5% above the
+// *current* bid, growing forever. Unified here: whichever of "5% of start
+// price" or "5% of current bid" is larger always applies, with a 100-coin
+// floor for cheap auctions.
+function auctionMinIncrement(auction, currentAmount) {
+  return Math.max(100, Math.round(auction.startPrice * 0.05), Math.round(currentAmount * 0.05));
+}
+function auctionMinBid(auction, currentAmount) {
+  return currentAmount + auctionMinIncrement(auction, currentAmount);
+}
+
 // ─── Auctions ─────────────────────────────────────────────────────────────────
 function loadAuctions() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -225,18 +238,10 @@ const CLAIM_COOLDOWNS = {
 
 const CRATE_COOLDOWNS = {
   bronze:  30 * 1000,
-  silver:  35 * 1000,
-  gold:    40 * 1000,
-  diamond: 50 * 1000,
-  ruby:    60 * 1000,
-};
-
-const CRATE_PITY_THRESHOLD = {
-  bronze: 8,
-  silver: 7,
-  gold: 6,
-  diamond: 5,
-  ruby: 4,
+  silver:  40 * 1000,
+  gold:    60 * 1000,
+  diamond: 90 * 1000,
+  ruby:    150 * 1000,
 };
 
 const COOLDOWN_EXEMPT_IDS = [
@@ -354,15 +359,15 @@ async function announceDroppable(plant, action, guildId = null) {
 // ─── XP Config ────────────────────────────────────────────────────────────────
 const XP_REWARDS = {
   claim:      50,
-  daily:      80,
-  weekly:     200,
+  daily:      100,
+  weekly:     250,
   race_finish:30,
   race_win:   100,
   crate_open: 40,
 };
 function xpForLevel(level) {
   let total = 0;
-  for (let i = 1; i < level; i++) total += i * 120;
+  for (let i = 1; i < level; i++) total += i * 150;
   return total;
 }
 function getLevelFromXP(xp) {
@@ -454,14 +459,14 @@ function calcWeightedGardenScore(collection) {
 // to players (see the GARDEN_TIERS.filter(...) in the !info help text) so nobody
 // knows it exists until someone actually hits 2,000,000 score.
 const GARDEN_TIERS = [
-  { name: 'Bronze',      emoji: '<:bronze:1534337657914527915>',      minScore: 25000,   color: 0xCD7F32, ansi: 'orange'  },
-  { name: 'Silver',      emoji: '<:silver:1534338165555335218>',      minScore: 50000,   color: 0xC0C0C0, ansi: 'white'   },
-  { name: 'Gold',        emoji: '<:gold:1534338263169499166>',        minScore: 80000,   color: 0xFFD700, ansi: 'yellow'  },
-  { name: 'Platinum',    emoji: '<:platinum:1534338501938647190>',    minScore: 100000,  color: 0x00BFFF, ansi: 'cyan'    },
-  { name: 'Diamond',     emoji: '<:diamond:1534338799486763109>',     minScore: 250000,  color: 0xB9F2FF, ansi: 'cyan'    },
-  { name: 'Master',      emoji: '<:master:1534339117494702162>',      minScore: 500000,  color: 0x9B59B6, ansi: 'magenta' },
-  { name: 'Grandmaster', emoji: '<:grandmaster:1534339387335376907>', minScore: 1000000, color: 0xFF00FF, ansi: 'magenta' }, // top visible rank
-  { name: 'Secret',      emoji: '<:secret:1534340531910344804>',      minScore: 2000000, color: 0x000000, ansi: 'black'   }, // hidden — do not show in tier lists
+  { name: 'Bronze',      emoji: '<:bronze:1534337657914527915>',      minScore: 20000,   color: 0xCD7F32, ansi: 'orange'  },
+  { name: 'Silver',      emoji: '<:silver:1534338165555335218>',      minScore: 45000,   color: 0xC0C0C0, ansi: 'white'   },
+  { name: 'Gold',        emoji: '<:gold:1534338263169499166>',        minScore: 100000,  color: 0xFFD700, ansi: 'yellow'  }, // "relatively fast" milestone
+  { name: 'Platinum',    emoji: '<:platinum:1534338501938647190>',    minScore: 220000,  color: 0x00BFFF, ansi: 'cyan'    },
+  { name: 'Diamond',     emoji: '<:diamond:1534338799486763109>',     minScore: 480000,  color: 0xB9F2FF, ansi: 'cyan'    },
+  { name: 'Master',      emoji: '<:master:1534339117494702162>',      minScore: 1000000, color: 0x9B59B6, ansi: 'magenta' },
+  { name: 'Grandmaster', emoji: '<:grandmaster:1534339387335376907>', minScore: 2200000, color: 0xFF00FF, ansi: 'magenta' }, // top visible rank
+  { name: 'Secret',      emoji: '<:secret:1534340531910344804>',      minScore: 5000000, color: 0x000000, ansi: 'black'   }, // hidden — do not show in tier lists — season-one hypothesis, watch actual player distribution
 ];
 
 function getGardenTier(score) {
@@ -567,7 +572,27 @@ const VERSION_MULTIPLIERS = {
   6: 1.05 
 };
 
-function getVersionMultiplier(version) { return VERSION_MULTIPLIERS[version] || 1.00; }
+// First 72 hours after launch, everything drops as v1–v3, which would make
+// the full ×3.5/×2.2/×1.7 multipliers absurdly lucrative for whoever happens
+// to be online that weekend. Cap the *effective* multiplier during that
+// window instead of filtering it out of leaderboards after the fact — this
+// kills the launch-day windfall without touching the long-term collectible
+// value of early versions (full multipliers apply permanently afterward).
+const LAUNCH_GRACE_MS  = 72 * 60 * 60 * 1000; // 72 hours
+const LAUNCH_GRACE_CAP = 1.5;
+function getLaunchTimestamp() {
+  const meta = loadMeta();
+  if (!meta.launchTimestamp) {
+    meta.launchTimestamp = Date.now();
+    saveMeta(meta);
+  }
+  return meta.launchTimestamp;
+}
+function getVersionMultiplier(version) {
+  const raw = VERSION_MULTIPLIERS[version] || 1.00;
+  const inGracePeriod = (Date.now() - getLaunchTimestamp()) < LAUNCH_GRACE_MS;
+  return inGracePeriod ? Math.min(raw, LAUNCH_GRACE_CAP) : raw;
+}
 
 // ─── Version display formatting ───────────────────────────────────────────────
 // Canonical way to show a plant's version in any Discord-facing text.
@@ -1449,8 +1474,8 @@ function startDropLoop() {
 }
 
 // ─── Payout Config ────────────────────────────────────────────────────────────
-const DAILY_PAYOUTS  = [200000, 135000, 75000];
-const WEEKLY_PAYOUTS = [900000, 600000, 350000];
+const DAILY_PAYOUTS  = [60000, 35000, 18000];
+const WEEKLY_PAYOUTS = [280000, 180000, 100000];
 
 const PAYOUT_FILE = `${DATA_DIR}/payouts.json`;
 function loadPayoutState() {
@@ -1674,39 +1699,26 @@ function startDecayLoop() {
   }, 15 * 60 * 1000); // check every 15 minutes
 }
 
-const PITY_RARITIES = ['Legendary', 'Mythic', 'Super', 'Secret'];
-
 function openCrate(crateKey, db, userId) {
   const crate      = CRATES[crateKey];
   const user       = getUser(db, userId);
-  const threshold  = CRATE_PITY_THRESHOLD[crateKey] || 999;
-  const dryStreak  = user.cratePity[crateKey] || 0;
-  const pityActive = dryStreak >= threshold;
 
   // Weather only boosts mutation odds on ONE random slot per crate —
   // applying it to every plant would break crate ROI.
   const activeWeather = getActiveWeather();
   const weatherSlot    = activeWeather ? Math.floor(Math.random() * crate.plants) : -1;
 
+  // No pity — every slot is an honest, independent roll against the crate's
+  // real weight table. This is intentional: EV/Price for each crate is
+  // priced assuming pity-free odds, so reintroducing pity here would break
+  // the pricing in CRATES without anyone noticing.
   const results = Array.from({ length: crate.plants }, (_, i) => {
     const weatherName = (i === weatherSlot) ? activeWeather.name : null;
-
-    if (pityActive && i === crate.plants - 1) {
-      const pityWeights = {};
-      for (const r of PITY_RARITIES) pityWeights[r] = crate.weights[r] || 1;
-      const rarity   = pickRarity(pityWeights);
-      const plant    = pickPlant(rarity.name);
-      const mutation = rollMutation(weatherName);
-      return { ...plant, rarityConfig: rarity, mutation };
-    }
     const rarity   = pickRarityWithCharms(db, userId, crate.weights);
     const plant    = pickPlant(rarity.name);
     const mutation = rollMutation(weatherName);
     return { ...plant, rarityConfig: rarity, mutation };
   });
-
-  const hitLegendaryPlus = results.some(r => PITY_RARITIES.includes(r.rarityConfig.name));
-  user.cratePity[crateKey] = hitLegendaryPlus ? 0 : dryStreak + 1;
 
   return results;
 }
@@ -2963,7 +2975,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (auction.sellerId === message.author.id) return message.reply("You can't bid on your own auction.");
       const prevTopBid = auction.bids.length ? auction.bids[auction.bids.length - 1] : null;
       const topBidAmount = prevTopBid ? prevTopBid.amount : auction.startPrice;
-      const minBid = topBidAmount + auction.minIncrement;
+      const minBid = auctionMinBid(auction, topBidAmount);
       if (bidAmount < minBid) return message.reply(`❌ Minimum bid is ${fmt(minBid)}.`);
       const db = loadDB(); const user = getUser(db, message.author.id);
       if (user.currency < bidAmount) return message.reply(`❌ You only have ${fmt(user.currency)}.`);
@@ -5438,9 +5450,9 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
     const user = getUser(db, req.user.id);
 
     const prevTopBid = auction.bids.length ? auction.bids[auction.bids.length - 1] : null;
-    const prevTopAmount = prevTopBid ? prevTopBid.amount : auction.startPrice - 1;
-    const minBid = Math.max(prevTopAmount + 1, Math.ceil(prevTopAmount * 1.05));
-    if (bidAmount < minBid) return res.status(400).json({ error: `Minimum bid is ${minBid.toLocaleString()} coins (5% above current)`, minBid });
+    const prevTopAmount = prevTopBid ? prevTopBid.amount : auction.startPrice;
+    const minBid = auctionMinBid(auction, prevTopAmount);
+    if (bidAmount < minBid) return res.status(400).json({ error: `Minimum bid is ${minBid.toLocaleString()} coins`, minBid });
 
     if (!user || user.currency === undefined) return res.status(400).json({ error: 'Your account was not found. Use the bot first to register.' });
     if (user.currency < bidAmount) return res.status(400).json({ error: `You only have ${user.currency.toLocaleString()} coins`, balance: user.currency });
@@ -6378,6 +6390,14 @@ const MERCHANT_ITEM_PRICES = {
   rainbow_tag:   48500,
   sprint_boost:  25000,
   listing_boost: 10000,
+  // Merchant crates — no Common padding out the low tiers, so real EV is
+  // much higher than the same-named gacha crate. Priced to a 15–20% EV/Price
+  // band (scaling up by tier) as a deliberate "high-roller alt path".
+  crate_bronze:   350,
+  crate_silver:   2600,
+  crate_gold:     19000,
+  crate_diamond:  130000,
+  crate_ruby:     325000,
 };
 
 const MERCHANT_CRATE_POOLS = {
