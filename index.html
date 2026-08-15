@@ -2534,7 +2534,7 @@ const PK_PACKS = [
     desc:'High-tier pulls await the worthy.', odds:{ Common:28, Uncommon:15, Rare:14, Epic:10, Legendary:8, Mythic:1, Super:0.366, Secret:0.008 } },
   { id:'ruby',     crateKey:'ruby',     name:'Ruby Pack',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
-    desc:'The rarest drops. The highest stakes.', odds:{ Common:0, Uncommon:0, Rare:0, Epic:0, Legendary:0, Mythic:0, Super:0, Secret:100 } },
+    desc:'The rarest drops. The highest stakes.', odds:{ Common:8, Uncommon:10, Rare:18, Epic:25, Legendary:20, Mythic:6, Super:2.2, Secret:0.06 } },
 ];
 
 const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#9c5fff' };
@@ -3756,6 +3756,25 @@ async function loadProfile(id, { skipHash = false } = {}) {
     const rtColor = profileColor || tc;
     const rtColorP = profileColor || (pk ? pk.p : tc);
 
+    /* ── Glow color for podium players ──
+       Previously every glow (avatar aura, rank-number glow, title glow) stayed
+       hardcoded to the podium tier's gold/silver/bronze tint even after a
+       custom Profile Color was purchased — only the text fill actually
+       recolored. This derives an rgba(...) fragment from the purchased color
+       so glows follow it too, falling back to the tier tint when unset. */
+    const hexToRgbFrag = hex => {
+      if (!hex) return null;
+      let h = hex.replace('#','');
+      if (h.length === 3) h = h.split('').map(c => c+c).join('');
+      const num = parseInt(h, 16);
+      if (isNaN(num)) return null;
+      return `rgba(${(num>>16)&255},${(num>>8)&255},${num&255},`;
+    };
+    const glowFrag = pk ? (hexToRgbFrag(profileColor) || pk.g) : null;
+    const customRgb = hexToRgbFrag(profileColor);
+    const rSh  = pk ? (customRgb ? `0 0 22px ${customRgb}0.5),0 0 44px ${customRgb}0.25)` : pk.rSh)  : null;
+    const rShP = pk ? (customRgb ? `0 0 30px ${customRgb}0.85),0 0 60px ${customRgb}0.45)` : pk.rShP) : null;
+
     const rarityColors = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
       Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#aa88ff',
@@ -3800,7 +3819,7 @@ async function loadProfile(id, { skipHash = false } = {}) {
       const isTop10 = rank <= 10;
       const color   = isTop1 ? (rankColors[cat] || DEFAULT_RANK1_COLOR) : tc;
       const boxStyle = isTop10
-        ? `border-color:${color}77;box-shadow:0 0 0 1px ${color}44,0 0 ${isTop1 ? '26px 4px' : '14px 2px'} ${color}${isTop1 ? 'bb' : '55'};`
+        ? `border-color:${color}aa;box-shadow:0 0 0 1px ${color}55,0 0 ${isTop1 ? '10px' : '6px'} ${color}${isTop1 ? '70' : '45'};`
         : '';
       const html = `<div style="flex-shrink:0;font-size:11px;font-weight:800;color:${color};background:${color}22;border:1px solid ${color}66;border-radius:100px;padding:4px 10px;white-space:nowrap;${isTop1 ? 'text-shadow:0 0 8px '+color+'aa;' : ''}">#${rank}</div>`;
       return { boxStyle, html, color, isTop10 };
@@ -3826,11 +3845,11 @@ ${isPodium ? `
 ._p-bg{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 ._p-orb{position:absolute;border-radius:50%;filter:blur(100px);animation:_pOrbDrft var(--d) ease-in-out infinite;will-change:transform}
 ._p-av{
-  --av-b:0 0 0 3px rgba(10,9,7,1),0 0 0 6px ${pk.g}.2),0 0 28px ${pk.g}.12),0 0 60px ${pk.g}.05);
-  --av-p:0 0 0 3px rgba(10,9,7,1),0 0 0 6px ${pk.g}.44),0 0 50px ${pk.g}.26),0 0 95px ${pk.g}.12);
+  --av-b:0 0 0 3px rgba(10,9,7,1),0 0 0 6px ${glowFrag}.2),0 0 28px ${glowFrag}.12),0 0 60px ${glowFrag}.05);
+  --av-p:0 0 0 3px rgba(10,9,7,1),0 0 0 6px ${glowFrag}.44),0 0 50px ${glowFrag}.26),0 0 95px ${glowFrag}.12);
   border-radius:50%;animation:_pAura 3s ease-in-out infinite,_pFloat 4.5s ease-in-out infinite
 }
-._p-xp{background:linear-gradient(90deg,${pk.xpA},${pk.s},${pk.p});box-shadow:0 0 10px ${pk.g}.34),0 0 20px ${pk.g}.14);border-radius:100px;height:100%;transition:width 1.4s cubic-bezier(.16,1,.3,1)}
+._p-xp{background:linear-gradient(90deg,${pk.xpA},${pk.s},${pk.p});box-shadow:0 0 10px ${glowFrag}.34),0 0 20px ${glowFrag}.14);border-radius:100px;height:100%;transition:width 1.4s cubic-bezier(.16,1,.3,1)}
 ._p-un{background:linear-gradient(110deg,${pk.s} 0%,#fff 30%,${pk.p} 52%,${pk.s} 72%,${pk.p} 100%);background-size:300% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 5s linear infinite}
 ` : ''}
 
@@ -3861,11 +3880,11 @@ ${isPodium ? `
 ._sr-val{font-family:'DM Serif Display',serif;font-size:26px;letter-spacing:-.02em;color:${(isPodium && isDark) ? pk?.p : 'var(--ink)'};line-height:1.15}
 
 /* ── star border (rank glow on top-10 stat pills) ── */
-._sb{display:block;position:relative;border-radius:12px;overflow:hidden}
-._sb ._sr{position:relative;z-index:1;animation:none}
-._sb-g{position:absolute;width:300%;height:50%;opacity:.75;border-radius:50%;pointer-events:none;z-index:0}
-._sb-g.is-bottom{bottom:-12px;right:-250%;animation-name:_sbMoveBottom;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
-._sb-g.is-top{top:-12px;left:-250%;animation-name:_sbMoveTop;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
+._sb{display:block;position:relative;border-radius:13px;overflow:hidden;padding:1.5px}
+._sb ._sr{position:relative;z-index:1;animation:none;border-radius:12px}
+._sb-g{position:absolute;width:220%;height:2.5px;opacity:.9;border-radius:100px;pointer-events:none;z-index:0;filter:blur(0.5px)}
+._sb-g.is-bottom{bottom:0;right:-160%;animation-name:_sbMoveBottom;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
+._sb-g.is-top{top:0;left:-160%;animation-name:_sbMoveTop;animation-timing-function:linear;animation-iteration-count:infinite;animation-direction:alternate}
 @keyframes _sbMoveBottom{0%{transform:translate(0%,0%);opacity:1}100%{transform:translate(-100%,0%);opacity:0}}
 @keyframes _sbMoveTop{0%{transform:translate(0%,0%);opacity:1}100%{transform:translate(100%,0%);opacity:0}}
 
@@ -3972,14 +3991,14 @@ ${isPodium ? `
   <img src="/images/tiers/${data.gardenTier?.name?.toLowerCase()}.webp" style="width:64px;height:64px;object-fit:contain" onerror="this.style.display='none'">
 </div>
       <div style="display:flex;align-items:center;justify-content:center;animation:_pReveal .75s cubic-bezier(.16,1,.3,1) both">
-        <div style="display:flex;align-items:flex-start;line-height:1;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">
-          <span style="font-family:'DM Serif Display',serif;font-size:clamp(38px,6.5vw,68px);color:${rtColorP};opacity:.62;margin-top:.1em;margin-right:2px;text-shadow:0 0 26px ${pk.g}.3)">#</span>
-          <span style="font-family:'DM Serif Display',serif;font-size:clamp(64px,12vw,${pk.rSz});font-weight:900;letter-spacing:-.05em;color:${rtColorP};line-height:.88;animation:_pRkGlow 3s ease-in-out 3;--rg-b:${pk.rSh};--rg-p:${pk.rShP}">${globalRank}</span>
-          <span style="font-family:'DM Sans',sans-serif;font-size:clamp(13px,2.2vw,26px);font-weight:800;color:${rtColorP};margin-top:.2em;margin-left:3px;animation:_pOrdGlw 3s ease-in-out infinite;text-shadow:0 0 12px ${pk.g}.48)">${pk.suf}</span>
+        <div style="display:flex;align-items:flex-start;line-height:1;--rg-b:${rSh};--rg-p:${rShP}">
+          <span style="font-family:'DM Serif Display',serif;font-size:clamp(38px,6.5vw,68px);color:${rtColorP};opacity:.62;margin-top:.1em;margin-right:2px;text-shadow:0 0 26px ${glowFrag}.3)">#</span>
+          <span style="font-family:'DM Serif Display',serif;font-size:clamp(64px,12vw,${pk.rSz});font-weight:900;letter-spacing:-.05em;color:${rtColorP};line-height:.88;animation:_pRkGlow 3s ease-in-out 3;--rg-b:${rSh};--rg-p:${rShP}">${globalRank}</span>
+          <span style="font-family:'DM Sans',sans-serif;font-size:clamp(13px,2.2vw,26px);font-weight:800;color:${rtColorP};margin-top:.2em;margin-left:3px;animation:_pOrdGlw 3s ease-in-out infinite;text-shadow:0 0 12px ${glowFrag}.48)">${pk.suf}</span>
         </div>
         <div style="width:1px;height:clamp(48px,7vw,84px);background:linear-gradient(180deg,transparent,${pk.div},transparent);margin:0 22px;flex-shrink:0"></div>
         <div style="display:flex;flex-direction:column;gap:7px;text-align:left">
-          <div style="font-family:'DM Serif Display',serif;font-size:clamp(22px,3.8vw,44px);letter-spacing:-.02em;line-height:1;color:${rtColorP};text-shadow:0 0 18px ${pk.g}.28)">${pk.title}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:clamp(22px,3.8vw,44px);letter-spacing:-.02em;line-height:1;color:${rtColorP};text-shadow:0 0 18px ${glowFrag}.28)">${pk.title}</div>
           <div style="font-size:clamp(9px,1vw,11px);font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:${pk.s};animation:_pVerse 1.1s ease .35s both">${pk.verse}</div>
         </div>
       </div>
@@ -4001,7 +4020,7 @@ ${isPodium ? `
           margin-bottom:16px;position:relative;
           ${!isPodium ? 'box-shadow:0 0 0 3px var(--card),0 0 0 5px '+rtColor+'55,0 0 28px '+rtColor+'30;animation:_pFloat 4s ease-in-out infinite' : ''}">
         ${avatarUrl ? `<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover">` : (data.rank?.emoji || '🌱')}
-        ${isPodium ? `<div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${pk.g}.22);pointer-events:none"></div>` : ''}
+        ${isPodium ? `<div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${glowFrag}.22);pointer-events:none"></div>` : ''}
       </div>
 
       <div style="font-family:'DM Serif Display',serif;font-size:clamp(24px,3.8vw,42px);letter-spacing:-.02em;margin-bottom:5px;animation:_pFadeUp .4s ease both">
@@ -4012,17 +4031,23 @@ ${isPodium ? `
   : `<span style="color:var(--ink)">${data.username}</span>`}
       </div>
 
-      ${data.title ? `
-      <div style="display:inline-flex;align-items:center;background:${isPodium ? pk.g+'.09)' : rtColor+'18'};border:1px solid ${isPodium ? pk.g+'.24)' : rtColor+'44'};border-radius:100px;padding:4px 14px;margin-bottom:10px;animation:_pFadeUp .5s ease both">
-        <span style="font-size:12px;font-weight:700;letter-spacing:.04em;${isPodium ? 'color:'+rtColorP+';text-shadow:0 0 10px '+pk.g+'.42)' : 'background:linear-gradient(90deg,'+rtColor+'88,#fff,'+rtColor+',#fff,'+rtColor+'88);background-size:400% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 4s linear infinite'}">${data.title}</span>
-      </div>` : ''}
-
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:center;animation:_pFadeUp .6s ease both">
         <div style="background:${rtColor}22;border:1px solid ${rtColor}55;border-radius:100px;padding:6px 14px;font-size:12px;font-weight:700;color:${rtColor}">
           <img src="/images/tiers/${data.gardenTier?.name?.toLowerCase()}.webp" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:5px" onerror="this.style.display='none'">${data.gardenTier?.name}
         </div>
       </div>
     </div>
+
+    <!-- Title — pinned bottom-right of the hero, sized to match the podium
+         rank title (e.g. SOVEREIGN) so it reads as a real badge of honor
+         rather than a small tag squeezed under the username. Sits right
+         above where the Level card starts in the column below. -->
+    ${data.title ? `
+    <div style="position:absolute;right:clamp(16px,3vw,32px);bottom:clamp(12px,2.2vw,20px);z-index:3;text-align:right;max-width:70%;animation:_pFadeUp .55s ease both">
+      <span style="font-family:'DM Serif Display',serif;font-size:clamp(22px,3.8vw,44px);letter-spacing:-.02em;line-height:1;${isPodium
+        ? 'color:'+rtColorP+';text-shadow:0 0 18px '+glowFrag+'.3)'
+        : 'background:linear-gradient(90deg,'+rtColor+'88,#fff,'+rtColor+',#fff,'+rtColor+'88);background-size:400% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:_pShimmer 4s linear infinite'}">${data.title}</span>
+    </div>` : ''}
   </div><!-- /hero -->
 
   <!-- ── 3-COLUMN BODY ── -->
@@ -4135,11 +4160,11 @@ ${isPodium ? `
             ${rb.html}
           </div>`;
           if (!rb.isTop10) return sr;
-          const grad = `radial-gradient(circle, ${rb.color}, transparent 10%)`;
+          const grad = `linear-gradient(90deg, transparent, ${rb.color}, transparent)`;
           return `
-          <div class="_sb" style="padding:2.5px 0;animation:_pSlideL .35s ease both;animation-delay:${s.d*.07}s">
-            <div class="_sb-g is-bottom" style="background:${grad};animation-duration:1.25s"></div>
-            <div class="_sb-g is-top" style="background:${grad};animation-duration:1.25s"></div>
+          <div class="_sb" style="animation:_pSlideL .35s ease both;animation-delay:${s.d*.07}s">
+            <div class="_sb-g is-bottom" style="background:${grad};animation-duration:2.4s"></div>
+            <div class="_sb-g is-top" style="background:${grad};animation-duration:2.4s"></div>
             ${sr}
           </div>`;
         }).join('')}
