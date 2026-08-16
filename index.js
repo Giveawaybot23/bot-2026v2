@@ -481,15 +481,21 @@ function getNextGardenTier(score) {
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
+// NOTE: no per-mutation `weight` anymore. Mutation TYPE is already fully
+// determined by which weather is active (rollMutation only ever offers the
+// matching mutation, never a different one) — so a second weighting layer
+// on top of that was redundant and made the actual spawn odds impossible to
+// reason about. Spawn CHANCE is now a flat, explicit % — see
+// WEATHER_MUTATION_CHANCE_DROP / _CRATE below.
 const MUTATIONS = [
-  { name: 'Eclipsed',  emoji: '<:eclipsed:1477666927135428650>', multiplier: 5.0, weight: 1,  color: 0x2a0a3d },
-  { name: 'Ignited',   emoji: '<:ignited:1534229469185839204>', multiplier: 4.2, weight: 2,  color: 0xFF4500 },
-  { name: 'Bloodlit',  emoji: '<:bloodlit:1534227550920900831>', multiplier: 4.0, weight: 2,  color: 0x8B0000 },
-  { name: 'Glow',      emoji: '<:glow:1477666867890884628>', multiplier: 3.5, weight: 3,  color: 0xADFF2F },
-  { name: 'Starstruck',emoji: '<:starstruck:1534230447247327303>', multiplier: 3.0, weight: 4,  color: 0xFFFF00 },
-  { name: 'Electric',  emoji: '<a:lightning:1534229071385333770>', multiplier: 2.0, weight: 6,  color: 0xFFDD00 }, 
-  { name: 'Frozen',    emoji: '<:frozen:1477666846382620683>', multiplier: 1.4, weight: 12, color: 0xADD8E6 },
-  { name: 'Aurora',    emoji: '<:aurora:1534229653211054262>', multiplier: 1.15, weight: 15, color: 0x66CCFF },
+  { name: 'Eclipsed',  emoji: '<:eclipsed:1477666927135428650>', multiplier: 5.0, color: 0x2a0a3d },
+  { name: 'Ignited',   emoji: '<:ignited:1534229469185839204>', multiplier: 4.2, color: 0xFF4500 },
+  { name: 'Bloodlit',  emoji: '<:bloodlit:1534227550920900831>', multiplier: 4.0, color: 0x8B0000 },
+  { name: 'Glow',      emoji: '<:glow:1477666867890884628>', multiplier: 3.5, color: 0xADFF2F },
+  { name: 'Starstruck',emoji: '<:starstruck:1534230447247327303>', multiplier: 3.0, color: 0xFFFF00 },
+  { name: 'Electric',  emoji: '<a:lightning:1534229071385333770>', multiplier: 2.0, color: 0xFFDD00 }, 
+  { name: 'Frozen',    emoji: '<:frozen:1477666846382620683>', multiplier: 1.4, color: 0xADD8E6 },
+  { name: 'Aurora',    emoji: '<:aurora:1534229653211054262>', multiplier: 1.15, color: 0x66CCFF },
 ];
 
 // ─── Weather System ────────────────────────────────────────────────────────
@@ -525,8 +531,18 @@ function getActiveWeather() {
   return null;
 }
 
-const MUTATION_NONE_WEIGHT = 955; // adjust so weights sum to 1000
-function rollMutation(weatherName) {
+// Flat spawn chance while weather is active. Two separate rates:
+//  - DROP: applies to passive channel drops (and !daily/!weekly, which are
+//    single-plant draws same as a drop) — a single roll per plant.
+//  - CRATE: applies independently to EVERY plant slot inside a crate, not
+//    just one lucky slot. Kept much lower than DROP because a 10-slot crate
+//    effectively gets ~10 chances at a mutation per open, so the per-slot
+//    rate has to be small or crate EV balloons.
+// Tune these two numbers directly to adjust overall mutation rarity.
+const WEATHER_MUTATION_CHANCE_DROP  = 0.10; // 10% per plant while weather is active
+const WEATHER_MUTATION_CHANCE_CRATE = 0.01; // 1% per crate slot while weather is active
+
+function rollMutation(weatherName, chance = WEATHER_MUTATION_CHANCE_DROP) {
   // No active weather = no mutations at all, full stop.
   if (!weatherName) return null;
   // While a weather event is active, ONLY the mutation matching that weather
@@ -534,10 +550,7 @@ function rollMutation(weatherName) {
   // excluded from the roll, not just de-weighted.
   const match = MUTATIONS.find(m => m.name === weatherName);
   if (!match) return null;
-  const total = MUTATION_NONE_WEIGHT + match.weight;
-  const roll = Math.random() * total;
-  if (roll < MUTATION_NONE_WEIGHT) return null;
-  return match;
+  return Math.random() < chance ? match : null;
 }
 
 // ─── Rarities ─────────────────────────────────────────────────────────────────
@@ -1703,20 +1716,20 @@ function openCrate(crateKey, db, userId) {
   const crate      = CRATES[crateKey];
   const user       = getUser(db, userId);
 
-  // Weather only boosts mutation odds on ONE random slot per crate —
-  // applying it to every plant would break crate ROI.
+  // Every slot independently rolls for mutation against the crate rate
+  // (WEATHER_MUTATION_CHANCE_CRATE), not just one lucky slot — a 10-slot
+  // crate during active weather now effectively gets 10 independent shots
+  // at a mutation instead of exactly one.
   const activeWeather = getActiveWeather();
-  const weatherSlot    = activeWeather ? Math.floor(Math.random() * crate.plants) : -1;
 
   // No pity — every slot is an honest, independent roll against the crate's
   // real weight table. This is intentional: EV/Price for each crate is
   // priced assuming pity-free odds, so reintroducing pity here would break
   // the pricing in CRATES without anyone noticing.
-  const results = Array.from({ length: crate.plants }, (_, i) => {
-    const weatherName = (i === weatherSlot) ? activeWeather.name : null;
+  const results = Array.from({ length: crate.plants }, () => {
     const rarity   = pickRarityWithCharms(db, userId, crate.weights);
     const plant    = pickPlant(rarity.name);
-    const mutation = rollMutation(weatherName);
+    const mutation = rollMutation(activeWeather ? activeWeather.name : null, WEATHER_MUTATION_CHANCE_CRATE);
     return { ...plant, rarityConfig: rarity, mutation };
   });
 
