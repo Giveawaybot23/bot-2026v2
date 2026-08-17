@@ -1673,6 +1673,9 @@ function startDropLoop() {
 // ─── Payout Config ────────────────────────────────────────────────────────────
 const DAILY_PAYOUTS  = [60000, 35000, 18000];
 const WEEKLY_PAYOUTS = [280000, 180000, 100000];
+const PAYOUT_DAY_MS  = 24 * 60 * 60 * 1000;
+const PAYOUT_WEEK_MS = 7 * PAYOUT_DAY_MS;
+const COIN_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1477684491320426601.png';
 
 const PAYOUT_FILE = `${DATA_DIR}/payouts.json`;
 function loadPayoutState() {
@@ -1691,25 +1694,182 @@ function loadPayoutState() {
 function savePayoutState(s) { atomicWriteFileSync(PAYOUT_FILE, JSON.stringify(s, null, 2)); }
 
 // ─── Stockholm Midnight Helper ────────────────────────────────────────────────
+function getStockholmOffsetMs(date = new Date()) {
+  const utcStr = date.toLocaleString('en-GB', { timeZone: 'UTC' });
+  const stkStr = date.toLocaleString('en-GB', { timeZone: 'Europe/Stockholm' });
+  return new Date(stkStr.replace(',', '')) - new Date(utcStr.replace(',', ''));
+}
+
 function getNextMidnight() {
-  const now    = new Date();
-  const fmtOpts = { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
+  const now = new Date();
+  const offsetMs = getStockholmOffsetMs(now);
 
-  // Current Stockholm offset vs UTC (handles CET/CEST automatically)
-  const utcStr = now.toLocaleString('en-GB', { timeZone: 'UTC' });
-  const stkStr = now.toLocaleString('en-GB', { timeZone: 'Europe/Stockholm' });
-  const offsetMs = new Date(stkStr.replace(',','')) - new Date(utcStr.replace(',',''));
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const get = (t) => parts.find(p => p.type === t).value;
 
-  // Today's date components in Stockholm time
-  const parts  = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
-  const get    = (t) => parts.find(p => p.type === t).value;
-
-  // "Midnight Stockholm tonight" expressed as a UTC timestamp
-  // midnight Stockholm = 00:00 Stockholm = (00:00 UTC minus Stockholm-offset)
   const midnightUTC = Date.parse(`${get('year')}-${get('month')}-${get('day')}T00:00:00Z`) - offsetMs;
+  return midnightUTC > Date.now() ? midnightUTC : midnightUTC + PAYOUT_DAY_MS;
+}
 
-  // If tonight's midnight already passed, return tomorrow's
-  return midnightUTC > Date.now() ? midnightUTC : midnightUTC + 24 * 60 * 60 * 1000;
+function getNextMondayMidnight() {
+  let candidate = getNextMidnight();
+  for (let i = 0; i < 8; i++) {
+    const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Stockholm', weekday: 'long' }).format(new Date(candidate));
+    if (weekday === 'Monday') return candidate;
+    candidate += PAYOUT_DAY_MS;
+  }
+  return candidate;
+}
+
+function ensurePayoutSchedule(state) {
+  let changed = false;
+  if (!state.dailyEndsAt) {
+    state.dailyEndsAt = getNextMidnight();
+    changed = true;
+  }
+  if (!state.weeklyEndsAt) {
+    state.weeklyEndsAt = getNextMondayMidnight();
+    changed = true;
+  }
+  return changed;
+}
+
+function buildDailyStartEmbed(startAt, endAt) {
+  const startTs = Math.floor(startAt / 1000);
+  const endTs = Math.floor(endAt / 1000);
+  return new EmbedBuilder()
+    .setTitle('🌱 Daily Claims Competition')
+    .setDescription(
+      `A new **daily cycle** is live — claim plants to climb the leaderboard!\n` +
+      `The top **3 claimers** win coins when the cycle ends.`
+    )
+    .addFields(
+      {
+        name: '📅 Cycle Period',
+        value: `**Starts:** <t:${startTs}:F>\n**Ends:** <t:${endTs}:F>\n**Time left:** <t:${endTs}:R>`,
+      },
+      {
+        name: '🏆 Top 3 Prizes',
+        value: [
+          `🥇 **#1** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[0].toLocaleString()}** ${CURRENCY_NAME}`,
+          `🥈 **#2** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[1].toLocaleString()}** ${CURRENCY_NAME}`,
+          `🥉 **#3** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[2].toLocaleString()}** ${CURRENCY_NAME}`,
+        ].join('\n'),
+      },
+      {
+        name: '📋 How to Compete',
+        value: 'Claim drops across the server. Winners are paid automatically and announced here when the cycle ends.',
+      }
+    )
+    .setColor(0x00C853)
+    .setThumbnail(COIN_EMOJI_URL)
+    .setFooter({ text: `Daily reset · Midnight Stockholm · ${SERVER_NAME}` })
+    .setTimestamp(endAt);
+}
+
+function buildWeeklyStartEmbed(startAt, endAt) {
+  const startTs = Math.floor(startAt / 1000);
+  const endTs = Math.floor(endAt / 1000);
+  return new EmbedBuilder()
+    .setTitle('🌿 Weekly Claims Competition')
+    .setDescription(
+      `A new **weekly cycle** is live — claim plants all week to climb the leaderboard!\n` +
+      `The top **3 claimers** win a big coin payout when the cycle ends.`
+    )
+    .addFields(
+      {
+        name: '📅 Cycle Period',
+        value: `**Starts:** <t:${startTs}:F>\n**Ends:** <t:${endTs}:F>\n**Time left:** <t:${endTs}:R>`,
+      },
+      {
+        name: '🏆 Top 3 Prizes',
+        value: [
+          `🥇 **#1** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[0].toLocaleString()}** ${CURRENCY_NAME}`,
+          `🥈 **#2** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[1].toLocaleString()}** ${CURRENCY_NAME}`,
+          `🥉 **#3** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[2].toLocaleString()}** ${CURRENCY_NAME}`,
+        ].join('\n'),
+      },
+      {
+        name: '📋 How to Compete',
+        value: 'Claim drops across the server all week. Winners are paid automatically and announced here when the cycle ends.',
+      }
+    )
+    .setColor(0x4CAF50)
+    .setThumbnail(COIN_EMOJI_URL)
+    .setFooter({ text: `Weekly reset · Monday midnight Stockholm · ${SERVER_NAME}` })
+    .setTimestamp(endAt);
+}
+
+function buildDailyEndEmbed(top, periodEndAt) {
+  const endTs = Math.floor(periodEndAt / 1000);
+  const medals = ['🥇', '🥈', '🥉'];
+  const lines = top.map((entry, i) =>
+    `${medals[i]} **#${i + 1}** — <@${entry.userId}> · **${entry.count} claims** · ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[i].toLocaleString()}**`
+  );
+
+  return new EmbedBuilder()
+    .setTitle('🌱 Daily Cycle Complete!')
+    .setDescription(
+      top.length
+        ? `The **daily cycle** has ended (<t:${endTs}:F>). Congratulations to the winners!\n\n${lines.join('\n')}`
+        : `The **daily cycle** ended (<t:${endTs}:F>) with no claims — no payouts this round.`
+    )
+    .setColor(0x00C853)
+    .setThumbnail(COIN_EMOJI_URL)
+    .setFooter({ text: `Next cycle starts at midnight Stockholm · ${SERVER_NAME}` })
+    .setTimestamp(periodEndAt);
+}
+
+function buildWeeklyEndEmbed(top, periodEndAt) {
+  const endTs = Math.floor(periodEndAt / 1000);
+  const medals = ['🥇', '🥈', '🥉'];
+  const lines = top.map((entry, i) =>
+    `${medals[i]} **#${i + 1}** — <@${entry.userId}> · **${entry.count} claims** · ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[i].toLocaleString()}**`
+  );
+
+  return new EmbedBuilder()
+    .setTitle('🌿 Weekly Cycle Complete!')
+    .setDescription(
+      top.length
+        ? `The **weekly cycle** has ended (<t:${endTs}:F>). Congratulations to the winners!\n\n${lines.join('\n')}`
+        : `The **weekly cycle** ended (<t:${endTs}:F>) with no claims — no payouts this round.`
+    )
+    .setColor(0x4CAF50)
+    .setThumbnail(COIN_EMOJI_URL)
+    .setFooter({ text: `Next weekly payout · Monday midnight Stockholm · ${SERVER_NAME}` })
+    .setTimestamp(periodEndAt);
+}
+
+async function broadcastPayoutEmbeds(embeds) {
+  if (!embeds.length) return;
+  for (const chId of Object.values(payoutChannels)) {
+    const ch = client.channels.cache.get(chId);
+    if (!ch) continue;
+    for (const embed of embeds) {
+      await ch.send({ embeds: [embed] }).catch(console.error);
+    }
+  }
+}
+
+function getPayoutTop(periodStart, periodEnd) {
+  const lb = loadClaimsLB();
+  return lb
+    .filter(e => !TEST_IDS.has(e.userId))
+    .map(e => ({ userId: e.userId, username: e.username, count: getClaimsSince(e.claims, periodStart) }))
+    .filter(e => e.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+}
+
+function payPayoutWinners(top, payouts) {
+  if (!top.length) return;
+  const db = loadDB();
+  for (let i = 0; i < top.length; i++) {
+    const lbUser = getUser(db, top[i].userId);
+    lbUser.currency += payouts[i];
+    trackEarned(lbUser, payouts[i]);
+  }
+  saveDB(db);
 }
 
 // ─── Payout Channel Config ────────────────────────────────────────────────────
@@ -1723,118 +1883,71 @@ function loadPayoutChannels() {
 function savePayoutChannels(data) { atomicWriteFileSync(PAYOUT_CHANNEL_FILE, JSON.stringify(data, null, 2)); }
 
 function startPayoutLoop() {
-  const DAY  = 24 * 60 * 60 * 1000;
-  const WEEK = 7  * 24 * 60 * 60 * 1000;
-
-  // Initialise timestamps on first boot if missing
-  client.once('ready', async () => {
-    await new Promise(r => setTimeout(r, 5000));
-    const state = loadPayoutState();
-    if (!state.dailyEndsAt)  { state.dailyEndsAt  = getNextMidnight(); savePayoutState(state); }
-    if (!state.weeklyEndsAt) { state.weeklyEndsAt = getNextMidnight() + 6 * DAY; savePayoutState(state); }
-  });
-
   setInterval(async () => {
     const state = loadPayoutState();
-    const now   = Date.now();
+    const now = Date.now();
+    if (ensurePayoutSchedule(state)) savePayoutState(state);
+
+    const embedsToSend = [];
+    let stateChanged = false;
+
+    // Weekly start — at Monday midnight, announce the new week before paying out the old one.
+    if (Object.keys(payoutChannels).length && now >= state.weeklyEndsAt) {
+      const newWeekStart = state.weeklyEndsAt;
+      const newWeekEnd = state.weeklyEndsAt + PAYOUT_WEEK_MS;
+      if (!state.lastWeeklyStartPostedAt || state.lastWeeklyStartPostedAt < newWeekStart) {
+        embedsToSend.push(buildWeeklyStartEmbed(newWeekStart, newWeekEnd));
+        state.lastWeeklyStartPostedAt = newWeekStart;
+        stateChanged = true;
+      }
+    } else if (Object.keys(payoutChannels).length) {
+      const weeklyStart = state.weeklyEndsAt - PAYOUT_WEEK_MS;
+      if (
+        now >= weeklyStart &&
+        now < state.weeklyEndsAt &&
+        (!state.lastWeeklyStartPostedAt || state.lastWeeklyStartPostedAt < weeklyStart)
+      ) {
+        embedsToSend.push(buildWeeklyStartEmbed(weeklyStart, state.weeklyEndsAt));
+        state.lastWeeklyStartPostedAt = weeklyStart;
+        stateChanged = true;
+      }
+    }
 
     // ── Daily payout ──────────────────────────────────────────────────────
     if (now >= state.dailyEndsAt) {
-  state.dailyEndsAt = state.dailyEndsAt + 24 * 60 * 60 * 1000;
-  // If still in the past (bot was offline a long time), fast-forward
-  while (state.dailyEndsAt <= now) state.dailyEndsAt += 24 * 60 * 60 * 1000;
-  savePayoutState(state);
+      const periodEnd = state.dailyEndsAt;
+      const periodStart = periodEnd - PAYOUT_DAY_MS;
 
-      const lb = loadClaimsLB();
-      const top = lb
-        .filter(e => !TEST_IDS.has(e.userId))
-        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, DAY) }))
-        .filter(e => e.count > 0)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3);
+      const top = getPayoutTop(periodStart, periodEnd);
+      payPayoutWinners(top, DAILY_PAYOUTS);
+      embedsToSend.push(buildDailyEndEmbed(top, periodEnd));
 
-      const db     = loadDB();
-      const medals = ['🥇', '🥈', '🥉'];
-      const lines  = [];
+      state.dailyEndsAt = periodEnd + PAYOUT_DAY_MS;
+      while (state.dailyEndsAt <= now) state.dailyEndsAt += PAYOUT_DAY_MS;
 
-      for (let i = 0; i < top.length; i++) {
-        const entry  = top[i];
-        const payout = DAILY_PAYOUTS[i];
-        const lbUser = getUser(db, entry.userId);
-        lbUser.currency += payout;
-        trackEarned(lbUser, payout);
-        lines.push(
-          `${medals[i]} **#${i + 1}** — <@${entry.userId}> ` +
-          `· **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`
-        );
-      }
-      if (top.length) saveDB(db);
-
-      const embed = new EmbedBuilder()
-        .setTitle('🌱 Daily Cycle Complete!')
-        .setDescription(
-          top.length
-            ? `The **daily cycle** has ended. Coins have been paid out:\n\n${lines.join('\n')}`
-            : `The **daily cycle** ended with no claims — no payouts this round.`
-        )
-        .setColor(0x00C853)
-        .setFooter({ text: `Next reset: midnight Stockholm time · ${SERVER_NAME}` })
-        .setTimestamp();
-
-      for (const chId of Object.values(payoutChannels)) {
-        const ch = client.channels.cache.get(chId);
-        if (ch) await ch.send({ embeds: [embed] }).catch(console.error);
-      }
+      const newDailyStart = state.dailyEndsAt - PAYOUT_DAY_MS;
+      embedsToSend.push(buildDailyStartEmbed(newDailyStart, state.dailyEndsAt));
+      state.lastDailyStartPostedAt = newDailyStart;
+      stateChanged = true;
     }
 
-    // ── Weekly payout ─────────────────────────────────────────────────────
+    // ── Weekly payout (winners only — no start embed after) ───────────────
     if (now >= state.weeklyEndsAt) {
-      state.weeklyEndsAt += WEEK;
-      savePayoutState(state);
+      const periodEnd = state.weeklyEndsAt;
+      const periodStart = periodEnd - PAYOUT_WEEK_MS;
 
-      const lb = loadClaimsLB();
-      const top = lb
-        .filter(e => !TEST_IDS.has(e.userId))
-        .map(e => ({ userId: e.userId, username: e.username, count: getClaimsInWindow(e.claims, WEEK) }))
-        .filter(e => e.count > 0)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3);
+      const top = getPayoutTop(periodStart, periodEnd);
+      payPayoutWinners(top, WEEKLY_PAYOUTS);
+      embedsToSend.push(buildWeeklyEndEmbed(top, periodEnd));
 
-      const db     = loadDB();
-      const medals = ['🥇', '🥈', '🥉'];
-      const lines  = [];
-
-      for (let i = 0; i < top.length; i++) {
-        const entry  = top[i];
-        const payout = WEEKLY_PAYOUTS[i];
-        const lbUser = getUser(db, entry.userId);
-        lbUser.currency += payout;
-        trackEarned(lbUser, payout);
-        lines.push(
-          `${medals[i]} **#${i + 1}** — <@${entry.userId}> ` +
-          `· **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`
-        );
-      }
-      if (top.length) saveDB(db);
-
-      const embed = new EmbedBuilder()
-        .setTitle('🌿 Weekly Cycle Complete!')
-        .setDescription(
-          top.length
-            ? `The **weekly cycle** has ended. Coins have been paid out:\n\n${lines.join('\n')}`
-            : `The **weekly cycle** ended with no claims — no payouts this round.`
-        )
-        .setColor(0x4CAF50)
-        .setFooter({ text: `${SERVER_NAME}` })
-        .setTimestamp();
-
-      for (const chId of Object.values(payoutChannels)) {
-        const ch = client.channels.cache.get(chId);
-        if (ch) await ch.send({ embeds: [embed] }).catch(console.error);
-      }
+      state.weeklyEndsAt = periodEnd + PAYOUT_WEEK_MS;
+      while (state.weeklyEndsAt <= now) state.weeklyEndsAt += PAYOUT_WEEK_MS;
+      stateChanged = true;
     }
 
-  }, 60 * 1000); // check every minute
+    if (stateChanged) savePayoutState(state);
+    await broadcastPayoutEmbeds(embedsToSend);
+  }, 60 * 1000);
 }
 
 // ─── Decay Loop ───────────────────────────────────────────────────────────────
@@ -3432,51 +3545,24 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     payoutChannels[message.guild.id] = targetCh.id;
     const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
 
-    // Initialise reset timestamps anchored to next Stockholm midnight
     const state = loadPayoutState();
-    if (!state.dailyEndsAt)  state.dailyEndsAt  = getNextMidnight();
-    if (!state.weeklyEndsAt) state.weeklyEndsAt = getNextMidnight() + 6 * 24 * 60 * 60 * 1000;
+    ensurePayoutSchedule(state);
     savePayoutState(state);
 
-    const dailyTs  = Math.floor(state.dailyEndsAt  / 1000);
-    const weeklyTs = Math.floor(state.weeklyEndsAt / 1000);
+    const dailyStart  = state.dailyEndsAt - PAYOUT_DAY_MS;
+    const weeklyStart = state.weeklyEndsAt - PAYOUT_WEEK_MS;
 
-    const embed = new EmbedBuilder()
-      .setTitle('🏆 Claims Leaderboard — Payout Structure')
-      .setDescription(
-        `Payouts are sent automatically at the end of each cycle.\n` +
-        `**Daily** resets at midnight Stockholm time (<t:${dailyTs}:F>).\n` +
-        `**Weekly** resets every 7 days (<t:${weeklyTs}:F>).`
-      )
-      .addFields(
-        {
-          name: '🌱 Daily — Top 3 Rewards',
-          value: [
-            `🥇 **1st place** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[0].toLocaleString()} ${CURRENCY_NAME}**`,
-            `🥈 **2nd place** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[1].toLocaleString()} ${CURRENCY_NAME}**`,
-            `🥉 **3rd place** — ${CURRENCY_EMOJI} **${DAILY_PAYOUTS[2].toLocaleString()} ${CURRENCY_NAME}**`,
-          ].join('\n'),
-        },
-        {
-          name: '🌿 Weekly — Top 3 Rewards',
-          value: [
-            `🥇 **1st place** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[0].toLocaleString()} ${CURRENCY_NAME}**`,
-            `🥈 **2nd place** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[1].toLocaleString()} ${CURRENCY_NAME}**`,
-            `🥉 **3rd place** — ${CURRENCY_EMOJI} **${WEEKLY_PAYOUTS[2].toLocaleString()} ${CURRENCY_NAME}**`,
-          ].join('\n'),
-        },
-        {
-          name: '📋 How it works',
-          value:
-            `Claim plants to earn points on the daily and weekly leaderboards.\n` +
-            `At the end of each cycle the top 3 claimers receive their coins automatically and a winner announcement is posted here.`,
-        }
-      )
-      .setColor(0x00C853)
-      .setFooter({ text: `Announcements will appear in this channel · ${SERVER_NAME}` })
-      .setTimestamp();
+    await targetCh.send({
+      embeds: [
+        buildDailyStartEmbed(dailyStart, state.dailyEndsAt),
+        buildWeeklyStartEmbed(weeklyStart, state.weeklyEndsAt),
+      ],
+    });
 
-    await targetCh.send({ embeds: [embed] });
+    state.lastDailyStartPostedAt  = dailyStart;
+    state.lastWeeklyStartPostedAt = weeklyStart;
+    savePayoutState(state);
+
     return message.reply(`✅ Payout announcements set → <#${targetCh.id}>.`);
   }
 
