@@ -1392,7 +1392,7 @@ async function generateDropImage(plant, captcha, rarityColor, weather) {
 
 // Weather event GIFs live in bot2026/images/Weathers/<WeatherName>.gif —
 // filenames match WEATHER_TYPES[].name exactly (final pre-release names).
-const WEATHER_GIF_DIR = path.join(__dirname, 'bot2026', 'images', 'Weathers');
+const WEATHER_GIF_DIR = path.join(__dirname, 'images', 'Weathers');
 function getWeatherGifPath(weather) {
   return path.join(WEATHER_GIF_DIR, `${weather.name}.gif`);
 }
