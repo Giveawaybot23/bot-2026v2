@@ -4087,7 +4087,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     let sub = args[1]?.toLowerCase();
     if (sub === 'add') { args.splice(1, 1); sub = args[1]?.toLowerCase(); } // legacy `!autosell add ...` still works
 
-    if (!sub || sub === 'list') {
+    if (sub === 'list') {
       const rules = getUserAutosellRules(message.author.id);
       if (!rules.length) return message.reply('You have no autosell rules. Use `!autosell <rarity>` to create one — e.g. `!autosell common` or `!autosell common, uncommon, rare`.');
       const lines = rules.map((r, i) => {
