@@ -1344,7 +1344,20 @@ function mutationDisplay(rarity, mutation, claimLine) {
 }
 
 // ─── Combined plant + captcha image ──────────────────────────────────────────
-async function generateDropImage(plant, captcha, rarityColor, weather) {
+// Some rarities (Secret) use pure black (0x000000) as their brand color, which
+// looks great as an embed accent but renders illegible captcha letters against
+// the dark drop background. When a rarity color is black/near-black, swap in a
+// purple stand-in just for the drawn captcha bar so it stays on-theme with the
+// "hidden/mysterious" secret vibe instead of vanishing into the background.
+const SECRET_PURPLE = 0x9D4DFF;
+function getDisplayRarityColor(rarityColor) {
+  const r = (rarityColor >> 16) & 0xFF, g = (rarityColor >> 8) & 0xFF, b = rarityColor & 0xFF;
+  const isNearBlack = r < 20 && g < 20 && b < 20;
+  return isNearBlack ? SECRET_PURPLE : rarityColor;
+}
+
+async function generateDropImage(plant, captcha, rarityColorRaw, weather) {
+  const rarityColor = getDisplayRarityColor(rarityColorRaw);
   const W = 400, H = 400, CAPTCHA_H = 52;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
@@ -2001,209 +2014,210 @@ async function buildLevelLBData(db, page = 1) {
   return { entries, totalPages };
 }
 
+const TIER_ICON_MAP = {
+  Bronze:      './images/tiers/bronze.webp',
+  Silver:      './images/tiers/silver.webp',
+  Gold:        './images/tiers/gold.webp',
+  Platinum:    './images/tiers/platinum.webp',
+  Diamond:     './images/tiers/diamond.webp',
+  Master:      './images/tiers/master.webp',
+  Grandmaster: './images/tiers/grandmaster.webp',
+  Secret:      './images/tiers/secret.webp', // TODO: add this image asset — until then it'll just draw no icon (fails silently)
+};
+
+// ── Profile card — "ID badge" layout ───────────────────────────────────────
+// A dedicated left-hand sidebar carries identity (avatar, name, level, rank)
+// so it reads like a badge/pass rather than a stat sheet. The right side is a
+// scannable list of rows instead of a row of boxes, with the XP bar doubling
+// as the section's only "pill" element so nothing competes with it visually.
 async function generateProfileImage(data) {
-  const W = 580, H = 310;
+  const W = 640, H = 320;
+  const SB_W = 216; // sidebar width
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
   ctx.textBaseline = 'middle';
 
-  // Background
-  ctx.fillStyle = '#0f1117';
-  ctx.fillRect(0, 0, W, H);
-  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  bgGrad.addColorStop(0, 'rgba(77,150,255,0.07)');
-  bgGrad.addColorStop(1, 'rgba(123,47,190,0.04)');
-  ctx.fillStyle = bgGrad;
+  const tierColor = getDisplayRarityColor(data.gardenTier.color);
+  const tR = (tierColor >> 16) & 0xFF, tG = (tierColor >> 8) & 0xFF, tB = tierColor & 0xFF;
+  const tierHex = `rgb(${tR},${tG},${tB})`;
+
+  // ── Base ───────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#0b0c11';
   ctx.fillRect(0, 0, W, H);
 
-  // Top accent bar
-  const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, '#4d96ff');
-  topBar.addColorStop(1, '#7B2FBE');
-  ctx.fillStyle = topBar;
-  ctx.fillRect(0, 0, W, 4);
+  // ── Sidebar ────────────────────────────────────────────────────────────
+  const sbGrad = ctx.createLinearGradient(0, 0, 0, H);
+  sbGrad.addColorStop(0, `rgba(${tR},${tG},${tB},0.22)`);
+  sbGrad.addColorStop(1, '#0b0c11');
+  ctx.fillStyle = sbGrad;
+  ctx.fillRect(0, 0, SB_W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(SB_W, 0); ctx.lineTo(SB_W, H); ctx.stroke();
+
+  // Faint diagonal hatch texture for a "card stock" feel
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, SB_W, H); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)'; ctx.lineWidth = 14;
+  for (let x = -H; x < SB_W + H; x += 26) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + H, H); ctx.stroke();
+  }
+  ctx.restore();
 
   // Avatar
-  const AV = 88, ACX = 64, ACY = 88;
+  const AV = 92, ACX = SB_W / 2, ACY = 84;
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(ACX, ACY, AV / 2 + 3, 0, Math.PI * 2);
-  ctx.strokeStyle = '#4d96ff';
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(ACX, ACY, AV / 2, 0, Math.PI * 2);
-  ctx.clip();
+  ctx.beginPath(); ctx.arc(ACX, ACY, AV / 2 + 4, 0, Math.PI * 2);
+  ctx.strokeStyle = tierHex; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(ACX, ACY, AV / 2, 0, Math.PI * 2); ctx.clip();
   try {
     const buf = await fetchImageBuffer(data.avatarUrl);
     const img = await loadImage(buf);
     ctx.drawImage(img, ACX - AV / 2, ACY - AV / 2, AV, AV);
   } catch {
-    ctx.fillStyle = '#2a2a4e';
+    ctx.fillStyle = '#22232e';
     ctx.fillRect(ACX - AV / 2, ACY - AV / 2, AV, AV);
   }
   ctx.restore();
 
   // Username
-  const TX = ACX + AV / 2 + 20;
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 26px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText(data.username, TX, 36);
+  ctx.font = 'bold 19px Arial';
+  ctx.fillText(data.username, ACX, 150, SB_W - 20);
 
   // Title
   if (data.title) {
     const cleanTitle = data.title.replace(/<:[^:]+:\d+>/g, '').trim();
-    ctx.fillStyle = '#a78bfa';
-    ctx.font = '13px Arial';
-    ctx.fillText(cleanTitle, TX, 58);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '12px Arial';
+    ctx.fillText(cleanTitle, ACX, 168, SB_W - 20);
   }
 
-  // Rank pill
-  const pillY = data.title ? 80 : 66;
-  const rankTxt = `${data.rankEmoji}  ${data.rankName}  ·  Lv. ${data.level}`;
-  ctx.font = 'bold 13px Arial';
-  const pillW = ctx.measureText(rankTxt).width + 24;
-  ctx.fillStyle = 'rgba(77,150,255,0.20)';
-  ctx.beginPath();
-  ctx.roundRect(TX, pillY - 13, pillW, 26, 8);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(77,150,255,0.45)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(TX, pillY - 13, pillW, 26, 8);
-  ctx.stroke();
-  ctx.fillStyle = '#4d96ff';
-  ctx.fillText(rankTxt, TX + 12, pillY);
-
-  // Garden tier pill with image icon
-  const tierPillY = pillY + 32;
-  const tierHex = '#' + data.gardenTier.color.toString(16).padStart(6, '0');
-  const tierR = parseInt(tierHex.slice(1, 3), 16);
-  const tierG = parseInt(tierHex.slice(3, 5), 16);
-  const tierB = parseInt(tierHex.slice(5, 7), 16);
-
-  const tierIconMap = {
-    Bronze:      './images/tiers/bronze.webp',
-    Silver:      './images/tiers/silver.webp',
-    Gold:        './images/tiers/gold.webp',
-    Platinum:    './images/tiers/platinum.webp',
-    Diamond:     './images/tiers/diamond.webp',
-    Master:      './images/tiers/master.webp',
-    Grandmaster: './images/tiers/grandmaster.webp',
-    Secret:      './images/tiers/secret.webp', // TODO: add this image asset — until then it'll just draw no icon (fails silently)
-  };
-
-  const ICON_SIZE = 20, ICON_GAP = 6;
-  const gardenTxt = `${data.gardenTier.name}  ·  ${data.gardenScore.toLocaleString()} pts`;
-  ctx.font = 'bold 13px Arial';
-  const gardenPillW = ctx.measureText(gardenTxt).width + ICON_SIZE + ICON_GAP + 28;
-
-  ctx.fillStyle = `rgba(${tierR},${tierG},${tierB},0.15)`;
-  ctx.beginPath();
-  ctx.roundRect(TX, tierPillY - 13, gardenPillW, 26, 8);
-  ctx.fill();
-  ctx.strokeStyle = `rgba(${tierR},${tierG},${tierB},0.45)`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(TX, tierPillY - 13, gardenPillW, 26, 8);
-  ctx.stroke();
-
-  let iconDrawn = false;
-  const tierIconPath = tierIconMap[data.gardenTier.name];
+  // Garden tier chip
+  const chipY = data.title ? 194 : 176;
+  const chipTxt = `${data.gardenTier.name} · ${data.gardenScore.toLocaleString()}`;
+  ctx.font = 'bold 11px Arial';
+  const ICON_SIZE = 15, ICON_GAP = 5;
+  const chipTextW = ctx.measureText(chipTxt).width;
+  let chipIconDrawn = false;
+  const tierIconPath = TIER_ICON_MAP[data.gardenTier.name];
+  const chipW = chipTextW + ICON_SIZE + ICON_GAP + 20;
+  const chipX = ACX - chipW / 2;
+  ctx.fillStyle = `rgba(${tR},${tG},${tB},0.16)`;
+  ctx.beginPath(); ctx.roundRect(chipX, chipY - 12, chipW, 24, 12); ctx.fill();
+  ctx.strokeStyle = `rgba(${tR},${tG},${tB},0.5)`; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(chipX, chipY - 12, chipW, 24, 12); ctx.stroke();
   if (tierIconPath) {
     try {
       const tierImg = await loadImage(tierIconPath);
-      ctx.drawImage(tierImg, TX + 8, tierPillY - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
-      iconDrawn = true;
+      ctx.drawImage(tierImg, chipX + 8, chipY - ICON_SIZE / 2, ICON_SIZE, ICON_SIZE);
+      chipIconDrawn = true;
     } catch {}
   }
+  ctx.textAlign = 'left';
   ctx.fillStyle = tierHex;
-  ctx.fillText(gardenTxt, TX + 8 + (iconDrawn ? ICON_SIZE + ICON_GAP : 0), tierPillY);
+  ctx.fillText(chipTxt, chipX + 8 + (chipIconDrawn ? ICON_SIZE + ICON_GAP : 0), chipY);
+  ctx.textAlign = 'center';
 
-  // XP bar
-  const barX = TX, barW = Math.min(W - TX - 24, 300), barH = 9;
-  const barY = tierPillY + 20;
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ctx.beginPath();
-  ctx.roundRect(barX, barY, barW, barH, 5);
-  ctx.fill();
-  const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-  xpGrad.addColorStop(0, '#4d96ff');
-  xpGrad.addColorStop(1, '#a78bfa');
-  ctx.fillStyle = xpGrad;
-  ctx.beginPath();
-  ctx.roundRect(barX, barY, Math.max(barW * (data.pct / 100), 8), barH, 5);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.38)';
-  ctx.font = '12px Arial';
-  ctx.fillText(`${data.pct}% to next level`, barX, barY + barH + 13);
+  // Hero "level" readout anchored to sidebar bottom
+  ctx.fillStyle = 'rgba(255,255,255,0.30)';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText('LEVEL', ACX, H - 62);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 46px Arial';
+  ctx.fillText(String(data.level), ACX, H - 32);
+  ctx.fillStyle = tierHex;
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText(`${data.rankEmoji} ${data.rankName}`, ACX, H - 10, SB_W - 16);
+  ctx.textAlign = 'left';
 
-  // Divider
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(20, 192);
-  ctx.lineTo(W - 20, 192);
-  ctx.stroke();
+  // ── Main panel ─────────────────────────────────────────────────────────
+  const MX = SB_W + 26, MW = W - SB_W - 26 - 20;
 
-  // Stats
-  const stats = [
-    { icon: '💰', label: 'Balance', value: data.balance.toLocaleString() },
-    { icon: '🌱', label: 'Plants',  value: String(data.plants) },
-    { icon: '🏅', label: 'Achiev.', value: `${data.achievements}/${data.totalAchievements}` },
-  ];
-  const PILL_W = (W - 48) / 3, PILL_H = 58, PILL_Y = 204;
-  stats.forEach((s, i) => {
-    const px = 16 + i * (PILL_W + 8);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.beginPath();
-    ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(px, PILL_Y, PILL_W, PILL_H, 10);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.40)';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(s.label, px + PILL_W / 2, PILL_Y + 16);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px Arial';
-    ctx.fillText(`${s.icon} ${s.value}`, px + PILL_W / 2, PILL_Y + 40);
-    ctx.textAlign = 'left';
-  });
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText('P R O F I L E', MX, 26);
 
-  // Equipped charms
-  if (data.equippedCharms.length) {
-    ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.font = '12px Arial';
-    ctx.fillText('Equipped', W - 16, ACY - 22);
-    ctx.font = '24px Arial';
-    ctx.fillText(data.equippedCharms.join('  '), W - 16, ACY + 6);
-    ctx.textAlign = 'left';
-  }
-
-  // Server rank + total XP
-  ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.font = '12px Arial';
-  ctx.fillText(`Total XP: ${data.totalXp.toLocaleString()}`, W - 16, 148);
   if (data.serverRank <= 3) {
     const gc = ['#FFD700', '#C0C0C0', '#CD7F32'][data.serverRank - 1];
     ctx.save();
-    ctx.shadowColor = gc;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = gc;
-    ctx.font = 'bold 12px Arial';
-    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, W - 16, 166);
+    ctx.textAlign = 'right';
+    ctx.shadowColor = gc; ctx.shadowBlur = 6;
+    ctx.fillStyle = gc; ctx.font = 'bold 12px Arial';
+    ctx.fillText(`#${data.serverRank} on server`, W - 20, 26);
     ctx.restore();
+    ctx.textAlign = 'left';
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.font = '12px Arial';
-    ctx.fillText(`Server Rank: #${data.serverRank} of ${data.serverTotal}`, W - 16, 166);
+    ctx.save();
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '12px Arial';
+    ctx.fillText(`#${data.serverRank} of ${data.serverTotal} on server`, W - 20, 26);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  // XP progress
+  const xpLabelY = 56;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = '13px Arial';
+  ctx.fillText('Progress to next level', MX, xpLabelY);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText(`${data.pct}%`, W - 20, xpLabelY);
+  ctx.textAlign = 'left';
+
+  const barY = 68, barH = 10;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.roundRect(MX, barY, MW, barH, 5); ctx.fill();
+  const xpGrad = ctx.createLinearGradient(MX, 0, MX + MW, 0);
+  xpGrad.addColorStop(0, tierHex); xpGrad.addColorStop(1, '#4d96ff');
+  ctx.fillStyle = xpGrad;
+  ctx.beginPath(); ctx.roundRect(MX, barY, Math.max(MW * (data.pct / 100), 10), barH, 5); ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.30)';
+  ctx.font = '11px Arial';
+  ctx.fillText(`${data.totalXp.toLocaleString()} total XP`, MX, barY + barH + 16);
+
+  // Stat rows (list instead of boxed pills)
+  const rows = [
+    { icon: '💰', label: 'Balance',      value: `${data.balance.toLocaleString()} ${CURRENCY_NAME}` },
+    { icon: '🌱', label: 'Plants',       value: String(data.plants) },
+    { icon: '🏅', label: 'Achievements', value: `${data.achievements} / ${data.totalAchievements}` },
+  ];
+  let rowY = 122;
+  const ROW_H = 34;
+  rows.forEach((r, i) => {
+    if (i > 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2); ctx.lineTo(W - 20, rowY - ROW_H / 2); ctx.stroke();
+    }
+    ctx.font = '16px Arial'; ctx.fillStyle = '#ffffff';
+    ctx.fillText(r.icon, MX, rowY);
+    ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText(r.label, MX + 26, rowY);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#ffffff';
+    ctx.fillText(r.value, W - 20, rowY);
+    ctx.textAlign = 'left';
+    rowY += ROW_H;
+  });
+
+  // Divider before charms
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2 + 6); ctx.lineTo(W - 20, rowY - ROW_H / 2 + 6); ctx.stroke();
+
+  // Equipped charms
+  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText('Equipped', MX, rowY + 6);
+  ctx.textAlign = 'right';
+  if (data.equippedCharms.length) {
+    ctx.font = '20px Arial'; ctx.fillStyle = '#ffffff';
+    ctx.fillText(data.equippedCharms.join('  '), W - 20, rowY + 6, MW - 90);
+  } else {
+    ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillText('None', W - 20, rowY + 6);
   }
   ctx.textAlign = 'left';
 
@@ -2619,7 +2633,7 @@ const SHOP_PAGES = [
 ];
 function buildShopEmbed(pageIndex, user, balance) {
   const page = SHOP_PAGES[pageIndex], total = SHOP_PAGES.length, fields = page.fields(user);
-  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages`, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
+  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `${balance.toLocaleString()}   •   Page ${pageIndex+1} of ${total}`, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
 }
 
 process.on('SIGTERM', () => {
