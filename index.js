@@ -1247,7 +1247,10 @@ function addXP(db, userId, amount) {
 }
 
 // ─── Achievement checker ──────────────────────────────────────────────────────
-function checkAchievements(user, userId) {
+// `channel` is optional — a Discord TextChannel (or anything with .send) to post
+// the "Achievement Unlocked!" embed to the moment an achievement is earned. If
+// omitted (e.g. web-dashboard-triggered checks), falls back to DMing the user.
+function checkAchievements(user, userId, channel) {
   const newOnes = [];
   for (const [key, ach] of Object.entries(ACHIEVEMENTS)) {
     if (!user.achievements.includes(key) && ach.check(user)) {
@@ -1260,7 +1263,28 @@ function checkAchievements(user, userId) {
       newOnes.push(key);
     }
   }
+  if (newOnes.length) announceAchievements(newOnes, userId, channel).catch(() => {});
   return newOnes;
+}
+
+// Sends the "You unlocked: X for Y and gained Z coins" embed(s) the instant an
+// achievement is earned. One embed per achievement (in case several land at once).
+async function announceAchievements(newOnes, userId, channel) {
+  let target = channel;
+  if (!target && userId) {
+    target = await client.users.fetch(userId).catch(() => null);
+  }
+  if (!target) return;
+  for (const key of newOnes) {
+    const ach = ACHIEVEMENTS[key];
+    if (!ach) continue;
+    const gainedLine = ach.reward ? ` and gained ${fmt(ach.reward)}` : '';
+    const embed = new EmbedBuilder()
+      .setTitle('🏆 Achievement Unlocked!')
+      .setDescription(`You unlocked: **${ach.emoji} ${ach.name}** for *${ach.description}*${gainedLine}`)
+      .setColor(0xFFD700);
+    await target.send({ embeds: [embed] }).catch(() => {});
+  }
 }
 
 // Call after any GENUINE earning (`.currency +=`) — sells, trade receives after
@@ -1275,14 +1299,14 @@ function trackEarned(user, amount) {
 // auction bids/buyouts, trade coin sends, merchant buys. Not for admin
 // deductions. Handles the big_spender / broke hidden-achievement triggers
 // as explicit events at the point of the transaction, not as polled state.
-function trackSpent(user, userId, amount) {
+function trackSpent(user, userId, amount, channel) {
   if (!amount) return;
   user.coinsSpent = (user.coinsSpent || 0) + amount;
   let fired = false;
   if (amount >= 500000) { user._bigSpenderTrigger = true; fired = true; }
   if (user.currency === 0) { user._brokeTrigger = true; fired = true; }
   if (fired) {
-    checkAchievements(user, userId);
+    checkAchievements(user, userId, channel);
     delete user._bigSpenderTrigger;
     delete user._brokeTrigger;
   }
@@ -2890,7 +2914,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         }
 
         const isTester = TEST_IDS.has(message.author.id);
-        let lvlUp = null, newAch = [];
+        let lvlUp = null;
         if (!user.claimCooldowns) user.claimCooldowns = {};
         if (!isTester) {
           lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
@@ -2898,7 +2922,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           if (!user.recentClaimNames) user.recentClaimNames = [];
           user.recentClaimNames.push(drop.plant.name);
           if (user.recentClaimNames.length > 3) user.recentClaimNames = user.recentClaimNames.slice(-3);
-          newAch = checkAchievements(user, message.author.id);
+          checkAchievements(user, message.author.id, message.channel);
           user.claimCooldowns[drop.rarity.name] = Date.now();
           const claimNewPlants = [{ name: drop.plant.name, version }];
           applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
@@ -2914,7 +2938,6 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           if (vPingChId) { const vPingCh = client.channels.cache.get(vPingChId); if (vPingCh) { const vAttach = new AttachmentBuilder(`${IMAGES_DIR}/${drop.plant.display}`, { name: drop.plant.display }); await vPingCh.send({ embeds: [new EmbedBuilder().setDescription(`🔖 **v1 claimed!**\n<@${message.author.id}> grabbed the **first copy** of **${drop.plant.name}**${mutLine}`).setThumbnail(`attachment://${drop.plant.display}`).setColor(mutation ? mutation.color : rCfg.color)], files: [vAttach] }).catch(console.error); } }
         }
         if (lvlUp) await message.channel.send(`<@${message.author.id}> levelled up to **Level ${lvlUp}**! ${getRank(lvlUp).emoji}`);
-        if (newAch.length) { const achLines = newAch.map(k => `${ACHIEVEMENTS[k].emoji} **${ACHIEVEMENTS[k].name}** — *${ACHIEVEMENTS[k].description}*`).join('\n'); await message.channel.send({ embeds: [new EmbedBuilder().setTitle('Achievement Unlocked!').setDescription(achLines).setColor(0xFFD700)] }); }
       });
     }
     return;
@@ -2947,14 +2970,14 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         if (user.winStreak > 0) {
           if (user.winStreak >= 3) {
             user._heartbreakerTrigger = true;
-            checkAchievements(user, message.author.id);
+            checkAchievements(user, message.author.id, message.channel);
             delete user._heartbreakerTrigger;
           }
           user.winStreak = 0;
         }
       }
       addXP(db, message.author.id, isWin ? XP_REWARDS.race_win : XP_REWARDS.race_finish);
-      checkAchievements(user, message.author.id); saveDB(db);
+      checkAchievements(user, message.author.id, message.channel); saveDB(db);
       if (!TEST_IDS.has(message.author.id)) {
         const ex = lb.find(e => e.userId === message.author.id);
         if (ex) { if (elapsed < ex.bestTime) { ex.bestTime = elapsed; ex.username = message.author.username; } }
@@ -2989,7 +3012,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     let autoEarned = 0;
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
-      trackSpent(user, message.author.id, crate.price);
+      trackSpent(user, message.author.id, crate.price, message.channel);
       user.crateCooldowns[crateKey] = Date.now();
       const addedCratePlants = [];
       const captchaCrateMeta = loadMeta();
@@ -3010,7 +3033,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
       markCrateTriggers(user, results);
-      checkAchievements(user, message.author.id);
+      checkAchievements(user, message.author.id, message.channel);
       clearCrateTriggers(user);
       applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id);
       saveDB(db);
@@ -3049,7 +3072,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         }
         user.currency += totalVal;
         trackEarned(user, totalVal);
-        if (sellTriggered) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
+        if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
         saveDB(db);
         for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
         const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
@@ -3064,7 +3087,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const price = getLiveSellValue(plant);
       user.currency += price;
       trackEarned(user, price);
-      if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
+      if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
       // remove locks for plants no longer owned
       const remaining = loadLocks(message.author.id).filter(l => {
         if (!l.name) return true;
@@ -3116,7 +3139,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     trackEarned(user, totalVal);
     let sellTriggered = false;
     for (const p of sellable) { if (markSellTriggers(user, p)) sellTriggered = true; }
-    if (sellTriggered) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
+    if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
     saveDB(db);
     for (const p of sellable) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
     return message.channel.send({ embeds: [new EmbedBuilder()
@@ -3222,7 +3245,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
       // Deduct new bid amount immediately
       user.currency -= bidAmount;
-      trackSpent(user, message.author.id, bidAmount);
+      trackSpent(user, message.author.id, bidAmount, message.channel);
 
       auction.bids.push({ userId: message.author.id, username: message.author.username, amount: bidAmount, time: Date.now() });
 
@@ -3272,7 +3295,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (buyer.currency < auction.buyoutPrice) return message.reply(`❌ Need ${fmt(auction.buyoutPrice)}.`);
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
-      trackSpent(buyer, message.author.id, auction.buyoutPrice);
+      trackSpent(buyer, message.author.id, auction.buyoutPrice, message.channel);
       const sellerReceives = applyTax(auction.buyoutPrice);
       seller.currency += sellerReceives;
       trackEarned(seller, sellerReceives);
@@ -4274,7 +4297,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     user.currency += totalCoins;
     trackEarned(user, totalCoins);
     touchActivity(db, message.author.id, message.author);
-    checkAchievements(user, message.author.id);
+    checkAchievements(user, message.author.id, message.channel);
     saveDB(db);
     for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
@@ -4555,7 +4578,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; trackEarned(user, coins); user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
@@ -4578,7 +4601,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         grantPlant(user, { name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; trackEarned(user, coins); user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -4634,14 +4657,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const ch = CHARMS[itemKey];
       if (user.charms.includes(itemKey)) return message.reply(`You already own **${ch.name}**!`);
       if (user.currency < ch.price) return message.reply(`❌ Need ${fmt(ch.price)}.`);
-      user.currency -= ch.price; trackSpent(user, message.author.id, ch.price); user.charms.push(itemKey); saveDB(db);
+      user.currency -= ch.price; trackSpent(user, message.author.id, ch.price, message.channel); user.charms.push(itemKey); saveDB(db);
       return message.reply(`${ch.emoji} Purchased **${ch.name}**! Use \`!equip ${itemKey}\` to activate.`);
     }
     if (SHOP_TITLES[itemKey]) {
       const t = SHOP_TITLES[itemKey];
       if (user.titles.includes(itemKey)) return message.reply(`You already own the **${t.name}** title!`);
       if (user.currency < t.price) return message.reply(`❌ Need ${fmt(t.price)}.`);
-      user.currency -= t.price; trackSpent(user, message.author.id, t.price); user.titles.push(itemKey); saveDB(db);
+      user.currency -= t.price; trackSpent(user, message.author.id, t.price, message.channel); user.titles.push(itemKey); saveDB(db);
       return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
     }
     let autoEarned = 0;
@@ -4683,7 +4706,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       let dupeBlockedCount = 0;
       if (!TEST_IDS.has(message.author.id)) {
         user.currency -= crate.price;
-        trackSpent(user, message.author.id, crate.price);
+        trackSpent(user, message.author.id, crate.price, message.channel);
         user.crateCooldowns[crateKey] = Date.now();
         const crateMeta = loadMeta();
         for (const p of results) {
@@ -4708,7 +4731,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         user.cratesOpened = (user.cratesOpened||0) + 1;
         addXP(db, message.author.id, XP_REWARDS.crate_open);
         markCrateTriggers(user, results);
-        checkAchievements(user, message.author.id);
+        checkAchievements(user, message.author.id, message.channel);
         clearCrateTriggers(user);
         autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id);
         saveDB(db);
