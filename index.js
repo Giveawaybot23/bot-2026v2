@@ -711,7 +711,7 @@ function calcSellValue(plant, rarity, mutation, version) {
 // ═══════════════════════════════════════════════════════════
 // ACHIEVEMENT OVERHAUL — PROGRESS LOG
 // Step 1 (schema/cleanup): DONE — 2026-08-17
-// Step 2 (race + win streak): PENDING
+// Step 2 (race + win streak): DONE — 2026-08-17
 // Step 3 (economy tracking): PENDING
 // Step 4 (garden score + collection): PENDING
 // Step 5 (secret behavioral): PENDING
@@ -721,7 +721,13 @@ function calcSellValue(plant, rarity, mutation, version) {
 // ═══════════════════════════════════════════════════════════
 // Schema: { name, emoji, description, title, hidden (bool, default false), reward (number, coins), check(u) }
 const ACHIEVEMENTS = {
-  first_claim: { name: 'First Bloom', emoji: '🌸', description: 'Claim your first plant', title: 'Bloomer', hidden: false, reward: 100, check: u => u.claimed >= 1 },
+  first_claim:    { name: 'First Bloom',   emoji: '🌸', description: 'Claim your first plant',      title: 'Bloomer',      hidden: false, reward: 100,   check: u => u.claimed >= 1 },
+  quick_draw:     { name: 'Quick Draw',    emoji: '⏱️', description: 'Finish a race in under 4s',   title: 'Quick Draw',   hidden: false, reward: 250,   check: u => u.bestRaceTime !== null && u.bestRaceTime !== undefined && u.bestRaceTime < 4000 },
+  reflexes:       { name: 'Reflexes',      emoji: '⚡', description: 'Finish a race in under 3s',   title: 'Reflexes',     hidden: false, reward: 750,   check: u => u.bestRaceTime !== null && u.bestRaceTime !== undefined && u.bestRaceTime < 3000 },
+  inhuman:        { name: 'Inhuman',       emoji: '🤖', description: 'Finish a race in under 2s',   title: 'Inhuman',      hidden: false, reward: 2500,  check: u => u.bestRaceTime !== null && u.bestRaceTime !== undefined && u.bestRaceTime < 2000 },
+  frame_perfect:  { name: 'Frame Perfect', emoji: '🎯', description: '???',                          title: 'Frame Perfect', hidden: true,  reward: 5000,  check: u => u.bestRaceTime !== null && u.bestRaceTime !== undefined && u.bestRaceTime < 1500 },
+  marathoner:     { name: 'Marathoner',    emoji: '🏃', description: 'Win 250 races',                title: 'Marathoner',   hidden: false, reward: 15000, check: u => (u.raceWins || 0) >= 250 },
+  heartbreaker:   { name: 'Heartbreaker',  emoji: '💔', description: '???',                          title: 'Heartbreaker', hidden: true,  reward: 0,     check: u => !!u._heartbreakerTrigger },
 };
 
 // ─── Shop Titles ──────────────────────────────────────────────────────────────
@@ -2808,7 +2814,21 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const isRecord   = prevRecord !== null && elapsed < prevRecord;
       if (user.bestRaceTime === null || elapsed < user.bestRaceTime) user.bestRaceTime = elapsed;
       const isWin = race.finishers.length === 1;
-      if (isWin) user.raceWins = (user.raceWins || 0) + 1;
+      if (isWin) {
+        user.raceWins = (user.raceWins || 0) + 1;
+        user.winStreak = (user.winStreak || 0) + 1;
+        if (user.winStreak > (user.bestWinStreak || 0)) user.bestWinStreak = user.winStreak;
+      } else {
+        // This user finished but didn't win this race — their streak breaks.
+        if (user.winStreak > 0) {
+          if (user.winStreak >= 3) {
+            user._heartbreakerTrigger = true;
+            checkAchievements(user, message.author.id);
+            delete user._heartbreakerTrigger;
+          }
+          user.winStreak = 0;
+        }
+      }
       addXP(db, message.author.id, isWin ? XP_REWARDS.race_win : XP_REWARDS.race_finish);
       checkAchievements(user, message.author.id); saveDB(db);
       if (!TEST_IDS.has(message.author.id)) {
@@ -5374,10 +5394,15 @@ async function endAuction(auctionId, fallbackChannel) {
 async function endRace(channel, race) {
   if (!activeRaces[channel.id]) return;
   delete activeRaces[channel.id];
+  // No finishers at all — no winner exists, so there's no specific user's
+  // win streak to break here (streak breaks are handled per-loser at finish time above).
   if (!race.finishers.length) return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Over — No Finishers!').setColor(0x555555)] });
   race.finishers.sort((a,b) => a.time-b.time);
   const lines = race.finishers.slice(0,5).map((f,i) => `${medal(i)} <@${f.userId}> — **${msToStr(f.time)}**`);
-  return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Results!').setDescription(`${medal(0)} Winner: <@${race.finishers[0].userId}> in **${msToStr(race.finishers[0].time)}**\n\n**Standings:**\n${lines.join('\n')}`).setColor(0xFFAA00)] });
+  const winnerId = race.finishers[0].userId;
+  const winnerUser = getUser(loadDB(), winnerId);
+  const winStreak = winnerUser.winStreak || 0;
+  return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Results!').setDescription(`${medal(0)} <@${winnerId}> 🔥 ${winStreak} <a:fire:1538794886281822208> in **${msToStr(race.finishers[0].time)}**\n\n**Standings:**\n${lines.join('\n')}`).setColor(0xFFAA00)] });
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
