@@ -8,7 +8,7 @@ let pushToUser = () => {};
 let broadcastAll = () => {};
 let pushCollectionUpdate = () => {};
 let broadcastLeaderboardUpdate = () => {};
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
 const path = require('path');
@@ -147,27 +147,56 @@ function loadAutosellRules() {
   return JSON.parse(fs.readFileSync(AUTOSELL_FILE));
 }
 function saveAutosellRules(r) { atomicWriteFileSync(AUTOSELL_FILE, JSON.stringify(r, null, 2)); }
-
-function formatVersionRanges(versions) {
-  const sorted = [...versions].sort((a, b) => a - b);
-  const ranges = [];
-  let start = sorted[0];
-  let prev = sorted[0];
-  for (let i = 1; i <= sorted.length; i++) {
-    const cur = sorted[i];
-    if (cur === prev + 1) {
-      prev = cur;
-      continue;
-    }
-    ranges.push(start === prev ? `v${start}` : `v${start}-v${prev}`);
-    start = cur;
-    prev = cur;
-  }
-  return ranges.join(', ');
-}
-
 function getUserAutosellRules(userId) {
   return loadAutosellRules()[userId] || [];
+}
+
+// Free-typed version filter support, e.g. "5, 10-20, 45, 500-999".
+// Stored as { from, to } ranges (single values are from===to) so it stays
+// cheap and future-proof no matter how high versions eventually go.
+function parseVersionRangesInput(raw) {
+  const ranges = [];
+  const invalid = [];
+  if (!raw || !raw.trim()) return { ranges, invalid };
+  for (let token of raw.split(',')) {
+    token = token.trim();
+    if (!token) continue;
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+    const singleMatch = token.match(/^(\d+)$/);
+    if (rangeMatch) {
+      const from = parseInt(rangeMatch[1], 10), to = parseInt(rangeMatch[2], 10);
+      if (from < 1 || to < 1 || from > to) { invalid.push(token); continue; }
+      ranges.push({ from, to });
+    } else if (singleMatch) {
+      const v = parseInt(singleMatch[1], 10);
+      if (v < 1) { invalid.push(token); continue; }
+      ranges.push({ from: v, to: v });
+    } else {
+      invalid.push(token);
+    }
+  }
+  return { ranges, invalid };
+}
+function versionMatchesRanges(v, ranges) {
+  return ranges.some(r => v >= r.from && v <= r.to);
+}
+function formatVersionRangeList(ranges) {
+  return ranges.map(r => (r.from === r.to ? `v${r.from}` : `v${r.from}-v${r.to}`)).join(', ');
+}
+// Collapses a legacy flat array of version ints (old rule.versions field)
+// into the same "vX-vY" display format instead of listing every number.
+function formatVersionRanges(versions) {
+  const sorted = [...new Set(versions)].sort((a, b) => a - b);
+  if (!sorted.length) return '';
+  const collapsed = [];
+  let start = sorted[0], prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur === prev + 1) { prev = cur; continue; }
+    collapsed.push({ from: start, to: prev });
+    start = cur; prev = cur;
+  }
+  return formatVersionRangeList(collapsed);
 }
 function applyAutosellRules(user, userId, newPlants, guildId = null) {
   const rules = getUserAutosellRules(userId);
@@ -196,7 +225,12 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
 
       if (rule.plant && p.name.toLowerCase() !== rule.plant.toLowerCase()) continue;
 
-      // Multi-select exact version list, e.g. [1, 5, 10]
+      // Free-typed version ranges, e.g. "5, 10-20, 500-999"
+      if (rule.versionRanges && rule.versionRanges.length) {
+        const v = p.version || 0;
+        if (!versionMatchesRanges(v, rule.versionRanges)) continue;
+      }
+      // Legacy multi-select exact version list, e.g. [1, 5, 10]
       if (rule.versions && rule.versions.length) {
         const v = p.version || 0;
         if (!rule.versions.includes(v)) continue;
@@ -563,8 +597,8 @@ function getActiveWeather() {
 //    effectively gets ~10 chances at a mutation per open, so the per-slot
 //    rate has to be small or crate EV balloons.
 // Tune these two numbers directly to adjust overall mutation rarity.
-const WEATHER_MUTATION_CHANCE_DROP  = 0.25; // 25% per plant while weather is active
-const WEATHER_MUTATION_CHANCE_CRATE = 0.025; // 2.5% per crate slot while weather is active
+const WEATHER_MUTATION_CHANCE_DROP  = 0.10; // 10% per plant while weather is active
+const WEATHER_MUTATION_CHANCE_CRATE = 0.01; // 1% per crate slot while weather is active
 
 function rollMutation(weatherName, chance = WEATHER_MUTATION_CHANCE_DROP) {
   // No active weather = no mutations at all, full stop.
@@ -1358,7 +1392,7 @@ async function generateDropImage(plant, captcha, rarityColor, weather) {
 
 // Weather event GIFs live in bot2026/images/Weathers/<WeatherName>.gif —
 // filenames match WEATHER_TYPES[].name exactly (final pre-release names).
-const WEATHER_GIF_DIR = path.join(__dirname, 'images', 'Weathers');
+const WEATHER_GIF_DIR = path.join(__dirname, 'bot2026', 'images', 'Weathers');
 function getWeatherGifPath(weather) {
   return path.join(WEATHER_GIF_DIR, `${weather.name}.gif`);
 }
@@ -4062,7 +4096,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         if (r.mutations && r.mutations.length) parts.push(`mutations: **${r.mutations.join(', ')}**`);
         else if (r.mutation) parts.push(`mutation: **${r.mutation}**`);
         if (r.plant)      parts.push(`plant: **${r.plant}**`);
-        if (r.versions && r.versions.length)   parts.push(`versions: **${formatVersionRanges(r.versions)}**`);
+        if (r.versionRanges && r.versionRanges.length) parts.push(`versions: **${formatVersionRangeList(r.versionRanges)}**`);
+        else if (r.versions && r.versions.length)      parts.push(`versions: **${formatVersionRanges(r.versions)}**`);
         else if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
         return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
       });
@@ -4082,7 +4117,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const removed = rules.splice(idx, 1)[0];
       all[message.author.id] = rules;
       saveAutosellRules(all);
-      const desc = Object.entries(removed).map(([k, v]) => `${k}: **${Array.isArray(v) ? v.join(', ') : v}**`).join('  ·  ');
+      const desc = Object.entries(removed).map(([k, v]) => {
+        if (k === 'versionRanges') return `versions: **${formatVersionRangeList(v)}**`;
+        if (k === 'versions')      return `versions: **${formatVersionRanges(v)}**`;
+        return `${k}: **${Array.isArray(v) ? v.join(', ') : v}**`;
+      }).join('  ·  ');
       return message.reply(`🗑️ Removed rule: ${desc}`);
     }
 
@@ -4093,41 +4132,42 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply('✅ All your autosell rules have been cleared.');
     }
 
-    // ── Wizard: `!autosell <rarity>` or `!autosell <rarity, rarity, ...>` ─────
+    // ── Wizard: `!autosell` (interactive) or `!autosell <rarity, rarity, ...>` (skip straight to versions) ─
     const rarityInput = args.slice(1).join(' ');
-    if (!rarityInput) {
-      return message.reply([
-        'Usage: `!autosell <rarity>` — e.g. `!autosell common` or `!autosell common, uncommon, rare`',
-        'I\'ll show you dropdowns to pick versions/mutations, then hit **Add Rule**.',
-        '',
-        'Other commands: `!autosell list` · `!autosell remove <number>` · `!autosell clear`',
-      ].join('\n'));
+
+    let matchedRarities = null; // null = not chosen yet, show the rarity select first
+
+    if (rarityInput) {
+      const requested = rarityInput.split(',').map(s => s.trim()).filter(Boolean);
+      const matched = [];
+      const invalidRarities = [];
+      for (const r of requested) {
+        const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
+        if (found) { if (!matched.includes(found.name)) matched.push(found.name); }
+        else invalidRarities.push(r);
+      }
+      if (invalidRarities.length) {
+        return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+      }
+      if (!matched.length) return message.reply('❌ No valid rarities given.');
+      matchedRarities = matched;
     }
 
-    const requested = rarityInput.split(',').map(s => s.trim()).filter(Boolean);
-    const matchedRarities = [];
-    const invalidRarities = [];
-    for (const r of requested) {
-      const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
-      if (found) { if (!matchedRarities.includes(found.name)) matchedRarities.push(found.name); }
-      else invalidRarities.push(r);
-    }
-    if (invalidRarities.length) {
-      return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
-    }
-    if (!matchedRarities.length) return message.reply('❌ No valid rarities given.');
-
-    const MAX_VERSION_OPTIONS = 20; // covers v1–v20 (well past the v1–v10 decay-safe range)
-
-    const versionSelect = new StringSelectMenuBuilder()
-      .setCustomId('asw_versions')
-      .setPlaceholder('Versions: no filter (any version)')
+    const raritySelect = new StringSelectMenuBuilder()
+      .setCustomId('asw_rarities')
+      .setPlaceholder('Choose rarities to auto-sell')
       .setMinValues(1)
-      .setMaxValues(MAX_VERSION_OPTIONS + 1)
-      .addOptions(
-        { label: 'No filter (any version)', value: 'no' },
-        ...Array.from({ length: MAX_VERSION_OPTIONS }, (_, i) => ({ label: `v${i + 1}`, value: String(i + 1) })),
-      );
+      .setMaxValues(RARITIES.length)
+      .addOptions(RARITIES.map(r => ({ label: r.name, value: r.name })));
+
+    const nextRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('asw_next').setLabel('Next ▸').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('asw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    );
+
+    const versionsBtnRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('asw_set_versions').setLabel('Set Versions').setStyle(ButtonStyle.Secondary),
+    );
 
     const mutationSelect = new StringSelectMenuBuilder()
       .setCustomId('asw_mutations')
@@ -4145,37 +4185,100 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       new ButtonBuilder().setCustomId('asw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
-    const buildEmbed = (selVersions, selMutations) => new EmbedBuilder()
-      .setTitle('⚡ Autosell Setup')
+    let selectedRarities  = matchedRarities; // null until chosen via select, unless passed as text args
+    let selectedVersionRanges = null; // null = no filter; else [{from,to}, ...]
+    let selectedMutations = null;     // null = no filter
+
+    const versionsDisplay = () => selectedVersionRanges === null ? 'any' : formatVersionRangeList(selectedVersionRanges);
+
+    const buildStep1Embed = () => new EmbedBuilder()
+      .setTitle('⚡ Autosell Setup — Step 1: Rarity')
       .setDescription([
-        `Rarities: **${matchedRarities.join(', ')}**`,
-        `Versions: **${selVersions === null ? 'any' : selVersions.map(v => 'v' + v).join(', ')}**`,
-        `Mutations: **${selMutations === null ? 'any' : selMutations.join(', ')}**`,
+        `Rarities: **${selectedRarities ? selectedRarities.join(', ') : 'none selected'}**`,
         '',
-        'Pick from the dropdowns below, then hit **Add Rule**.',
+        'Pick one or more rarities below, then hit **Next**.',
       ].join('\n'))
       .setColor(0x00C853);
 
-    let selectedVersions = null;  // null = no filter
-    let selectedMutations = null; // null = no filter
+    const buildStep2Embed = () => new EmbedBuilder()
+      .setTitle('⚡ Autosell Setup — Step 2: Versions & Mutations')
+      .setDescription([
+        `Rarities: **${selectedRarities.join(', ')}**`,
+        `Versions: **${versionsDisplay()}**`,
+        `Mutations: **${selectedMutations === null ? 'any' : selectedMutations.join(', ')}**`,
+        '',
+        'Click **Set Versions** to type version numbers/ranges (e.g. `5, 10-20, 100-999`), leave blank for any.',
+        'Pick mutations from the dropdown, then hit **Add Rule**.',
+      ].join('\n'))
+      .setColor(0x00C853);
 
-    const wizardMsg = await message.channel.send({
-      embeds: [buildEmbed(selectedVersions, selectedMutations)],
-      components: [new ActionRowBuilder().addComponents(versionSelect), new ActionRowBuilder().addComponents(mutationSelect), confirmRow],
-    });
+    const step2Components = () => [
+      versionsBtnRow,
+      new ActionRowBuilder().addComponents(mutationSelect),
+      confirmRow,
+    ];
+
+    const wizardMsg = await message.channel.send(
+      selectedRarities
+        ? { embeds: [buildStep2Embed()], components: step2Components() }
+        : { embeds: [buildStep1Embed()], components: [new ActionRowBuilder().addComponents(raritySelect), nextRow] }
+    );
 
     const collector = wizardMsg.createMessageComponentCollector({ time: 180_000, filter: i => i.user.id === message.author.id });
 
     collector.on('collect', async (interaction) => {
-      if (interaction.customId === 'asw_versions') {
-        selectedVersions = interaction.values.includes('no') ? null : interaction.values.map(v => parseInt(v));
-        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
+      if (interaction.customId === 'asw_rarities') {
+        selectedRarities = interaction.values;
+        await interaction.update({ embeds: [buildStep1Embed()] });
+        return;
+      }
+
+      if (interaction.customId === 'asw_next') {
+        if (!selectedRarities || !selectedRarities.length) {
+          return interaction.reply({ content: '❌ Pick at least one rarity first.', ephemeral: true });
+        }
+        return interaction.update({ embeds: [buildStep2Embed()], components: step2Components() });
+      }
+
+      if (interaction.customId === 'asw_set_versions') {
+        const modal = new ModalBuilder()
+          .setCustomId('asw_versions_modal')
+          .setTitle('Set Version Filter')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('asw_versions_input')
+                .setLabel('Versions (e.g. 5, 10-20, 100-999)')
+                .setPlaceholder('Leave blank for any version')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false)
+                .setValue(selectedVersionRanges ? formatVersionRangeList(selectedVersionRanges).replace(/v/g, '') : ''),
+            ),
+          );
+        await interaction.showModal(modal);
+
+        try {
+          const modalSubmit = await interaction.awaitModalSubmit({
+            time: 120_000,
+            filter: mi => mi.user.id === message.author.id && mi.customId === 'asw_versions_modal',
+          });
+          const raw = modalSubmit.fields.getTextInputValue('asw_versions_input').trim();
+          const { ranges, invalid } = parseVersionRangesInput(raw);
+          if (invalid.length) {
+            await modalSubmit.reply({ content: `❌ Couldn't understand: **${invalid.join(', ')}**. Use numbers or ranges like \`5, 10-20\`.`, ephemeral: true });
+            return;
+          }
+          selectedVersionRanges = raw ? ranges : null;
+          await modalSubmit.update({ embeds: [buildStep2Embed()], components: step2Components() });
+        } catch {
+          // Modal timed out or was dismissed — leave the previous filter as-is.
+        }
         return;
       }
 
       if (interaction.customId === 'asw_mutations') {
         selectedMutations = interaction.values.includes('no') ? null : interaction.values;
-        await interaction.update({ embeds: [buildEmbed(selectedVersions, selectedMutations)] });
+        await interaction.update({ embeds: [buildStep2Embed()] });
         return;
       }
 
@@ -4193,11 +4296,11 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
         const added = [];
         let skippedForCap = 0;
-        for (const rarityName of matchedRarities) {
+        for (const rarityName of selectedRarities) {
           if (existing.length >= 20) { skippedForCap++; continue; }
           const rule = { rarity: rarityName.toLowerCase() };
-          if (selectedVersions)  rule.versions  = selectedVersions;
-          if (selectedMutations) rule.mutations = selectedMutations;
+          if (selectedVersionRanges)  rule.versionRanges = selectedVersionRanges;
+          if (selectedMutations)      rule.mutations      = selectedMutations;
           existing.push(rule);
           added.push(rarityName);
         }
@@ -4205,7 +4308,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         saveAutosellRules(all);
 
         let desc = added.length
-          ? `Auto-selling **${added.join(', ')}** — versions: **${selectedVersions ? selectedVersions.map(v => 'v' + v).join(', ') : 'any'}**, mutations: **${selectedMutations ? selectedMutations.join(', ') : 'any'}**.`
+          ? `Auto-selling **${added.join(', ')}** — versions: **${versionsDisplay()}**, mutations: **${selectedMutations ? selectedMutations.join(', ') : 'any'}**.`
           : `No rules added — you're already at the 20-rule limit. Use \`!autosell remove <number>\` to free up space.`;
         if (skippedForCap > 0 && added.length) desc += `\n⚠️ Skipped **${skippedForCap}** — you hit the 20-rule limit.`;
 
