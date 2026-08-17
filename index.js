@@ -714,7 +714,7 @@ function calcSellValue(plant, rarity, mutation, version) {
 // Step 1 (schema/cleanup): DONE — 2026-08-17
 // Step 2 (race + win streak): DONE — 2026-08-17
 // Step 3 (economy tracking): DONE — 2026-08-17
-// Step 4 (garden score + collection): PENDING
+// Step 4 (garden score + collection): DONE — 2026-08-17
 // Step 5 (secret behavioral): PENDING
 // Step 6 (balance/QA pass): PENDING
 // If you are an AI picking this up: read this block first, only do the
@@ -735,6 +735,41 @@ const ACHIEVEMENTS = {
   mogul:          { name: 'Mogul',         emoji: '👔', description: 'Earn 25,000,000 lifetime coins', title: 'Mogul',       hidden: false, reward: 75000, check: u => (u.lifetimeCoinsEarned || 0) >= 25000000 },
   big_spender:    { name: 'Big Spender',   emoji: '💸', description: '???',                          title: 'Big Spender',  hidden: true,  reward: 0,     check: u => !!u._bigSpenderTrigger },
   broke:          { name: 'Broke',         emoji: '🫙', description: '???',                          title: 'Broke',        hidden: true,  reward: 0,     check: u => !!u._brokeTrigger },
+
+  // ─── Garden Score tiers (auto-generated from GARDEN_TIERS, excluding hidden Secret) ──
+  ...(() => {
+    const rewardByTier = {
+      Bronze: 500, Silver: 1500, Gold: 4000, Platinum: 10000,
+      Diamond: 25000, Master: 60000, Grandmaster: 150000,
+    };
+    const out = {};
+    for (const tier of GARDEN_TIERS.slice(0, -1)) { // exclude hidden "Secret" tier
+      const key = `garden_${tier.name.toLowerCase()}`;
+      out[key] = {
+        name: `Garden ${tier.name}`,
+        emoji: tier.emoji,
+        description: `Reach ${tier.name} garden rank`,
+        title: tier.name,
+        hidden: false,
+        reward: rewardByTier[tier.name],
+        check: u => calcWeightedGardenScore(u.collection) >= tier.minScore,
+      };
+    }
+    return out;
+  })(),
+
+  // Hidden Secret-tier garden achievement — title only, no coin reward.
+  garden_secret:  { name: 'Garden Secret', emoji: GARDEN_TIERS[GARDEN_TIERS.length - 1].emoji, description: '???', title: 'Secret', hidden: true, reward: 0, check: u => calcWeightedGardenScore(u.collection) >= 5000000 },
+
+  // ─── Collection achievements ──────────────────────────────────────────────
+  full_set:       { name: 'Full Set',            emoji: '🧺', description: 'Own at least one plant of every rarity, Common through Secret', title: 'Full Set',           hidden: false, reward: 3000,  check: u => ['Common','Uncommon','Rare','Epic','Legendary','Mythic','Super','Secret'].every(r => u.collection.some(p => p.rarity === r)) },
+  mutation_enthusiast: { name: 'Mutation Enthusiast', emoji: '🧬', description: 'Own 5 or more distinct mutation types at once', title: 'Mutation Enthusiast', hidden: false, reward: 5000,  check: u => new Set(u.collection.filter(p => p.mutation).map(p => p.mutation.name)).size >= 5 },
+  storm_chaser:   { name: 'Storm Chaser',        emoji: '🌩️', description: '???', title: 'Storm Chaser', hidden: true,  reward: 8000,  check: u => u.collection.some(p => p.mutation && p.mutation.name === 'Eclipsed') },
+  // NOTE: unreachable until a second Secret-rarity plant is added to PLANTS in a
+  // future content update — currently only Eclipse Bloom exists at Secret rarity,
+  // so this achievement stays locked on purpose. That's expected, not a bug.
+  the_vault:      { name: 'The Vault',           emoji: '🔐', description: 'Own 2 or more distinct Secret-rarity plants at once', title: 'The Vault', hidden: false, reward: 20000, check: u => new Set(u.collection.filter(p => p.rarity === 'Secret').map(p => p.name)).size >= 2 },
+  archivist:      { name: 'Archivist',           emoji: '📚', description: 'Own 1,000 or more plants', title: 'Archivist', hidden: false, reward: 40000, check: u => u.collection.length >= 1000 },
 };
 
 // ─── Shop Titles ──────────────────────────────────────────────────────────────
