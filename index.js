@@ -11,6 +11,7 @@ let broadcastLeaderboardUpdate = () => {};
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionsBitField, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const fs = require('fs');
+const path = require('path');
 const https = require('https');
 const http  = require('http');
 
