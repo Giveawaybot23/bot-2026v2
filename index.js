@@ -715,7 +715,7 @@ function calcSellValue(plant, rarity, mutation, version) {
 // Step 2 (race + win streak): DONE — 2026-08-17
 // Step 3 (economy tracking): DONE — 2026-08-17
 // Step 4 (garden score + collection): DONE — 2026-08-17
-// Step 5 (secret behavioral): PENDING
+// Step 5 (secret behavioral): DONE — 2026-08-17
 // Step 6 (balance/QA pass): PENDING
 // If you are an AI picking this up: read this block first, only do the
 // next PENDING step, then update this block before finishing.
@@ -770,6 +770,20 @@ const ACHIEVEMENTS = {
   // so this achievement stays locked on purpose. That's expected, not a bug.
   the_vault:      { name: 'The Vault',           emoji: '🔐', description: 'Own 2 or more distinct Secret-rarity plants at once', title: 'The Vault', hidden: false, reward: 20000, check: u => new Set(u.collection.filter(p => p.rarity === 'Secret').map(p => p.name)).size >= 2 },
   archivist:      { name: 'Archivist',           emoji: '📚', description: 'Own 1,000 or more plants', title: 'Archivist', hidden: false, reward: 40000, check: u => u.collection.length >= 1000 },
+
+  // ─── Hidden behavioral achievements ────────────────────────────────────────
+  // bad_trade / buyers_remorse / jackpot / clean_sweep read short-lived
+  // _xTrigger flags set inline at the moment the behavior happens (see
+  // markSellTriggers / markCrateTriggers and their call sites) — the
+  // triggering state doesn't survive on the user object otherwise.
+  bad_trade:      { name: 'Bad Trade',       emoji: '📉', description: '???', title: 'Bad Trade',       hidden: true, reward: 0,    check: u => !!u._badTradeTrigger },
+  buyers_remorse: { name: "Buyer's Remorse", emoji: '😬', description: '???', title: "Buyer's Remorse", hidden: true, reward: 0,    check: u => !!u._buyersRemorseTrigger },
+  jackpot:        { name: 'Jackpot',         emoji: '🎰', description: '???', title: 'Jackpot',         hidden: true, reward: 5000, check: u => !!u._jackpotTrigger },
+  clean_sweep:    { name: 'Clean Sweep',     emoji: '🧹', description: '???', title: 'Clean Sweep',     hidden: true, reward: 3000, check: u => !!u._cleanSweepTrigger },
+  // deja_vu is the exception: u.recentClaimNames is genuinely persistent
+  // user state (maintained in the claim-drop path only, not crates), so a
+  // normal check(u) reading it directly is safe and correct here.
+  deja_vu:        { name: 'Déjà Vu',         emoji: '🔁', description: '???', title: 'Déjà Vu',         hidden: true, reward: 500,  check: u => !!u.recentClaimNames && u.recentClaimNames.length === 3 && u.recentClaimNames.every(n => n === u.recentClaimNames[0]) },
 };
 
 // ─── Shop Titles ──────────────────────────────────────────────────────────────
@@ -1272,6 +1286,41 @@ function trackSpent(user, userId, amount) {
     delete user._bigSpenderTrigger;
     delete user._brokeTrigger;
   }
+}
+
+// ─── Hidden behavioral achievement triggers (Step 5) ──────────────────────────
+// These read state that WON'T exist on the user object by the time a normal
+// checkAchievements() pass would run (a plant that just got sold and removed
+// from the collection; a specific crate slot's roll), so they can't be
+// passive check(u) functions. Instead callers set a short-lived _xTrigger
+// flag right at the moment the behavior happens, call checkAchievements(),
+// then delete the flag. mark*Triggers() below just set the flags — callers
+// are responsible for calling checkAchievements() and clearing them.
+
+// Call at the sell site, using the plant object being sold, right as/after
+// it's removed from user.collection. Returns true if any trigger fired.
+function markSellTriggers(user, plant) {
+  let fired = false;
+  if (plant.version === 1 && !!plant.mutation) { user._badTradeTrigger = true; fired = true; }
+  if (plant.claimedAt && (Date.now() - new Date(plant.claimedAt).getTime()) < 10000) { user._buyersRemorseTrigger = true; fired = true; }
+  return fired;
+}
+function clearSellTriggers(user) {
+  delete user._badTradeTrigger;
+  delete user._buyersRemorseTrigger;
+}
+
+// Call once a crate's full slot-result array has been generated, before
+// granting plants to the collection — a single slot's rarity/mutation combo
+// (jackpot) and the shape of the whole crate (clean_sweep) aren't recoverable
+// afterward.
+function markCrateTriggers(user, results) {
+  if (results.some(slot => slot.rarity === 'Secret' && !!slot.mutation)) user._jackpotTrigger = true;
+  if (results.length > 0 && !results.some(slot => slot.rarity === 'Common')) user._cleanSweepTrigger = true;
+}
+function clearCrateTriggers(user) {
+  delete user._jackpotTrigger;
+  delete user._cleanSweepTrigger;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -2845,6 +2894,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         if (!user.claimCooldowns) user.claimCooldowns = {};
         if (!isTester) {
           lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
+          // deja_vu tracking — claim-drop path only, NOT crate opening.
+          if (!user.recentClaimNames) user.recentClaimNames = [];
+          user.recentClaimNames.push(drop.plant.name);
+          if (user.recentClaimNames.length > 3) user.recentClaimNames = user.recentClaimNames.slice(-3);
           newAch = checkAchievements(user, message.author.id);
           user.claimCooldowns[drop.rarity.name] = Date.now();
           const claimNewPlants = [{ name: drop.plant.name, version }];
@@ -2956,7 +3009,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveMeta(captchaCrateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
+      markCrateTriggers(user, results);
       checkAchievements(user, message.author.id);
+      clearCrateTriggers(user);
       applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id);
       saveDB(db);
     }
@@ -2986,12 +3041,15 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (pending.sellAllCandidates) {
         const { sellAllCandidates, totalVal } = pending;
         // Remove from highest index down to avoid shift bugs
-        for (const { name, version } of sellAllCandidates) {
+        let sellTriggered = false;
+        for (const { plant: soldPlant, name, version } of sellAllCandidates) {
           const idx = user.collection.findIndex(p => p.name === name && p.version === version);
           if (idx !== -1) user.collection.splice(idx, 1);
+          if (markSellTriggers(user, soldPlant)) sellTriggered = true;
         }
         user.currency += totalVal;
         trackEarned(user, totalVal);
+        if (sellTriggered) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
         saveDB(db);
         for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
         const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
@@ -3006,6 +3064,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const price = getLiveSellValue(plant);
       user.currency += price;
       trackEarned(user, price);
+      if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
       // remove locks for plants no longer owned
       const remaining = loadLocks(message.author.id).filter(l => {
         if (!l.name) return true;
@@ -3055,6 +3114,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     user.collection = user.collection.filter(p => isLocked(message.author.id, p));
     user.currency += totalVal;
     trackEarned(user, totalVal);
+    let sellTriggered = false;
+    for (const p of sellable) { if (markSellTriggers(user, p)) sellTriggered = true; }
+    if (sellTriggered) { checkAchievements(user, message.author.id); clearSellTriggers(user); }
     saveDB(db);
     for (const p of sellable) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
     return message.channel.send({ embeds: [new EmbedBuilder()
@@ -4645,7 +4707,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         saveMeta(crateMeta);
         user.cratesOpened = (user.cratesOpened||0) + 1;
         addXP(db, message.author.id, XP_REWARDS.crate_open);
+        markCrateTriggers(user, results);
         checkAchievements(user, message.author.id);
+        clearCrateTriggers(user);
         autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id);
         saveDB(db);
       }
@@ -6087,7 +6151,9 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       saveMeta(crateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, req.user.id, XP_REWARDS.crate_open);
+      markCrateTriggers(user, results);
       checkAchievements(user, req.user.id);
+      clearCrateTriggers(user);
       const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
       saveDB(db);
       pushCoinUpdate(req.user.id, user.currency);
