@@ -708,20 +708,20 @@ function calcSellValue(plant, rarity, mutation, version) {
 }
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// ACHIEVEMENT OVERHAUL — PROGRESS LOG
+// Step 1 (schema/cleanup): DONE — 2026-08-17
+// Step 2 (race + win streak): PENDING
+// Step 3 (economy tracking): PENDING
+// Step 4 (garden score + collection): PENDING
+// Step 5 (secret behavioral): PENDING
+// Step 6 (balance/QA pass): PENDING
+// If you are an AI picking this up: read this block first, only do the
+// next PENDING step, then update this block before finishing.
+// ═══════════════════════════════════════════════════════════
+// Schema: { name, emoji, description, title, hidden (bool, default false), reward (number, coins), check(u) }
 const ACHIEVEMENTS = {
-  first_claim:    { name: 'First Bloom',       emoji: '🌸', description: 'Claim your first plant',      title: 'Bloomer',       check: u => u.claimed >= 1 },
-  collector_10:   { name: 'Budding Collector', emoji: '🌻', description: 'Own 10 plants',               title: 'Collector',     check: u => u.collection.length >= 10 },
-  collector_50:   { name: 'Green Thumb',       emoji: '👍', description: 'Own 50 plants',               title: 'Green Thumb',   check: u => u.collection.length >= 50 },
-  collector_100:  { name: 'The Hoarder',       emoji: '📦', description: 'Own 100 plants',              title: 'Hoarder',       check: u => u.collection.length >= 100 },
-  rare_finder:    { name: 'Rare Find',         emoji: '🔵', description: 'Claim a Rare or higher',      title: 'Rare Finder',   check: u => u.collection.some(p => ['Rare','Epic','Legendary','Mythic','Super','Secret'].includes(p.rarity)) },
-  legendary_find: { name: 'Legendary Bloom',   emoji: '🌟', description: 'Claim a Legendary or higher', title: 'Legendary',     check: u => u.collection.some(p => ['Legendary','Mythic','Super','Secret'].includes(p.rarity)) },
-  secret_find:    { name: 'The Secret Garden', emoji: '💎', description: 'Claim a Secret plant',        title: 'Secret Keeper', check: u => u.collection.some(p => p.rarity === 'Secret') },
-  mutant:         { name: 'Mutant Hunter',     emoji: '⭐', description: 'Claim a mutated plant',       title: 'Mutant Hunter', check: u => u.collection.some(p => p.mutation) },
-  rich:           { name: 'Coin Baron',        emoji: '💰', description: 'Reach 10,000 coins',          title: 'Baron',         check: u => u.currency >= 10000 },
-  racer:          { name: 'Speed Demon',       emoji: '🏁', description: 'Win a race',                  title: 'Speed Demon',   check: u => (u.raceWins || 0) >= 1 },
-  level_10:       { name: 'Level 10',          emoji: '⬆️', description: 'Reach Level 10',              title: 'Lvl.10',        check: u => getLevelFromXP(u.xp || 0) >= 10 },
-  level_50:       { name: 'Level 50',          emoji: '🔝', description: 'Reach Level 50',              title: 'Veteran',       check: u => getLevelFromXP(u.xp || 0) >= 50 },
-  crate_opener:   { name: 'Crate Opener',      emoji: '📫', description: 'Open 10 crates',              title: 'Opener',        check: u => (u.cratesOpened || 0) >= 10 },
+  first_claim: { name: 'First Bloom', emoji: '🌸', description: 'Claim your first plant', title: 'Bloomer', hidden: false, reward: 100, check: u => u.claimed >= 1 },
 };
 
 // ─── Shop Titles ──────────────────────────────────────────────────────────────
@@ -1146,6 +1146,11 @@ function getUser(db, userId) {
   if (!u.lastActivity)   u.lastActivity   = Date.now();
   if (u.decayWarned === undefined) u.decayWarned = false;
   if (!u.cratePity)      u.cratePity      = {};
+  if (u.lifetimeCoinsEarned === undefined) u.lifetimeCoinsEarned = 0;
+  if (u.coinsSpent === undefined)          u.coinsSpent          = 0;
+  if (u.winStreak === undefined)           u.winStreak           = 0;
+  if (u.bestWinStreak === undefined)       u.bestWinStreak       = 0;
+  if (!u.recentClaimNames)                 u.recentClaimNames    = []; // for a future "claim same plant 3x in a row" achievement
   return u;
 }
 
@@ -1180,12 +1185,16 @@ function addXP(db, userId, amount) {
 }
 
 // ─── Achievement checker ──────────────────────────────────────────────────────
-function checkAchievements(user) {
+function checkAchievements(user, userId) {
   const newOnes = [];
   for (const [key, ach] of Object.entries(ACHIEVEMENTS)) {
     if (!user.achievements.includes(key) && ach.check(user)) {
       user.achievements.push(key);
       if (!user.titles.includes(key)) user.titles.push(key);
+      if (ach.reward) {
+        user.currency += ach.reward;
+        if (userId && typeof pushCoinUpdate === 'function') pushCoinUpdate(userId, user.currency);
+      }
       newOnes.push(key);
     }
   }
@@ -2759,7 +2768,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         if (!user.claimCooldowns) user.claimCooldowns = {};
         if (!isTester) {
           lvlUp  = addXP(db, message.author.id, XP_REWARDS.claim);
-          newAch = checkAchievements(user);
+          newAch = checkAchievements(user, message.author.id);
           user.claimCooldowns[drop.rarity.name] = Date.now();
           const claimNewPlants = [{ name: drop.plant.name, version }];
           applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
@@ -2801,7 +2810,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const isWin = race.finishers.length === 1;
       if (isWin) user.raceWins = (user.raceWins || 0) + 1;
       addXP(db, message.author.id, isWin ? XP_REWARDS.race_win : XP_REWARDS.race_finish);
-      checkAchievements(user); saveDB(db);
+      checkAchievements(user, message.author.id); saveDB(db);
       if (!TEST_IDS.has(message.author.id)) {
         const ex = lb.find(e => e.userId === message.author.id);
         if (ex) { if (elapsed < ex.bestTime) { ex.bestTime = elapsed; ex.username = message.author.username; } }
@@ -2855,7 +2864,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       saveMeta(captchaCrateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, message.author.id, XP_REWARDS.crate_open);
-      checkAchievements(user);
+      checkAchievements(user, message.author.id);
       applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id);
       saveDB(db);
     }
@@ -3632,8 +3641,9 @@ if (cmd === 'web') {
   if (cmd === 'achievements' || cmd === 'ach') {
     const target = (await resolveTarget(message, args[1])) || message.author;
     const db = loadDB(); const user = getUser(db, target.id);
-    const lines = Object.entries(ACHIEVEMENTS).map(([key, a]) => { const done = user.achievements.includes(key); return `${done ? a.emoji : '⬛'} **${a.name}** — ${a.description}${done ? '' : ' *(locked)*'}`; });
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🏅 ${target.username}'s Achievements (${user.achievements.length}/${Object.keys(ACHIEVEMENTS).length})`).setDescription(lines.join('\n')).setColor(0xFFD700)] });
+    const visible = Object.entries(ACHIEVEMENTS).filter(([key, a]) => !a.hidden || user.achievements.includes(key));
+    const lines = visible.map(([key, a]) => { const done = user.achievements.includes(key); return `${done ? a.emoji : '⬛'} **${a.name}** — ${a.description}${done ? '' : ' *(locked)*'}`; });
+    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🏅 ${target.username}'s Achievements (${user.achievements.length}/${visible.length})`).setDescription(lines.join('\n')).setColor(0xFFD700)] });
   }
 
   // ── !settitle / !title ────────────────────────────────────────────────────
@@ -4103,7 +4113,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     for (const idx of indexesToRemove) user.collection.splice(idx, 1);
     user.currency += totalCoins;
     touchActivity(db, message.author.id, message.author);
-    checkAchievements(user);
+    checkAchievements(user, message.author.id);
     saveDB(db);
     for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
@@ -4384,7 +4394,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
       user.currency += coins; user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
@@ -4407,7 +4417,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         grantPlant(user, { name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
       user.currency += coins; user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -4535,7 +4545,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         saveMeta(crateMeta);
         user.cratesOpened = (user.cratesOpened||0) + 1;
         addXP(db, message.author.id, XP_REWARDS.crate_open);
-        checkAchievements(user);
+        checkAchievements(user, message.author.id);
         autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id);
         saveDB(db);
       }
@@ -5967,7 +5977,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       saveMeta(crateMeta);
       user.cratesOpened = (user.cratesOpened || 0) + 1;
       addXP(db, req.user.id, XP_REWARDS.crate_open);
-      checkAchievements(user);
+      checkAchievements(user, req.user.id);
       const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
       saveDB(db);
       pushCoinUpdate(req.user.id, user.currency);
