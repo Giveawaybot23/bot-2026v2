@@ -544,7 +544,7 @@ function getActiveWeather() {
 //    effectively gets ~10 chances at a mutation per open, so the per-slot
 //    rate has to be small or crate EV balloons.
 // Tune these two numbers directly to adjust overall mutation rarity.
-const WEATHER_MUTATION_CHANCE_DROP  = 0.20; // 20% per plant while weather is active
+const WEATHER_MUTATION_CHANCE_DROP  = 0.90; // 20% per plant while weather is active
 const WEATHER_MUTATION_CHANCE_CRATE = 0.02; // 2% per crate slot while weather is active
 
 function rollMutation(weatherName, chance = WEATHER_MUTATION_CHANCE_DROP) {
