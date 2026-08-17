@@ -4383,6 +4383,298 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     ]});
   }
 
+  // ── !sellall / !sa — interactive filtered mass-sell (one-time, immediate) ─
+  // Same filter wizard as !autosell (rarity → versions/mutations), but instead
+  // of saving a persistent rule, it previews the matching plants and, after a
+  // second explicit confirmation, sells every one of them right away.
+  if (cmd === 'sellall' || cmd === 'sa') {
+    const rarityInputSA = args.slice(1).join(' ');
+
+    let saMatchedRarities = null;
+    if (rarityInputSA) {
+      const requested = rarityInputSA.split(',').map(s => s.trim()).filter(Boolean);
+      const matched = [];
+      const invalidRarities = [];
+      for (const r of requested) {
+        const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
+        if (found) { if (!matched.includes(found.name)) matched.push(found.name); }
+        else invalidRarities.push(r);
+      }
+      if (invalidRarities.length) {
+        return message.reply(`❌ Unknown rarity: **${invalidRarities.join(', ')}**. Options: ${RARITIES.map(r => r.name).join(', ')}`);
+      }
+      if (!matched.length) return message.reply('❌ No valid rarities given.');
+      saMatchedRarities = matched;
+    }
+
+    const saRaritySelect = new StringSelectMenuBuilder()
+      .setCustomId('saw_rarities')
+      .setPlaceholder('Choose rarities to sell')
+      .setMinValues(1)
+      .setMaxValues(RARITIES.length)
+      .addOptions(RARITIES.map(r => ({ label: r.name, value: r.name })));
+
+    const saNextRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('saw_next').setLabel('Next ▸').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    );
+
+    const saVersionsBtnRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('saw_set_versions').setLabel('Set Versions').setStyle(ButtonStyle.Secondary),
+    );
+
+    const saMutationSelect = new StringSelectMenuBuilder()
+      .setCustomId('saw_mutations')
+      .setPlaceholder('Mutations: no filter (any, including none)')
+      .setMinValues(1)
+      .setMaxValues(MUTATIONS.length + 2)
+      .addOptions(
+        { label: 'No filter (any mutation)', value: 'no' },
+        { label: 'Unmutated only', value: 'none' },
+        ...MUTATIONS.map(m => ({ label: m.name, value: m.name })),
+      );
+
+    const saPreviewRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('saw_preview').setLabel('Preview ▸').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    );
+
+    let saSelectedRarities      = saMatchedRarities;
+    let saSelectedVersionRanges = null; // null = no filter
+    let saSelectedMutations     = null; // null = no filter
+
+    const saVersionsDisplay = () => saSelectedVersionRanges === null ? 'any' : formatVersionRangeList(saSelectedVersionRanges);
+
+    const saBuildStep1Embed = () => new EmbedBuilder()
+      .setTitle('🗑️ Sell All Setup — Step 1: Rarity')
+      .setDescription([
+        `Rarities: **${saSelectedRarities ? saSelectedRarities.join(', ') : 'none selected'}**`,
+        '',
+        'Pick one or more rarities below, then hit **Next**.',
+      ].join('\n'))
+      .setColor(0xFFAA00);
+
+    const saBuildStep2Embed = () => new EmbedBuilder()
+      .setTitle('🗑️ Sell All Setup — Step 2: Versions & Mutations')
+      .setDescription([
+        `Rarities: **${saSelectedRarities.join(', ')}**`,
+        `Versions: **${saVersionsDisplay()}**`,
+        `Mutations: **${saSelectedMutations === null ? 'any' : saSelectedMutations.join(', ')}**`,
+        '',
+        'Click **Set Versions** to type version numbers/ranges (e.g. `5, 10-20, 100-999`), leave blank for any.',
+        'Pick mutations from the dropdown, then hit **Preview** to see what would be sold.',
+      ].join('\n'))
+      .setColor(0xFFAA00);
+
+    const saStep2Components = () => [
+      saVersionsBtnRow,
+      new ActionRowBuilder().addComponents(saMutationSelect),
+      saPreviewRow,
+    ];
+
+    // Computes the current matching set fresh from a user's live collection —
+    // called both for the preview and again right before executing the sale,
+    // so nothing stale gets sold.
+    const saComputeCandidates = (user, userId) => {
+      const raritiesLower = saSelectedRarities.map(r => r.toLowerCase());
+      return user.collection
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => {
+          if (sellbatchV10Protection && (p.version || 0) <= 10) return false;
+          if (isLocked(userId, p)) return false;
+          if (!raritiesLower.includes(p.rarity.toLowerCase())) return false;
+          if (saSelectedVersionRanges && saSelectedVersionRanges.length) {
+            if (!versionMatchesRanges(p.version || 0, saSelectedVersionRanges)) return false;
+          }
+          if (saSelectedMutations && saSelectedMutations.length) {
+            const mutName = p.mutation ? p.mutation.name.toLowerCase() : null;
+            const matches = saSelectedMutations.some(m => (m === 'none' && !mutName) || (mutName && m.toLowerCase() === mutName));
+            if (!matches) return false;
+          }
+          return true;
+        });
+    };
+
+    const RARITY_ORDER_SA = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+
+    const saBuildPreview = (candidates) => {
+      const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+      const byRarity = {};
+      for (const { p } of candidates) byRarity[p.rarity] = (byRarity[p.rarity] || 0) + 1;
+      const summaryLines = RARITY_ORDER_SA.filter(r => byRarity[r]).map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
+      const filterParts = [
+        `rarity: **${saSelectedRarities.join(', ')}**`,
+        `versions: **${saVersionsDisplay()}**`,
+        `mutations: **${saSelectedMutations ? saSelectedMutations.join(', ') : 'any'}**`,
+      ];
+      const protectionNote = sellbatchV10Protection
+        ? `⚠️ *v1–v10 and locked plants are always excluded.*`
+        : `🚨 *v1–v10 protection is currently OFF — only locked plants are excluded.*`;
+      return { totalCoins, summaryLines, filterParts, protectionNote };
+    };
+
+    const saConfirmRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('saw_confirm_sell').setLabel('⚠️ Confirm — Sell These').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('saw_back').setLabel('◂ Back').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    );
+
+    const saWizardMsg = await message.channel.send(
+      saSelectedRarities
+        ? { embeds: [saBuildStep2Embed()], components: saStep2Components() }
+        : { embeds: [saBuildStep1Embed()], components: [new ActionRowBuilder().addComponents(saRaritySelect), saNextRow] }
+    );
+
+    const saCollector = saWizardMsg.createMessageComponentCollector({ time: 180_000, filter: i => i.user.id === message.author.id });
+
+    saCollector.on('collect', async (interaction) => {
+      if (interaction.customId === 'saw_rarities') {
+        saSelectedRarities = interaction.values;
+        await interaction.update({ embeds: [saBuildStep1Embed()] });
+        return;
+      }
+
+      if (interaction.customId === 'saw_next') {
+        if (!saSelectedRarities || !saSelectedRarities.length) {
+          return interaction.reply({ content: '❌ Pick at least one rarity first.', ephemeral: true });
+        }
+        return interaction.update({ embeds: [saBuildStep2Embed()], components: saStep2Components() });
+      }
+
+      if (interaction.customId === 'saw_set_versions') {
+        const modal = new ModalBuilder()
+          .setCustomId('saw_versions_modal')
+          .setTitle('Set Version Filter')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('saw_versions_input')
+                .setLabel('Versions (e.g. 5, 10-20, 100-999)')
+                .setPlaceholder('Leave blank for any version')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false)
+                .setValue(saSelectedVersionRanges ? formatVersionRangeList(saSelectedVersionRanges).replace(/v/g, '') : ''),
+            ),
+          );
+        await interaction.showModal(modal);
+
+        try {
+          const modalSubmit = await interaction.awaitModalSubmit({
+            time: 120_000,
+            filter: mi => mi.user.id === message.author.id && mi.customId === 'saw_versions_modal',
+          });
+          const raw = modalSubmit.fields.getTextInputValue('saw_versions_input').trim();
+          const { ranges, invalid } = parseVersionRangesInput(raw);
+          if (invalid.length) {
+            await modalSubmit.reply({ content: `❌ Couldn't understand: **${invalid.join(', ')}**. Use numbers or ranges like \`5, 10-20\`.`, ephemeral: true });
+            return;
+          }
+          saSelectedVersionRanges = raw ? ranges : null;
+          await modalSubmit.update({ embeds: [saBuildStep2Embed()], components: saStep2Components() });
+        } catch {
+          // Modal timed out or was dismissed — leave the previous filter as-is.
+        }
+        return;
+      }
+
+      if (interaction.customId === 'saw_mutations') {
+        saSelectedMutations = interaction.values.includes('no') ? null : interaction.values;
+        await interaction.update({ embeds: [saBuildStep2Embed()] });
+        return;
+      }
+
+      if (interaction.customId === 'saw_back') {
+        return interaction.update({ embeds: [saBuildStep2Embed()], components: saStep2Components() });
+      }
+
+      if (interaction.customId === 'saw_cancel') {
+        saCollector.stop('cancelled');
+        return interaction.update({ embeds: [new EmbedBuilder().setTitle('❌ Cancelled').setDescription('Nothing was sold.').setColor(0xFF5252)], components: [] });
+      }
+
+      // ── Step 3: preview (first confirmation) ──────────────────────────────
+      if (interaction.customId === 'saw_preview') {
+        const db = loadDB();
+        const user = getUser(db, message.author.id);
+        const candidates = saComputeCandidates(user, message.author.id);
+
+        if (!candidates.length) {
+          return interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle('🔍 Nothing Matches')
+              .setDescription('No plants match those filters right now. *(v1–v10 and locked plants are always excluded.)*')
+              .setColor(0xFFAA00)],
+            components: [new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('saw_back').setLabel('◂ Back').setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+            )],
+          });
+        }
+
+        const { totalCoins, summaryLines, filterParts, protectionNote } = saBuildPreview(candidates);
+        return interaction.update({
+          embeds: [new EmbedBuilder()
+            .setTitle(`⚠️ Confirm Sell — ${candidates.length} plants`)
+            .setDescription(
+              `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
+              summaryLines.join('\n') +
+              `\n\n**Total payout:** ${fmt(totalCoins)}\n\n${protectionNote}\n\n` +
+              `This **cannot be undone**. Click below to sell everything shown above.`
+            )
+            .setColor(0xFF6600)],
+          components: [saConfirmRow],
+        });
+      }
+
+      // ── Step 4: execute (second confirmation) ─────────────────────────────
+      if (interaction.customId === 'saw_confirm_sell') {
+        saCollector.stop('confirmed');
+
+        const db = loadDB();
+        const user = getUser(db, message.author.id);
+        user.username = message.author.username;
+        user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+        const candidates = saComputeCandidates(user, message.author.id);
+        if (!candidates.length) {
+          return interaction.update({
+            embeds: [new EmbedBuilder().setTitle('🔍 Nothing To Sell').setDescription('Nothing still matches those filters — your collection changed since the preview.').setColor(0xFFAA00)],
+            components: [],
+          });
+        }
+
+        const { totalCoins, summaryLines, filterParts } = saBuildPreview(candidates);
+
+        const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
+        for (const idx of indexesToRemove) user.collection.splice(idx, 1);
+        user.currency += totalCoins;
+        trackEarned(user, totalCoins);
+        touchActivity(db, message.author.id, message.author);
+        checkAchievements(user, message.author.id, message.channel);
+        saveDB(db);
+        for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
+
+        return interaction.update({
+          embeds: [new EmbedBuilder()
+            .setTitle(`✅ Sold — ${candidates.length} plants`)
+            .setDescription(
+              `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
+              summaryLines.join('\n') +
+              `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`
+            )
+            .setColor(0x00C853)],
+          components: [],
+        });
+      }
+    });
+
+    saCollector.on('end', (_collected, reason) => {
+      if (reason === 'time') saWizardMsg.edit({ components: [] }).catch(() => {});
+    });
+
+    return;
+  }
+
   // ── !autosell — persistent auto-sell rules ───────────────────────────────
   if (cmd === 'autosell' || cmd === 'asr') {
     let sub = args[1]?.toLowerCase();
