@@ -738,7 +738,7 @@ const CHARMS = {
   bronze_charm: { name: 'Bronze Charm', emoji: '🥉', price: 20000,   description: 'Rare+ weights **×1.05** (Legendary **×1.15**)',                multipliers: { Rare: 1.05, Epic: 1.05, Legendary: 1.15, Mythic: 1.05, Secret: 1.05 } },
   silver_charm: { name: 'Silver Charm', emoji: '🥈', price: 40000,  description: 'Rare+ weights **×1.15** (Legendary **×1.25**)',                multipliers: { Rare: 1.15, Epic: 1.15, Legendary: 1.25, Mythic: 1.15, Secret: 1.15 } },
   gold_charm:   { name: 'Gold Charm',   emoji: '🥇', price: 150000, description: 'Epic+ weights **×1.40**',                multipliers: { Epic: 1.40, Legendary: 1.40, Mythic: 1.40, Secret: 1.40 } },
-  void_charm:   { name: 'Void Charm',   emoji: '🌀', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
+  void_charm:   { name: 'Void Charm',   emoji: '<:void_charm:1538110932662616165>', price: 2000000, description: 'Legendary+ **×1.75**, Secret **×2.00**', multipliers: { Legendary: 1.75, Mythic: 1.75, Secret: 2.0 } },
 };
 
 // ─── Crates ───────────────────────────────────────────────────────────────────
@@ -2610,8 +2610,8 @@ const SHOP_PAGES = [
     const legMult = ch.multipliers.Legendary || null;
     const mytMult = ch.multipliers.Mythic    || null;
     const rateLines = [
-      legMult ? `${RARITY_EMOJIS.Legendary} Legendary ×${legMult.toFixed(2)}` : null,
-      mytMult ? `${RARITY_EMOJIS.Mythic} Mythic ×${mytMult.toFixed(2)}`    : null,
+      legMult ? `${RARITY_EMOJIS.Legendary} Legendary **×${legMult.toFixed(2)}**` : null,
+      mytMult ? `${RARITY_EMOJIS.Mythic} Mythic **×${mytMult.toFixed(2)}**`    : null,
     ].filter(Boolean).join('  ·  ');
     return { name: `${ch.emoji} ${ch.name} — ${ch.price.toLocaleString()} ${CURRENCY_NAME}${status}`, value: `${rateLines}\n\`!buy ${key}\`` };
   }) },
@@ -2619,7 +2619,7 @@ const SHOP_PAGES = [
 ];
 function buildShopEmbed(pageIndex, user, balance) {
   const page = SHOP_PAGES[pageIndex], total = SHOP_PAGES.length, fields = page.fields(user);
-  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  ${CURRENCY_EMOJI} Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages` }).setColor(0x7289DA);
+  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `Page ${pageIndex+1} of ${total}  •  Balance: ${balance.toLocaleString()} ${CURRENCY_NAME}  •  Use !shop <1-${total}> to switch pages`, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
 }
 
 process.on('SIGTERM', () => {
@@ -3365,16 +3365,17 @@ if (cmd === 'web') {
     if (mMatch) lockEntry.mutation = mMatch[1].toLowerCase();
     if (rMatch) lockEntry.rarity = rMatch[1].toLowerCase();
 
+    if (plantName) {
+      const db = loadDB(); const user = getUser(db, message.author.id);
+      const exists = PLANTS.some(p => p.name.toLowerCase() === plantName.toLowerCase());
+      if (!exists) return message.reply(`❌ **${plantName}** isn't a plant. Check your spelling!`);
+      const owned = user.collection.some(p => p.name.toLowerCase() === plantName.toLowerCase());
+      if (!owned) return message.reply(`❌ You don't own any **${plantName}**.`);
+    }
+
     const locks = loadLocks(message.author.id);
 
     if (cmd === 'lock') {
-      if (plantName) {
-        const db = loadDB(); const user = getUser(db, message.author.id);
-        const exists = PLANTS.some(p => p.name.toLowerCase() === plantName.toLowerCase());
-        if (!exists) return message.reply(`❌ **${plantName}** isn't a plant. Check your spelling!`);
-        const owned = user.collection.some(p => p.name.toLowerCase() === plantName.toLowerCase());
-        if (!owned) return message.reply(`❌ You don't own any **${plantName}**.`);
-      }
       const already = locks.some(l => JSON.stringify(l) === JSON.stringify(lockEntry));
       if (already) return message.reply('That lock already exists.');
       locks.push(lockEntry);
@@ -4998,10 +4999,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               'Charms boost your rarity odds in `!daily`, `!weekly` and crate openings.',
               '⚠️ Charms do **not** affect channel drops — the rarity is decided when the plant spawns.',
               '',
-              '🥉 **Bronze Charm** — Rare+ weights ×1.05',
-              '🥈 **Silver Charm** — Rare+ weights ×1.15',
-              '🥇 **Gold Charm** — Epic+ weights ×1.30',
-              '🌀 **Void Charm** — Legendary+ ×1.75, Mythic+ ×1.75',
+              '🥉 **Bronze Charm** — Rare+ weights **×1.05**',
+              '🥈 **Silver Charm** — Rare+ weights **×1.15**',
+              '🥇 **Gold Charm** — Epic+ weights **×1.30**',
+              '<:void_charm:1538110932662616165> **Void Charm** — Legendary+ **×1.75**, Mythic+ **×1.75**',
               '',
               'Use `!equip <charm>` to activate · `!unequip <charm>` to remove',
             ].join('\n'),
@@ -5188,10 +5189,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           {
             name: '🔮 Charms — boost daily/weekly/crate odds',
             value: [
-              '🥉 `bronze_charm` — Rare+ ×1.05 · 50,000 coins',
-              '🥈 `silver_charm` — Rare+ ×1.15 · 250,000 coins',
-              '🥇 `gold_charm` — Epic+ ×1.30 · 1,000,000 coins',
-              '🌀 `void_charm` — Legendary+ ×1.75 · 5,000,000 coins',
+              '🥉 `bronze_charm` — Rare+ **×1.05** · 50,000 coins',
+              '🥈 `silver_charm` — Rare+ **×1.15** · 250,000 coins',
+              '🥇 `gold_charm` — Epic+ **×1.30** · 1,000,000 coins',
+              '<:void_charm:1538110932662616165> `void_charm` — Legendary+ **×1.75** · 5,000,000 coins',
               '⚠️ Charms do **not** affect channel drops.',
               'Use `!equip <key>` · `!unequip <key>`',
             ].join('\n'),
