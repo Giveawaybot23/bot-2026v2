@@ -255,6 +255,7 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
   const soldPlants = candidates.map(idx => user.collection[idx]);
   for (const idx of candidates) user.collection.splice(idx, 1);
   user.currency += totalEarned;
+  trackEarned(user, totalEarned);
   for (const p of soldPlants) announceDroppable(p, 'sold', guildId).catch(() => {});
   return totalEarned;
 }
@@ -712,7 +713,7 @@ function calcSellValue(plant, rarity, mutation, version) {
 // ACHIEVEMENT OVERHAUL — PROGRESS LOG
 // Step 1 (schema/cleanup): DONE — 2026-08-17
 // Step 2 (race + win streak): DONE — 2026-08-17
-// Step 3 (economy tracking): PENDING
+// Step 3 (economy tracking): DONE — 2026-08-17
 // Step 4 (garden score + collection): PENDING
 // Step 5 (secret behavioral): PENDING
 // Step 6 (balance/QA pass): PENDING
@@ -728,6 +729,12 @@ const ACHIEVEMENTS = {
   frame_perfect:  { name: 'Frame Perfect', emoji: '🎯', description: '???',                          title: 'Frame Perfect', hidden: true,  reward: 5000,  check: u => u.bestRaceTime !== null && u.bestRaceTime !== undefined && u.bestRaceTime < 1500 },
   marathoner:     { name: 'Marathoner',    emoji: '🏃', description: 'Win 250 races',                title: 'Marathoner',   hidden: false, reward: 15000, check: u => (u.raceWins || 0) >= 250 },
   heartbreaker:   { name: 'Heartbreaker',  emoji: '💔', description: '???',                          title: 'Heartbreaker', hidden: true,  reward: 0,     check: u => !!u._heartbreakerTrigger },
+  pocket_change:  { name: 'Pocket Change', emoji: '🪙', description: 'Earn 25,000 lifetime coins',    title: 'Pocket Change', hidden: false, reward: 500,   check: u => (u.lifetimeCoinsEarned || 0) >= 25000 },
+  investor:       { name: 'Investor',      emoji: '📈', description: 'Earn 250,000 lifetime coins',   title: 'Investor',     hidden: false, reward: 2500,  check: u => (u.lifetimeCoinsEarned || 0) >= 250000 },
+  tycoon:         { name: 'Tycoon',        emoji: '🏦', description: 'Earn 2,500,000 lifetime coins', title: 'Tycoon',       hidden: false, reward: 15000, check: u => (u.lifetimeCoinsEarned || 0) >= 2500000 },
+  mogul:          { name: 'Mogul',         emoji: '👔', description: 'Earn 25,000,000 lifetime coins', title: 'Mogul',       hidden: false, reward: 75000, check: u => (u.lifetimeCoinsEarned || 0) >= 25000000 },
+  big_spender:    { name: 'Big Spender',   emoji: '💸', description: '???',                          title: 'Big Spender',  hidden: true,  reward: 0,     check: u => !!u._bigSpenderTrigger },
+  broke:          { name: 'Broke',         emoji: '🫙', description: '???',                          title: 'Broke',        hidden: true,  reward: 0,     check: u => !!u._brokeTrigger },
 };
 
 // ─── Shop Titles ──────────────────────────────────────────────────────────────
@@ -1207,6 +1214,31 @@ function checkAchievements(user, userId) {
   return newOnes;
 }
 
+// Call after any GENUINE earning (`.currency +=`) — sells, trade receives after
+// tax, daily/weekly payouts, auction/market sell proceeds, admin grants. Not
+// for refunds — those return the user's own money rather than create new value.
+function trackEarned(user, amount) {
+  if (!amount) return;
+  user.lifetimeCoinsEarned = (user.lifetimeCoinsEarned || 0) + amount;
+}
+
+// Call after any GENUINE spend (`.currency -=`) — crate buys, shop buys,
+// auction bids/buyouts, trade coin sends, merchant buys. Not for admin
+// deductions. Handles the big_spender / broke hidden-achievement triggers
+// as explicit events at the point of the transaction, not as polled state.
+function trackSpent(user, userId, amount) {
+  if (!amount) return;
+  user.coinsSpent = (user.coinsSpent || 0) + amount;
+  let fired = false;
+  if (amount >= 500000) { user._bigSpenderTrigger = true; fired = true; }
+  if (user.currency === 0) { user._brokeTrigger = true; fired = true; }
+  if (fired) {
+    checkAchievements(user, userId);
+    delete user._bigSpenderTrigger;
+    delete user._brokeTrigger;
+  }
+}
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function randomCaptcha(len = 6) {
   const chars = 'ABCDEFGHJKLMNPRSTUVWY';
@@ -1620,7 +1652,9 @@ function startPayoutLoop() {
       for (let i = 0; i < top.length; i++) {
         const entry  = top[i];
         const payout = DAILY_PAYOUTS[i];
-        getUser(db, entry.userId).currency += payout;
+        const lbUser = getUser(db, entry.userId);
+        lbUser.currency += payout;
+        trackEarned(lbUser, payout);
         lines.push(
           `${medals[i]} **#${i + 1}** — <@${entry.userId}> ` +
           `· **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`
@@ -1665,7 +1699,9 @@ function startPayoutLoop() {
       for (let i = 0; i < top.length; i++) {
         const entry  = top[i];
         const payout = WEEKLY_PAYOUTS[i];
-        getUser(db, entry.userId).currency += payout;
+        const lbUser = getUser(db, entry.userId);
+        lbUser.currency += payout;
+        trackEarned(lbUser, payout);
         lines.push(
           `${medals[i]} **#${i + 1}** — <@${entry.userId}> ` +
           `· **${entry.count} claims** · +${CURRENCY_EMOJI} **${payout.toLocaleString()}**`
@@ -2865,6 +2901,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     let autoEarned = 0;
     if (!TEST_IDS.has(message.author.id)) {
       user.currency -= crate.price;
+      trackSpent(user, message.author.id, crate.price);
       user.crateCooldowns[crateKey] = Date.now();
       const addedCratePlants = [];
       const captchaCrateMeta = loadMeta();
@@ -2919,6 +2956,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           if (idx !== -1) user.collection.splice(idx, 1);
         }
         user.currency += totalVal;
+        trackEarned(user, totalVal);
         saveDB(db);
         for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
         const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
@@ -2932,6 +2970,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       user.collection.splice(index, 1);
       const price = getLiveSellValue(plant);
       user.currency += price;
+      trackEarned(user, price);
       // remove locks for plants no longer owned
       const remaining = loadLocks(message.author.id).filter(l => {
         if (!l.name) return true;
@@ -2980,6 +3019,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     const count = sellable.length;
     user.collection = user.collection.filter(p => isLocked(message.author.id, p));
     user.currency += totalVal;
+    trackEarned(user, totalVal);
     saveDB(db);
     for (const p of sellable) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
     return message.channel.send({ embeds: [new EmbedBuilder()
@@ -3085,6 +3125,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
       // Deduct new bid amount immediately
       user.currency -= bidAmount;
+      trackSpent(user, message.author.id, bidAmount);
 
       auction.bids.push({ userId: message.author.id, username: message.author.username, amount: bidAmount, time: Date.now() });
 
@@ -3134,8 +3175,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       if (buyer.currency < auction.buyoutPrice) return message.reply(`❌ Need ${fmt(auction.buyoutPrice)}.`);
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
+      trackSpent(buyer, message.author.id, auction.buyoutPrice);
       const sellerReceives = applyTax(auction.buyoutPrice);
       seller.currency += sellerReceives;
+      trackEarned(seller, sellerReceives);
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
@@ -4132,6 +4175,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
     for (const idx of indexesToRemove) user.collection.splice(idx, 1);
     user.currency += totalCoins;
+    trackEarned(user, totalCoins);
     touchActivity(db, message.author.id, message.author);
     checkAchievements(user, message.author.id);
     saveDB(db);
@@ -4413,7 +4457,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
-      user.currency += coins; user.lastDaily = now;
+      user.currency += coins; trackEarned(user, coins); user.lastDaily = now;
       addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
@@ -4436,7 +4480,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       for (const p of plants) {
         grantPlant(user, { name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
-      user.currency += coins; user.lastWeekly = now;
+      user.currency += coins; trackEarned(user, coins); user.lastWeekly = now;
       addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
@@ -4493,14 +4537,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const ch = CHARMS[itemKey];
       if (user.charms.includes(itemKey)) return message.reply(`You already own **${ch.name}**!`);
       if (user.currency < ch.price) return message.reply(`❌ Need ${fmt(ch.price)}.`);
-      user.currency -= ch.price; user.charms.push(itemKey); saveDB(db);
+      user.currency -= ch.price; trackSpent(user, message.author.id, ch.price); user.charms.push(itemKey); saveDB(db);
       return message.reply(`${ch.emoji} Purchased **${ch.name}**! Use \`!equip ${itemKey}\` to activate.`);
     }
     if (SHOP_TITLES[itemKey]) {
       const t = SHOP_TITLES[itemKey];
       if (user.titles.includes(itemKey)) return message.reply(`You already own the **${t.name}** title!`);
       if (user.currency < t.price) return message.reply(`❌ Need ${fmt(t.price)}.`);
-      user.currency -= t.price; user.titles.push(itemKey); saveDB(db);
+      user.currency -= t.price; trackSpent(user, message.author.id, t.price); user.titles.push(itemKey); saveDB(db);
       return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
     }
     let autoEarned = 0;
@@ -4542,6 +4586,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       let dupeBlockedCount = 0;
       if (!TEST_IDS.has(message.author.id)) {
         user.currency -= crate.price;
+        trackSpent(user, message.author.id, crate.price);
         user.crateCooldowns[crateKey] = Date.now();
         const crateMeta = loadMeta();
         for (const p of results) {
@@ -4606,7 +4651,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; saveDB(db); pushCoinUpdate(target.id, user.currency);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; trackEarned(user, amount); saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
   if (cmd === 'addplant') {
@@ -5362,6 +5407,7 @@ async function endAuction(auctionId, fallbackChannel) {
   // (minus market tax — see TRADE_TAX_RATE/applyTax above)
   const sellerReceives = applyTax(winner.amount);
   seller.currency += sellerReceives;
+  trackEarned(seller, sellerReceives);
   grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
@@ -5599,8 +5645,10 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       if (buyer.currency < auction.buyoutPrice) return res.status(400).json({ error: `Not enough coins`, balance: buyer.currency });
       const seller = getUser(db, auction.sellerId);
       buyer.currency -= auction.buyoutPrice;
+      trackSpent(buyer, req.user.id, auction.buyoutPrice);
       const sellerReceives = applyTax(auction.buyoutPrice);
       seller.currency += sellerReceives;
+      trackEarned(seller, sellerReceives);
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       saveDB(db);
       auctions.splice(idx, 1);
@@ -5645,6 +5693,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
 
     // Deduct new bid amount immediately
     user.currency -= bidAmount;
+    trackSpent(user, req.user.id, bidAmount);
 
     // Soft-close extension
     const timeLeft   = auction.endsAt - Date.now();
@@ -5981,6 +6030,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       const results     = openCrate(crateId, db, req.user.id);
       const addedPlants = [];
       user.currency -= crate.price;
+      trackSpent(user, req.user.id, crate.price);
       user.crateCooldowns[crateId] = Date.now();
 
       const crateMeta = loadMeta();
@@ -6180,8 +6230,10 @@ app.post('/api/market/buy/:id', async (req, res) => {
     if (buyer.currency < listing.price) return res.status(400).json({ error: `Not enough coins — need ${listing.price.toLocaleString()}` });
 
     buyer.currency  -= listing.price;
+    trackSpent(buyer, req.user.id, listing.price);
     const sellerReceives = applyTax(listing.price);
     seller.currency += sellerReceives;
+    trackEarned(seller, sellerReceives);
     grantPlant(buyer, { ...listing.plant, claimedAt: new Date().toISOString() });
 
     saveDB(db);
@@ -6373,8 +6425,20 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
       // taxed — there's no currency flow to skim. Each direction is taxed
       // independently since a trade can have coins moving both ways at once.
       let iReceivedNet = 0, tReceivedNet = 0;
-      if (iSide.coins > 0) { iUser.currency -= iSide.coins; tReceivedNet = applyTax(iSide.coins); tUser.currency += tReceivedNet; }
-      if (tSide.coins > 0) { tUser.currency -= tSide.coins; iReceivedNet = applyTax(tSide.coins); iUser.currency += iReceivedNet; }
+      if (iSide.coins > 0) {
+        iUser.currency -= iSide.coins;
+        trackSpent(iUser, trade.initiatorId, iSide.coins);
+        tReceivedNet = applyTax(iSide.coins);
+        tUser.currency += tReceivedNet;
+        trackEarned(tUser, tReceivedNet);
+      }
+      if (tSide.coins > 0) {
+        tUser.currency -= tSide.coins;
+        trackSpent(tUser, trade.targetId, tSide.coins);
+        iReceivedNet = applyTax(tSide.coins);
+        iUser.currency += iReceivedNet;
+        trackEarned(iUser, iReceivedNet);
+      }
 
       touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
       saveDB(db);
@@ -6622,6 +6686,7 @@ app.post('/api/merchant/buy', express.json(), async (req, res) => {
   const user = getUser(db, req.user.id);
   if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
   user.currency -= price;
+  trackSpent(user, req.user.id, price);
 
   const now = Date.now();
   let extraData = {};
@@ -6699,6 +6764,7 @@ app.post('/api/merchant/crate', express.json(), (req, res) => {
   const user = getUser(db, req.user.id);
   if ((user.currency || 0) < price) return res.status(400).json({ error: 'Not enough coins' });
   user.currency -= price;
+  trackSpent(user, req.user.id, price);
 
   const rarity = merchantWeightedPick(pool);
   const plant = getMerchantPlantByRarity(rarity);
