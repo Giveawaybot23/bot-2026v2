@@ -3824,9 +3824,80 @@ if (cmd === 'web') {
   if (cmd === 'achievements' || cmd === 'ach') {
     const target = (await resolveTarget(message, args[1])) || message.author;
     const db = loadDB(); const user = getUser(db, target.id);
-    const visible = Object.entries(ACHIEVEMENTS).filter(([key, a]) => !a.hidden || user.achievements.includes(key));
-    const lines = visible.map(([key, a]) => { const done = user.achievements.includes(key); return `${done ? a.emoji : '⬛'} **${a.name}** — ${a.description}${done ? '' : ' *(locked)*'}`; });
-    return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`🏅 ${target.username}'s Achievements (${user.achievements.length}/${visible.length})`).setDescription(lines.join('\n')).setColor(0xFFD700)] });
+
+    // Buckets by achievement key — anything not explicitly listed falls into "Other"
+    // so the tabs never silently drop a newly-added achievement.
+    const ACH_CATEGORIES = [
+      { id: 'collection', label: 'Collection', emoji: '🌱', keys: ['first_claim', 'full_set', 'mutation_enthusiast', 'storm_chaser', 'the_vault', 'archivist'] },
+      { id: 'racing',     label: 'Racing',     emoji: '🏁', keys: ['quick_draw', 'reflexes', 'inhuman', 'frame_perfect', 'marathoner'] },
+      { id: 'economy',    label: 'Economy',    emoji: '💰', keys: ['pocket_change', 'investor', 'tycoon', 'mogul', 'big_spender', 'broke'] },
+      { id: 'garden',     label: 'Garden Rank', emoji: '🏆', keys: Object.keys(ACHIEVEMENTS).filter(k => k.startsWith('garden_')) },
+      { id: 'secret',     label: 'Secret',     emoji: '🎭', keys: ['heartbreaker', 'bad_trade', 'buyers_remorse', 'jackpot', 'clean_sweep', 'deja_vu'] },
+    ];
+    const bucketed = new Set(ACH_CATEGORIES.flatMap(c => c.keys));
+    const leftover = Object.keys(ACHIEVEMENTS).filter(k => !bucketed.has(k));
+    if (leftover.length) ACH_CATEGORIES.push({ id: 'other', label: 'Other', emoji: '✨', keys: leftover });
+
+    const totalVisible = Object.entries(ACHIEVEMENTS).filter(([key, a]) => !a.hidden || user.achievements.includes(key)).length;
+
+    function categoryEntries(cat) {
+      return cat.keys
+        .filter(k => ACHIEVEMENTS[k])
+        .map(k => [k, ACHIEVEMENTS[k]])
+        .filter(([key, a]) => !a.hidden || user.achievements.includes(key));
+    }
+
+    function buildAchEmbed(catIdx) {
+      const cat = ACH_CATEGORIES[catIdx];
+      const entries = categoryEntries(cat);
+      const done = entries.filter(([key]) => user.achievements.includes(key)).length;
+      const lines = entries.length
+        ? entries.map(([key, a]) => {
+            const isDone = user.achievements.includes(key);
+            return `${isDone ? a.emoji : '⬛'} **${a.name}** — ${a.description}${isDone ? '' : ' *(locked)*'}`;
+          })
+        : ['*Nothing here yet.*'];
+      return new EmbedBuilder()
+        .setTitle(`🏅 ${target.username}'s Achievements — ${cat.emoji} ${cat.label} (${done}/${entries.length})`)
+        .setDescription(lines.join('\n'))
+        .setColor(0xFFD700)
+        .setFooter({ text: `${user.achievements.length}/${totalVisible} total across all categories` });
+    }
+
+    function buildAchRow(catIdx) {
+      return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('ach_category')
+          .setPlaceholder(`${ACH_CATEGORIES[catIdx].emoji} ${ACH_CATEGORIES[catIdx].label}`)
+          .addOptions(ACH_CATEGORIES.map((cat, i) => ({
+            label: cat.label,
+            emoji: cat.emoji,
+            value: String(i),
+            default: i === catIdx,
+          })))
+      );
+    }
+
+    if (ACH_CATEGORIES.length <= 1) {
+      return message.channel.send({ embeds: [buildAchEmbed(0)] });
+    }
+
+    let currentAchCat = 0;
+    const achMsg = await message.channel.send({ embeds: [buildAchEmbed(currentAchCat)], components: [buildAchRow(currentAchCat)] });
+    const achCollector = achMsg.createMessageComponentCollector({ time: 120_000 });
+    achCollector.on('collect', async interaction => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({ content: '❌ Only the person who ran this command can switch categories.', ephemeral: true });
+      }
+      if (interaction.customId === 'ach_category') {
+        currentAchCat = parseInt(interaction.values[0], 10);
+      }
+      await interaction.update({ embeds: [buildAchEmbed(currentAchCat)], components: [buildAchRow(currentAchCat)] });
+    });
+    achCollector.on('end', () => {
+      achMsg.edit({ components: [] }).catch(() => {});
+    });
+    return;
   }
 
   // ── !settitle / !title ────────────────────────────────────────────────────
