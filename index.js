@@ -499,22 +499,26 @@ const MUTATIONS = [
 ];
 
 // ─── Weather System ────────────────────────────────────────────────────────
+// Weather NAMES are final as of pre-release lock. Each weather has its own
+// `mutation` field pointing at the MUTATIONS entry it triggers — the two are
+// deliberately NOT the same string anymore (e.g. "Sunshine" weather →
+// "Glow" mutation), so don't assume weather.name === mutation.name anywhere.
 const WEATHER_TYPES = [
-  { name: 'Eclipsed',   emoji: '<:eclipsed:1477666927135428650>', color: 0x2a0a3d, weight: 1,
+  { name: 'Eclipse',   mutation: 'Eclipsed',   emoji: '<:eclipsed:1477666927135428650>', color: 0x2a0a3d, weight: 1,
     desc: 'A total eclipse blankets the garden in darkness — mutated cards are wildly overcharged (5.0x).' },
-  { name: 'Ignited',    emoji: '<:ignited:1534229469185839204>', color: 0xFF4500, weight: 2,
+  { name: 'Sunburst',  mutation: 'Ignited',    emoji: '<:ignited:1534229469185839204>', color: 0xFF4500, weight: 2,
     desc: 'Wildfire heat rolls across the fields — mutated cards burn hotter than usual (4.2x).' },
-  { name: 'Bloodlit',   emoji: '<:bloodlit:1534227550920900831>', color: 0x8B0000, weight: 2,
+  { name: 'Bloodmoon', mutation: 'Bloodlit',   emoji: '<:bloodlit:1534227550920900831>', color: 0x8B0000, weight: 2,
     desc: 'A crimson haze settles over everything — mutated cards pulse with dark energy (4.0x).' },
-  { name: 'Glow',       emoji: '<:glow:1477666867890884628>', color: 0xADFF2F, weight: 3,
+  { name: 'Sunshine',  mutation: 'Glow',       emoji: '<:glow:1477666867890884628>', color: 0xADFF2F, weight: 3,
     desc: 'The garden hums with a soft radiance — mutated cards shine brighter than normal (3.5x).' },
-  { name: 'Starstruck', emoji: '<:starstruck:1534230447247327303>', color: 0xFFFF00, weight: 4,
+  { name: 'Starfall',  mutation: 'Starstruck', emoji: '<:starstruck:1534230447247327303>', color: 0xFFFF00, weight: 4,
     desc: 'Falling stars streak overhead — mutated cards sparkle with cosmic power (3.0x).' },
-  { name: 'Electric',   emoji: '<a:lightning:1534229071385333770>', color: 0xFFDD00, weight: 6,
+  { name: 'Lightning', mutation: 'Electric',   emoji: '<a:lightning:1534229071385333770>', color: 0xFFDD00, weight: 6,
     desc: 'Static crackles through the air — mutated cards carry a jolt of extra charge (2.0x).' },
-  { name: 'Frozen',     emoji: '<:frozen:1477666846382620683>', color: 0xADD8E6, weight: 12,
+  { name: 'Snowfall',  mutation: 'Frozen',     emoji: '<:frozen:1477666846382620683>', color: 0xADD8E6, weight: 12,
     desc: 'A cold snap has frozen the garden overnight — mutated cards get a light chill boost (1.4x).' },
-  { name: 'Aurora',     emoji: '<:aurora:1534229653211054262>', color: 0x66CCFF, weight: 15,
+  { name: 'Aurora',    mutation: 'Aurora',     emoji: '<:aurora:1534229653211054262>', color: 0x66CCFF, weight: 15,
     desc: 'A faint celestial glow washes over everything — mutated cards get a small boost (1.15x).' },
 ];
 const WEATHER_INTERVAL_MS = 60 * 60 * 1000; // how often a new weather event can start
@@ -545,10 +549,12 @@ const WEATHER_MUTATION_CHANCE_CRATE = 0.01; // 1% per crate slot while weather i
 function rollMutation(weatherName, chance = WEATHER_MUTATION_CHANCE_DROP) {
   // No active weather = no mutations at all, full stop.
   if (!weatherName) return null;
-  // While a weather event is active, ONLY the mutation matching that weather
-  // can spawn (or no mutation at all) — every other mutation is completely
-  // excluded from the roll, not just de-weighted.
-  const match = MUTATIONS.find(m => m.name === weatherName);
+  // While a weather event is active, ONLY the mutation tied to that specific
+  // weather can spawn (or no mutation at all) — every other mutation is
+  // completely excluded from the roll, not just de-weighted.
+  const weatherType = WEATHER_TYPES.find(w => w.name === weatherName);
+  if (!weatherType) return null;
+  const match = MUTATIONS.find(m => m.name === weatherType.mutation);
   if (!match) return null;
   return Math.random() < chance ? match : null;
 }
@@ -1330,76 +1336,32 @@ async function generateDropImage(plant, captcha, rarityColor, weather) {
   return canvas.toBuffer('image/png');
 }
 
-function generateWeatherImage(weather) {
-  const W = 500, H = 220;
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext('2d');
-  const r = (weather.color >> 16) & 0xFF, g = (weather.color >> 8) & 0xFF, b = weather.color & 0xFF;
-  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, `rgba(${r},${g},${b},0.55)`);
-  bgGrad.addColorStop(1, '#05060a');
-  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
-  // Weather-flavored particles
-  if (weather.name === 'Bloodlit') {
-    for (let i = 0; i < 60; i++) {
-      ctx.strokeStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.2})`;
-      const x = Math.random() * W, y = Math.random() * H;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 16); ctx.stroke();
-    }
-  } else if (weather.name === 'Frozen') {
-    for (let i = 0; i < 40; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.25})`;
-      ctx.beginPath(); ctx.arc(Math.random() * W, Math.random() * H, Math.random() * 2 + 1, 0, Math.PI * 2); ctx.fill();
-    }
-  } else if (weather.name === 'Ignited') {
-    for (let i = 0; i < 10; i++) {
-      ctx.strokeStyle = `rgba(255,150,0,${0.1 + Math.random() * 0.15})`;
-      ctx.lineWidth = 2;
-      const x = Math.random() * W;
-      ctx.beginPath(); ctx.moveTo(x, H); ctx.quadraticCurveTo(x + 20, H / 2, x, 0); ctx.stroke();
-    }
-  } else if (weather.name === 'Electric') {
-    for (let i = 0; i < 12; i++) {
-      ctx.strokeStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.15})`;
-      ctx.lineWidth = 2;
-      const y = Math.random() * H;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(W * 0.3, y - 15, W * 0.6, y + 15, W, y); ctx.stroke();
-    }
-  } else if (weather.name === 'Aurora') {
-    for (let i = 0; i < 3; i++) {
-      const grad = ctx.createLinearGradient(0, 0, W, 0);
-      grad.addColorStop(0, 'rgba(0,255,200,0)');
-      grad.addColorStop(0.5, `rgba(${r},${g},${b},0.35)`);
-      grad.addColorStop(1, 'rgba(0,255,200,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 30 + i * 50, W, 24);
-    }
-  }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.save();
-  ctx.shadowColor = `rgba(${r},${g},${b},0.9)`; ctx.shadowBlur = 18;
-  ctx.font = 'bold 34px Arial'; ctx.fillStyle = '#ffffff';
-  ctx.fillText(weather.name.toUpperCase(), W / 2, H / 2 - 10);
-  ctx.restore();
-  ctx.font = '14px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText('WEATHER EVENT', W / 2, H / 2 + 24);
-  drawWatermark(ctx, W, H);
-  return canvas.toBuffer('image/png');
+// Weather event GIFs live in bot2026/images/Weathers/<WeatherName>.gif —
+// filenames match WEATHER_TYPES[].name exactly (final pre-release names).
+const WEATHER_GIF_DIR = path.join(__dirname, 'bot2026', 'images', 'Weathers');
+function getWeatherGifPath(weather) {
+  return path.join(WEATHER_GIF_DIR, `${weather.name}.gif`);
 }
 async function sendWeatherEvent(channel, forcedWeather = null) {
   const weather = forcedWeather || pickWeather();
   const now = Date.now();
   currentWeather = { ...weather, startedAt: now, endsAt: now + WEATHER_DURATION_MS };
-  const imgBuffer = generateWeatherImage(weather);
-  const attachment = new AttachmentBuilder(imgBuffer, { name: 'weather.png' });
+  const gifPath  = getWeatherGifPath(weather);
+  const fileName = `${weather.name}.gif`;
   const embed = new EmbedBuilder()
     .setTitle(`${weather.emoji} WEATHER EVENT — ${weather.name}`)
     .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
-    .setImage('attachment://weather.png')
     .setColor(weather.color)
     .setFooter({ text: `Lasts 30 minutes · ${SERVER_NAME}` })
     .setTimestamp();
-  await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
+  if (fs.existsSync(gifPath)) {
+    const attachment = new AttachmentBuilder(gifPath, { name: fileName });
+    embed.setImage(`attachment://${fileName}`);
+    await channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
+  } else {
+    console.error(`[weather] missing gif for "${weather.name}" at ${gifPath}`);
+    await channel.send({ embeds: [embed] }).catch(console.error);
+  }
 }
 function startWeatherLoop() {
   setInterval(async () => {
