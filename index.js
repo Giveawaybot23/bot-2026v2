@@ -147,6 +147,25 @@ function loadAutosellRules() {
   return JSON.parse(fs.readFileSync(AUTOSELL_FILE));
 }
 function saveAutosellRules(r) { atomicWriteFileSync(AUTOSELL_FILE, JSON.stringify(r, null, 2)); }
+
+function formatVersionRanges(versions) {
+  const sorted = [...versions].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur === prev + 1) {
+      prev = cur;
+      continue;
+    }
+    ranges.push(start === prev ? `v${start}` : `v${start}-v${prev}`);
+    start = cur;
+    prev = cur;
+  }
+  return ranges.join(', ');
+}
+
 function getUserAutosellRules(userId) {
   return loadAutosellRules()[userId] || [];
 }
@@ -4043,7 +4062,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         if (r.mutations && r.mutations.length) parts.push(`mutations: **${r.mutations.join(', ')}**`);
         else if (r.mutation) parts.push(`mutation: **${r.mutation}**`);
         if (r.plant)      parts.push(`plant: **${r.plant}**`);
-        if (r.versions && r.versions.length)   parts.push(`versions: **${r.versions.map(v => 'v' + v).join(', ')}**`);
+        if (r.versions && r.versions.length)   parts.push(`versions: **${formatVersionRanges(r.versions)}**`);
         else if (r.version_op) parts.push(`version **${r.version_op}${r.version_n}**`);
         return `\`${i + 1}.\` ${parts.join('  ·  ')}`;
       });
