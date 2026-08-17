@@ -4292,7 +4292,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
         const all = loadAutosellRules();
         if (!all[message.author.id]) all[message.author.id] = [];
-        const existing = all[message.author.id];
+        let existing = all[message.author.id];
+
+        // Upsert: a rarity should only ever have ONE active rule. Replace any
+        // existing rule for a rarity being (re)configured instead of stacking
+        // a new one on top — otherwise `!autosell list` fills up with stale
+        // old configurations instead of showing what's currently applied.
+        const selectedLower = selectedRarities.map(r => r.toLowerCase());
+        existing = existing.filter(r => !(r.rarity && selectedLower.includes(r.rarity.toLowerCase()) && !r.plant));
 
         const added = [];
         let skippedForCap = 0;
