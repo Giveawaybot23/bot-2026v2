@@ -2973,7 +2973,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     // Strict mode — ignore all commands except claim
     const isClaimAttempt = message.content.trim().toLowerCase().startsWith('claim ');
     const isCommand = message.content.trim().startsWith(PREFIX);
-    const isMod = message.member?.permissions.has(PermissionsBitField.Flags.ManageMessages);
+    const isMod = message.member?.permissions.has(PermissionsBitField.Flags.ManageMessages)
+      || message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)
+      || message.member?.permissions.has(PermissionsBitField.Flags.Administrator);
     if (!isClaimAttempt && isCommand && !isMod) {
       return;
     }
@@ -3530,7 +3532,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !setpayout ────────────────────────────────────────────────────────────
   if (cmd === 'setpayout') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!message.guild) return message.reply('❌ Use this command in a server channel.');
+    if (!message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+      return message.reply('Need **Manage Channels**.');
+    }
 
     if (args[1]?.toLowerCase() === 'stop') {
       delete payoutChannels[message.guild.id];
@@ -3538,32 +3543,45 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       return message.reply('✅ Payout announcements disabled.');
     }
 
-    const rawId    = args[1]?.replace(/[<#>]/g, '');
-    const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
-    if (!targetCh) return message.reply('❌ Channel not found.');
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    let targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
+    if (!targetCh && rawId) {
+      try { targetCh = await client.channels.fetch(rawId); } catch { /* fall through */ }
+    }
+    if (!targetCh) {
+      return message.reply('❌ Channel not found. Use a channel mention like `#payouts` (click the channel when typing).');
+    }
+    if (targetCh.guild?.id && targetCh.guild.id !== message.guild.id) {
+      return message.reply('❌ That channel is in a different server.');
+    }
 
-    payoutChannels[message.guild.id] = targetCh.id;
-    const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
+    try {
+      payoutChannels[message.guild.id] = targetCh.id;
+      const s = loadSettings(); s.payoutChannels = payoutChannels; saveSettings(s);
 
-    const state = loadPayoutState();
-    ensurePayoutSchedule(state);
-    savePayoutState(state);
+      const state = loadPayoutState();
+      ensurePayoutSchedule(state);
+      savePayoutState(state);
 
-    const dailyStart  = state.dailyEndsAt - PAYOUT_DAY_MS;
-    const weeklyStart = state.weeklyEndsAt - PAYOUT_WEEK_MS;
+      const dailyStart  = state.dailyEndsAt - PAYOUT_DAY_MS;
+      const weeklyStart = state.weeklyEndsAt - PAYOUT_WEEK_MS;
 
-    await targetCh.send({
-      embeds: [
-        buildDailyStartEmbed(dailyStart, state.dailyEndsAt),
-        buildWeeklyStartEmbed(weeklyStart, state.weeklyEndsAt),
-      ],
-    });
+      await targetCh.send({
+        embeds: [
+          buildDailyStartEmbed(dailyStart, state.dailyEndsAt),
+          buildWeeklyStartEmbed(weeklyStart, state.weeklyEndsAt),
+        ],
+      });
 
-    state.lastDailyStartPostedAt  = dailyStart;
-    state.lastWeeklyStartPostedAt = weeklyStart;
-    savePayoutState(state);
+      state.lastDailyStartPostedAt  = dailyStart;
+      state.lastWeeklyStartPostedAt = weeklyStart;
+      savePayoutState(state);
 
-    return message.reply(`✅ Payout announcements set → <#${targetCh.id}>.`);
+      return message.reply(`✅ Payout announcements set → <#${targetCh.id}>.`);
+    } catch (err) {
+      console.error('setpayout failed:', err);
+      return message.reply(`❌ Failed to set payout channel: ${err.message}`);
+    }
   }
 
   // ── !setauction ───────────────────────────────────────────────────────────
