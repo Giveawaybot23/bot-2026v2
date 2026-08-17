@@ -2120,16 +2120,17 @@ async function generateProfileImage(data) {
   ctx.fillText(chipTxt, chipX + 8 + (chipIconDrawn ? ICON_SIZE + ICON_GAP : 0), chipY);
   ctx.textAlign = 'center';
 
-  // Hero "level" readout anchored to sidebar bottom
+  // Hero "level" readout anchored to sidebar bottom — nudged up to sit closer
+  // to the tier chip instead of hugging the very bottom edge.
   ctx.fillStyle = 'rgba(255,255,255,0.30)';
   ctx.font = 'bold 11px Arial';
-  ctx.fillText('LEVEL', ACX, H - 62);
+  ctx.fillText('LEVEL', ACX, H - 88);
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 46px Arial';
-  ctx.fillText(String(data.level), ACX, H - 32);
+  ctx.fillText(String(data.level), ACX, H - 58);
   ctx.fillStyle = tierHex;
   ctx.font = 'bold 12px Arial';
-  ctx.fillText(`${data.rankEmoji} ${data.rankName}`, ACX, H - 10, SB_W - 16);
+  ctx.fillText(data.rankName, ACX, H - 34, SB_W - 16);
   ctx.textAlign = 'left';
 
   // ── Main panel ─────────────────────────────────────────────────────────
@@ -2180,23 +2181,21 @@ async function generateProfileImage(data) {
   ctx.font = '11px Arial';
   ctx.fillText(`${data.totalXp.toLocaleString()} total XP`, MX, barY + barH + 16);
 
-  // Stat rows (list instead of boxed pills)
+  // Stat rows (list instead of boxed pills) — no emoji, plain label/value
   const rows = [
-    { icon: '💰', label: 'Balance',      value: `${data.balance.toLocaleString()} ${CURRENCY_NAME}` },
-    { icon: '🌱', label: 'Plants',       value: String(data.plants) },
-    { icon: '🏅', label: 'Achievements', value: `${data.achievements} / ${data.totalAchievements}` },
+    { label: 'Balance',      value: `${data.balance.toLocaleString()} ${CURRENCY_NAME}` },
+    { label: 'Plants',       value: String(data.plants) },
+    { label: 'Achievements', value: `${data.achievements} / ${data.totalAchievements}` },
   ];
-  let rowY = 122;
+  let rowY = 130;
   const ROW_H = 34;
   rows.forEach((r, i) => {
     if (i > 0) {
       ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2); ctx.lineTo(W - 20, rowY - ROW_H / 2); ctx.stroke();
     }
-    ctx.font = '16px Arial'; ctx.fillStyle = '#ffffff';
-    ctx.fillText(r.icon, MX, rowY);
     ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText(r.label, MX + 26, rowY);
+    ctx.fillText(r.label, MX, rowY);
     ctx.textAlign = 'right';
     ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#ffffff';
     ctx.fillText(r.value, W - 20, rowY);
@@ -2204,20 +2203,42 @@ async function generateProfileImage(data) {
     rowY += ROW_H;
   });
 
-  // Divider before charms
+  // Garden Score row — glows in the player's actual garden-tier color, so it
+  // reads pink at Grandmaster, black at Secret, etc. Near-black tiers keep a
+  // white fill (with the black glow behind it) so the text stays legible.
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2 + 6); ctx.lineTo(W - 20, rowY - ROW_H / 2 + 6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2); ctx.lineTo(W - 20, rowY - ROW_H / 2); ctx.stroke();
+  const rawTier = data.gardenTier.color;
+  const rtR = (rawTier >> 16) & 0xFF, rtG = (rawTier >> 8) & 0xFF, rtB = rawTier & 0xFF;
+  const isNearBlackTier = rtR < 20 && rtG < 20 && rtB < 20;
+  const gsGlow = `rgb(${rtR},${rtG},${rtB})`;
+  const gsFill = isNearBlackTier ? '#ffffff' : gsGlow;
+  ctx.save();
+  ctx.shadowColor = gsGlow; ctx.shadowBlur = 10;
+  ctx.font = '13px Arial'; ctx.fillStyle = gsFill;
+  ctx.fillText('Garden Score', MX, rowY);
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px Arial';
+  ctx.fillText(data.gardenScore.toLocaleString(), W - 20, rowY);
+  ctx.textAlign = 'left';
+  ctx.restore();
+  rowY += ROW_H;
 
-  // Equipped charms
+  // Divider before charms, then push the equipped row down into the freed-up
+  // space so the 4 stats above aren't crowded together.
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(MX, rowY - ROW_H / 2 + 4); ctx.lineTo(W - 20, rowY - ROW_H / 2 + 4); ctx.stroke();
+
+  const equippedY = rowY + 22;
   ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText('Equipped', MX, rowY + 6);
+  ctx.fillText('Equipped', MX, equippedY);
   ctx.textAlign = 'right';
   if (data.equippedCharms.length) {
-    ctx.font = '20px Arial'; ctx.fillStyle = '#ffffff';
-    ctx.fillText(data.equippedCharms.join('  '), W - 20, rowY + 6, MW - 90);
+    ctx.font = 'bold 13px Arial'; ctx.fillStyle = '#ffffff';
+    ctx.fillText(data.equippedCharms.join(', '), W - 20, equippedY, MW - 90);
   } else {
     ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.fillText('None', W - 20, rowY + 6);
+    ctx.fillText('None', W - 20, equippedY);
   }
   ctx.textAlign = 'left';
 
@@ -3553,7 +3574,7 @@ if (cmd === 'web') {
     const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
     const gardenScore = calcWeightedGardenScore(user.collection);
     const gardenTier  = getGardenTier(gardenScore);
-    const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.emoji || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
+    const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.name || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
     const att = new AttachmentBuilder(imgBuf, { name: 'profile.png' });
     return message.channel.send({ files: [att], embeds: [new EmbedBuilder().setImage('attachment://profile.png').setColor(0x4d96ff)] });
   }
