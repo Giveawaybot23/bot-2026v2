@@ -483,6 +483,24 @@ const RARITY_WEIGHT_BONUS = {
 // plants (grinding AND trading), not one drop. Tune these two constants to
 // taste — raising the cap lets big single hits matter more, raising the dampen
 // factor softens the falloff above the cap.
+
+// Low-rarity v1 Garden Score bonus — a v1 Common currently scores ~35, which is
+// invisible against tier thresholds (Bronze starts at 20,000). This bonus makes
+// v1 copies of the cheap rarities meaningfully add up WITHOUT touching sell
+// value/economy — it only affects score. Goal: not a single-plant power spike,
+// but collecting/trading for a good spread of v1 commons/uncommons should add
+// up to a real (if modest) chunk of progress by mid/late game. Reuses the same
+// LAUNCH_GRACE_MS window as version multipliers so it can't be abused for a
+// day-one score spike — ramps to full value only once the grace period ends.
+const LOW_RARITY_V1_SCORE_BONUS = { Common: 143, Uncommon: 69, Rare: 24 };
+const LOW_RARITY_V1_SCORE_GRACE_CAP = 1.3;
+function getLowRarityV1ScoreMultiplier(rarityName, version) {
+  const bonus = (version === 1) ? (LOW_RARITY_V1_SCORE_BONUS[rarityName] || 1.0) : 1.0;
+  if (bonus === 1.0) return 1.0;
+  const inGracePeriod = (Date.now() - getLaunchTimestamp()) < LAUNCH_GRACE_MS;
+  return inGracePeriod ? Math.min(bonus, LOW_RARITY_V1_SCORE_GRACE_CAP) : bonus;
+}
+
 const PLANT_SCORE_CAP = 150000;
 const PLANT_SCORE_DAMPEN = 30;
 function dampenPlantScore(value) {
@@ -497,7 +515,8 @@ function calcWeightedGardenScore(collection) {
     .map(p => {
       const base = getLiveSellValue(p);
       const bonus = RARITY_WEIGHT_BONUS[p.rarity] || 1.0;
-      return dampenPlantScore(base * bonus);
+      const v1Bonus = getLowRarityV1ScoreMultiplier(p.rarity, p.version || 1);
+      return dampenPlantScore(base * bonus * v1Bonus);
     })
     .sort((a, b) => b - a);
 
@@ -507,7 +526,6 @@ function calcWeightedGardenScore(collection) {
   }
   return Math.round(score);
 }
-
 // Garden Elo tiers — Grandmaster is the top VISIBLE tier. Secret is a true hidden
 // tier: it exists in this list (so getGardenTier/getNextGardenTier work correctly
 // once someone reaches it) but is deliberately excluded from any tier list shown
