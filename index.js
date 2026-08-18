@@ -1834,10 +1834,9 @@ const msg = await channel.send({ content: pingContent, embeds: [embed], files: [
 
 function startDropLoop() {
   setInterval(async () => {
-    const allDropChIds = new Set([
-      ...Object.values(dropChannels),
-      ...Object.values(relaxedDropChannels),
-    ]);
+    // !setdrop channels are now command-only (no passive drops) — only
+    // !setdropchat channels spawn drops. See the messageCreate handler.
+    const allDropChIds = new Set(Object.values(relaxedDropChannels));
     for (const chId of allDropChIds) {
       const ch = client.channels.cache.get(chId);
       if (ch) await tryActivityDrop(ch).catch(console.error);
@@ -3437,8 +3436,7 @@ processedMessages.add(message.id);
 setTimeout(() => processedMessages.delete(message.id), 30000);
   if (message.author.bot) return;
 
-  const registeredChId = dropChannels[message.guild?.id];
-  const relaxedChId    = relaxedDropChannels[message.guild?.id];
+  const relaxedChId = relaxedDropChannels[message.guild?.id];
 
   if (relaxedChId && message.channel.id === relaxedChId) {
     channelActivity[message.channel.id] = Date.now();
@@ -3451,10 +3449,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!isClaimAttempt && isCommand && !isMod) {
       return;
     }
-  } else if (registeredChId && message.channel.id === registeredChId) {
-    channelActivity[message.channel.id] = Date.now();
-    // !setdrop — drops appear but all commands still work normally
   }
+  // !setdrop channels are command-only now — no passive drops (see
+  // startDropLoop), and no restriction on which commands can run there, so
+  // there's nothing to special-case for dropChannels here.
 
   const content = message.content.trim();
   const lower   = content.toLowerCase();
@@ -4097,13 +4095,13 @@ if (cmd === 'web') {
   // ── !setdrop ──────────────────────────────────────────────────────────────
   if (cmd === 'setdrop') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
-    if (args[1]?.toLowerCase() === 'stop') { delete dropChannels[message.guild.id]; delete channelActivity[message.channel.id]; const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s); return message.reply(`✅ Drops disabled.`); }
+    if (args[1]?.toLowerCase() === 'stop') { delete dropChannels[message.guild.id]; delete channelActivity[message.channel.id]; const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s); return message.reply(`✅ Command channel unset.`); }
     const rawId = args[1]?.replace(/[<#>]/g, '');
     const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
     if (!targetCh) return message.reply(`❌ Channel not found. Use a channel mention, ID, or run the command inside the target channel.`);
     dropChannels[message.guild.id] = targetCh.id;
     const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s);
-    return message.reply(`✅ Activity-based drops enabled in <#${targetCh.id}>!`);
+    return message.reply(`✅ <#${targetCh.id}> set as a command channel — no passive drops there, just normal command usage. Use \`!setdropchat\` for a passive-drop/claim-only channel.`);
   }
 
   // ── !setdropchat ──────────────────────────────────────────────────────────
@@ -6469,8 +6467,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           {
             name: '🌱 Drop Management *(Manage Messages)*',
             value: [
-              '`!setdrop [#channel or ID]` — Set the drop channel',
-              '`!setdrop stop` — Disable drops',
+              '`!setdrop [#channel or ID]` — Set a command-only channel (no passive drops)',
+              '`!setdrop stop` — Unset the command channel',
+              '`!setdropchat [#channel or ID]` — Set a passive-drop channel (claim only, no other commands)',
+              '`!setdropchat stop` — Disable passive drops',
               '`!setvping [#channel or ID]` — Set the v1 ping channel',
               '`!setvping stop` — Disable v1 pings',
               '`!set droppable <#channel or ID>` — Announce plants that become claimable again (sold v1–v10, decayed Mythic+ v11–v20)',
