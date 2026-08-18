@@ -4521,21 +4521,37 @@ if (cmd === 'web') {
   // ── !race ─────────────────────────────────────────────────────────────────
   if (cmd === 'race') {
     if (activeRaces[message.channel.id]) return message.reply('A race is already active!');
-    const captcha = randomCaptcha(6), startTime = Date.now();
-    const W = 480, H = 160, rCanvas = createCanvas(W, H), rCtx = rCanvas.getContext('2d');
-    rCtx.fillStyle = '#0d0d0d'; rCtx.fillRect(0, 0, W, H);
-    const barGrad = rCtx.createLinearGradient(0, 0, W, 0); barGrad.addColorStop(0, '#FFAA00'); barGrad.addColorStop(1, '#ff6b6b');
-    rCtx.fillStyle = barGrad; rCtx.fillRect(0, 0, W, 4);
-    rCtx.font = '13px Arial'; rCtx.fillStyle = 'rgba(255,255,255,0.35)'; rCtx.textBaseline = 'top';
-    rCtx.fillText('type the captcha to win  ·  first 5 finish', 16, 14);
-    const colors = ['#ffffff','#ffffff','#ffffff','#ffffff','#ffffff','#ffffff'], letters = captcha.split('');
-    const CHAR_W = 68, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.4, midY = H / 2 + 12;
-    letters.forEach((char, i) => { rCtx.save(); rCtx.font = 'bold 64px Arial'; rCtx.fillStyle = colors[i % colors.length]; rCtx.shadowColor = colors[i % colors.length]; rCtx.shadowBlur = 14; rCtx.textBaseline = 'middle'; rCtx.translate(startX + i * CHAR_W, midY + (Math.random() - 0.5) * 6); rCtx.rotate((Math.random() - 0.5) * 0.12); rCtx.fillText(char, 0, 0); rCtx.restore(); });
-    for (let i = 0; i < 18; i++) { rCtx.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`; rCtx.beginPath(); rCtx.arc(Math.random() * W, Math.random() * H, Math.random() * 2, 0, Math.PI * 2); rCtx.fill(); }
-    const rImgBuf = rCanvas.toBuffer('image/png'), rAtt = new AttachmentBuilder(rImgBuf, { name: 'race.png' });
-    const msg = await message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://race.png').setColor(0xFFAA00)], files: [rAtt] });
-    activeRaces[message.channel.id] = { captcha, messageId: msg.id, startTime, finishers: [] };
-    setTimeout(async () => { const r = activeRaces[message.channel.id]; if (r && r.messageId === msg.id) await endRace(message.channel, r); }, raceTimer * 1000);
+    // Claim the lock immediately, synchronously — before any await. Previously
+    // the lock (activeRaces[channel.id] = {...}) was only set AFTER
+    // `await message.channel.send(...)`, so a second !race fired in the same
+    // window could pass the guard check above before the first one finished
+    // sending its image, causing two captchas to post and the second race's
+    // data to silently overwrite the first's in activeRaces.
+    activeRaces[message.channel.id] = { captcha: null, messageId: null, startTime: null, finishers: [] };
+    try {
+      const captcha = randomCaptcha(6), startTime = Date.now();
+      const W = 480, H = 160, rCanvas = createCanvas(W, H), rCtx = rCanvas.getContext('2d');
+      rCtx.fillStyle = '#0d0d0d'; rCtx.fillRect(0, 0, W, H);
+      const barGrad = rCtx.createLinearGradient(0, 0, W, 0); barGrad.addColorStop(0, '#FFAA00'); barGrad.addColorStop(1, '#ff6b6b');
+      rCtx.fillStyle = barGrad; rCtx.fillRect(0, 0, W, 4);
+      rCtx.font = '13px Arial'; rCtx.fillStyle = 'rgba(255,255,255,0.35)'; rCtx.textBaseline = 'top';
+      rCtx.fillText('type the captcha to win  ·  first 5 finish', 16, 14);
+      const colors = ['#ffffff','#ffffff','#ffffff','#ffffff','#ffffff','#ffffff'], letters = captcha.split('');
+      const CHAR_W = 68, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.4, midY = H / 2 + 12;
+      letters.forEach((char, i) => { rCtx.save(); rCtx.font = 'bold 64px Arial'; rCtx.fillStyle = colors[i % colors.length]; rCtx.shadowColor = colors[i % colors.length]; rCtx.shadowBlur = 14; rCtx.textBaseline = 'middle'; rCtx.translate(startX + i * CHAR_W, midY + (Math.random() - 0.5) * 6); rCtx.rotate((Math.random() - 0.5) * 0.12); rCtx.fillText(char, 0, 0); rCtx.restore(); });
+      for (let i = 0; i < 18; i++) { rCtx.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`; rCtx.beginPath(); rCtx.arc(Math.random() * W, Math.random() * H, Math.random() * 2, 0, Math.PI * 2); rCtx.fill(); }
+      const rImgBuf = rCanvas.toBuffer('image/png'), rAtt = new AttachmentBuilder(rImgBuf, { name: 'race.png' });
+      const msg = await message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://race.png').setColor(0xFFAA00)], files: [rAtt] });
+      // A second !race could only have reached here if it saw the lock already
+      // set above and returned early, so it's safe to just fill in the real
+      // details on the same lock object rather than re-checking.
+      activeRaces[message.channel.id] = { captcha, messageId: msg.id, startTime, finishers: [] };
+      setTimeout(async () => { const r = activeRaces[message.channel.id]; if (r && r.messageId === msg.id) await endRace(message.channel, r); }, raceTimer * 1000);
+    } catch (err) {
+      delete activeRaces[message.channel.id]; // release the lock so a retry isn't permanently blocked
+      console.error('race start failed:', err);
+      await message.reply('❌ Failed to start the race — try again.').catch(() => {});
+    }
     return; 
   }
 
