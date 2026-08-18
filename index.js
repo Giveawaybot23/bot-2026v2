@@ -143,6 +143,15 @@ function taxAmount(amount) {
 let auctionChannels = {};
 let payoutChannels = {};
 
+// Per-guild map of channelId -> true for channels where crate buying (!buy
+// <crate>) is explicitly disabled. Absent/false = allowed (default), so
+// turning a channel "on" just clears its entry rather than needing an
+// allowlist of every other channel.
+let crateChannels = {};
+function isCrateDisabled(guildId, channelId) {
+  return !!(crateChannels[guildId] && crateChannels[guildId][channelId]);
+}
+
 let sellbatchV10Protection = true;
 
 // ─── Auction soft-close config ────────────────────────────────────────────────
@@ -387,6 +396,7 @@ function saveSettings(s) { atomicWriteFileSync(SETTINGS_FILE, JSON.stringify(s, 
   if (s.auctionChannels) auctionChannels = s.auctionChannels;
   if (s.payoutChannels) payoutChannels = s.payoutChannels;
   if (s.droppableChannels) droppableChannels = s.droppableChannels;
+  if (s.crateChannels) crateChannels = s.crateChannels;
 })();
 
 // ─── Droppable announcements ──────────────────────────────────────────────────
@@ -4074,6 +4084,46 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     return message.reply(`✅ Auction announcements → <#${targetCh.id}>.`);
   }
 
+  // ── !setcrate ─────────────────────────────────────────────────────────────
+  // !setcrate <channel id> on|off — enable/disable crate buying (!buy <crate>)
+  // in a specific channel. All channels allow crate buying by default; "off"
+  // blocks it in that channel, "on" re-allows it there.
+  if (cmd === 'setcrate') {
+    if (!message.guild) return message.reply('❌ Use this command in a server channel.');
+    if (!message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+      return message.reply('Need **Manage Channels**.');
+    }
+
+    const rawId = args[1]?.replace(/[<#>]/g, '');
+    const mode  = args[2]?.toLowerCase();
+    if (!rawId || (mode !== 'on' && mode !== 'off')) {
+      return message.reply('Usage: `!setcrate <channel id> on|off`');
+    }
+
+    let targetCh = client.channels.cache.get(rawId);
+    if (!targetCh) {
+      try { targetCh = await client.channels.fetch(rawId); } catch { /* fall through */ }
+    }
+    if (!targetCh) {
+      return message.reply('❌ Channel not found. Use a channel mention or a valid channel ID.');
+    }
+    if (targetCh.guild?.id !== message.guild.id) {
+      return message.reply('❌ That channel is in a different server.');
+    }
+
+    crateChannels[message.guild.id] = crateChannels[message.guild.id] || {};
+
+    if (mode === 'off') {
+      crateChannels[message.guild.id][targetCh.id] = true;
+      const s = loadSettings(); s.crateChannels = crateChannels; saveSettings(s);
+      return message.reply(`✅ Crate buying **disabled** in <#${targetCh.id}>.`);
+    } else {
+      delete crateChannels[message.guild.id][targetCh.id];
+      const s = loadSettings(); s.crateChannels = crateChannels; saveSettings(s);
+      return message.reply(`✅ Crate buying **enabled** in <#${targetCh.id}>.`);
+    }
+  }
+
   // ── !say ──────────────────────────────────────────────────────────────────
   if (cmd === 'say') {
     if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
@@ -5682,6 +5732,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     let autoEarned = 0;
     const crateKey = Object.keys(CRATES).find(k => CRATES[k].name.split(' ')[0].toLowerCase() === itemKey || k === itemKey);
     if (!crateKey) return message.reply('Unknown item. Check `!shop`.');
+    if (message.guild && isCrateDisabled(message.guild.id, message.channel.id)) {
+      return message.reply('❌ Crate buying is disabled in this channel.');
+    }
     const crate = CRATES[crateKey];
     const userLevel = getLevelFromXP(user.xp || 0);
     if (userLevel < crate.minLevel) {
