@@ -4235,7 +4235,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
     const versionKeys = Object.keys(ownersByVersion).map(Number).sort((a, b) => a - b);
     const ownedByLine = versionKeys.length
-      ? `*Owned by:*\n${versionKeys.map(v => `\`v${v}\` — ${ownersByVersion[v].join(', ')}`).join('\n')}`
+      ? `*Owned by:*\n${versionKeys.map(v => { const list = ownersByVersion[v], shown = list.slice(0, 3).join(', '), extra = list.length > 3 ? ` +${list.length - 3} more` : ''; return `\`v${v}\` — ${shown}${extra}`; }).join('\n')}`
       : '*Not owned by anyone yet.*';
 
     const viewAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
