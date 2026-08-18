@@ -935,10 +935,10 @@ const CRATES = {
     weights: { Common: 645500, Uncommon: 200000, Rare: 120000, Epic:  27125, Legendary:   6200, Mythic:   930, Super:    258, Secret:      0 } },
 
   gold:    { name: 'Deluxe Seed Sack',   emoji: '<:gold_crate:1478191922718703726>',   color: 0xFFD700, price: 5500,  minLevel: 15, plants: 10,
-    weights: { Common: 585000, Uncommon: 200000, Rare: 150000, Epic:  48980, Legendary:  11756, Mythic:  3135, Super:    980, Secret:    157 } },
+    weights: { Common: 585000, Uncommon: 200000, Rare: 150000, Epic:  48980, Legendary:  11756, Mythic:  3135, Super:   1137, Secret:      0 } }, // Secret is Ruby-only now; its odds folded into Super
 
   diamond: { name: 'Mythic Seed Vault',  emoji: '<:diamond:1478191131841007829>',      color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10,
-    weights: { Common: 280000, Uncommon: 285000, Rare: 305000, Epic:  82328, Legendary:  32931, Mythic: 10977, Super:   3659, Secret:    439 } },
+    weights: { Common: 280000, Uncommon: 285000, Rare: 305000, Epic:  82328, Legendary:  32931, Mythic: 10977, Super:   4098, Secret:      0 } }, // Secret is Ruby-only now; its odds folded into Super
 
   ruby:    { name: 'Super Seed Crate',   emoji: '<:ruby:1477667927854682254>',         color: 0xFF1744, price: 32000, minLevel: 40, plants: 10,
     weights: { Common:  50000, Uncommon:  80000, Rare: 627000, Epic: 135313, Legendary:  67656, Mythic: 27063, Super:  11276, Secret:   1624 } },
@@ -2204,7 +2204,12 @@ function openCrate(crateKey, db, userId) {
   // the pricing in CRATES without anyone noticing.
   const results = Array.from({ length: crate.plants }, () => {
     const rarity   = pickRarityWithCharms(db, userId, crate.weights);
-    const plant    = pickPlant(rarity.name);
+    // allowDropOnly: true — otherwise a rolled Secret has no eligible plant
+    // (Eclipse Bloom is dropOnly) and pickPlant silently falls back to
+    // PLANTS[0] (Carrot) while keeping the Secret rarityConfig/sell price —
+    // a mispriced "Common" worth 250,000 coins. Now that Secret weight only
+    // exists on the Ruby crate, this lets it correctly resolve to Eclipse Bloom.
+    const plant    = pickPlant(rarity.name, true);
     const mutation = rollMutation(activeWeather ? activeWeather.name : null, WEATHER_MUTATION_CHANCE_CRATE);
     return { ...plant, rarityConfig: rarity, mutation };
   });
@@ -3435,9 +3440,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   const registeredChId = dropChannels[message.guild?.id];
   const relaxedChId    = relaxedDropChannels[message.guild?.id];
 
-  if (registeredChId && message.channel.id === registeredChId) {
+  if (relaxedChId && message.channel.id === relaxedChId) {
     channelActivity[message.channel.id] = Date.now();
-    // Strict mode — ignore all commands except claim
+    // !setdropchat — chat/claim only channel: ignore all commands except claim
     const isClaimAttempt = message.content.trim().toLowerCase().startsWith('claim ');
     const isCommand = message.content.trim().startsWith(PREFIX);
     const isMod = message.member?.permissions.has(PermissionsBitField.Flags.ManageMessages)
@@ -3446,9 +3451,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (!isClaimAttempt && isCommand && !isMod) {
       return;
     }
-  } else if (relaxedChId && message.channel.id === relaxedChId) {
+  } else if (registeredChId && message.channel.id === registeredChId) {
     channelActivity[message.channel.id] = Date.now();
-    // Relaxed mode — drops appear but all commands work normally
+    // !setdrop — drops appear but all commands still work normally
   }
 
   const content = message.content.trim();
