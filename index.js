@@ -714,7 +714,7 @@ const RARITY_EMOJIS = {
   Mythic:    '<:mythic:1534326656204931082>',
   Super:     '<:super:1534330521755320512>',
   Secret:    '<:secret:1534330406227152896>',
-  Exclusive: '<:exclusive:1539216016968646666>', // TODO: replace with a custom Discord emoji once one is made
+  Exclusive: '<:exclusive:1539216016968646666>',
 };
 const RARITIES = [
   { name: 'Common',    color: 0x9E9E9E, weight: 480000, emoji: RARITY_EMOJIS.Common,    sellPrice: 10     },
@@ -729,7 +729,7 @@ const RARITIES = [
   // and it's deliberately absent from every CRATES[...].weights table, so regular
   // players cannot obtain it directly through crates, drops, or any RNG path.
   // The only way a plant of this rarity reaches a player is via !addplant (admin-only).
-  { name: 'Exclusive', color: 0x00FF00, weight: 0,       emoji: RARITY_EMOJIS.Exclusive, sellPrice: 500000 },
+  { name: 'Exclusive', color: 0xFF1493, weight: 0,       emoji: RARITY_EMOJIS.Exclusive, sellPrice: 500000 },
 ];
 
 // ─── Base plant sell prices (version-weighted) ────────────────────────────────
