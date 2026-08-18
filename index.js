@@ -805,10 +805,12 @@ function calcSellValue(plant, rarity, mutation, version) {
   return Math.max(1, Math.round(base * dropBonus * verMult * mutMult));
 }
 
-// ─── Exclusive rarity — mimics the owner's best non-Exclusive card ────────────
-// Exclusives have no stats/value of their own. They're worth 115% of the best
-// (highest-value) non-Exclusive card the owner holds. If they own no other card
-// yet, the value is unknown ("???") until they claim a second card.
+// ─── Exclusive rarity — v1 mimics the owner's best non-Exclusive card ─────────
+// Only the v1 copy of an Exclusive has no stats/value of its own — it's worth
+// 115% of the best (highest-value) non-Exclusive card the owner holds. If they
+// own no other card yet, the value is unknown ("???") until they claim a
+// second card. v2+ Exclusives don't mimic anything — they scale 1:1 with Super
+// rarity instead (see getLiveSellValue).
 const EXCLUSIVE_MIMIC_MULTIPLIER = 1.15;
 
 function isUnsellableRarity(rarityName) {
@@ -1599,24 +1601,37 @@ function recordVersionHighWater(plantName, version) {
 }
 
 // ─── Inventory value calculator (legacy, used for display only) ───────────────
-// `collection` is optional and only needed for Exclusive-rarity plants (used to
-// find the owner's best other card to mimic). Returns null when the value is
-// unknown (Exclusive with no other card owned yet) — callers must handle that
-// case, e.g. by displaying "???".
+// `collection` is optional and only needed for v1 Exclusives (used to find the
+// owner's best other card to mimic). Returns null when the value is unknown
+// (v1 Exclusive with no other card owned yet) — callers must handle that case,
+// e.g. by displaying "???". v2+ Exclusives scale 1:1 with Super rarity instead
+// of mimicking — no collection needed for those.
 function getLiveSellValue(storedPlant, collection) {
-  const rarity = getRarityConfig(storedPlant.rarity);
+  const rarity  = getRarityConfig(storedPlant.rarity);
+  const version = storedPlant.version || 1;
 
   if (rarity.name === 'Exclusive') {
-    const bestVal = getExclusiveBestCardValue(storedPlant, collection);
-    if (bestVal === null) return null;
-    return Math.max(1, Math.round(bestVal * EXCLUSIVE_MIMIC_MULTIPLIER));
+    if (version === 1) {
+      const bestVal = getExclusiveBestCardValue(storedPlant, collection);
+      if (bestVal === null) return null;
+      return Math.max(1, Math.round(bestVal * EXCLUSIVE_MIMIC_MULTIPLIER));
+    }
+    // v2+ Exclusives have no mimic bonus — they scale exactly like a Super
+    // rarity card of the same version (same base price, drop bonus, version
+    // multiplier, and mutation multiplier a Super would get).
+    const superRarity = getRarityConfig('Super');
+    const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
+    const mutDef   = storedPlant.mutation
+      ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
+      : null;
+    return calcSellValue(plantDef, superRarity, mutDef, version);
   }
 
   const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
   const mutDef   = storedPlant.mutation
     ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
     : null;
-  return calcSellValue(plantDef, rarity, mutDef, storedPlant.version || 1);
+  return calcSellValue(plantDef, rarity, mutDef, version);
 }
 
 // Formats a sell value for display, showing "???" for unknown Exclusive values.
