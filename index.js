@@ -49,6 +49,41 @@ client.on('error', (err) => console.error('Discord client error:', err));
 client.on('shardError', (err) => console.error('Shard error:', err));
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
 
+// ─── Rarity Ping Roles ─────────────────────────────────────────────────────
+// Self-assignable roles for drop pings, toggled via buttons on the
+// !setraritypings embed. Handled by a standalone interactionCreate listener
+// (below) rather than a per-message collector, so the buttons keep working
+// indefinitely — even after a bot restart.
+const RARITY_PING_ROLES = {
+  legendary: { label: 'Legendary', roleId: '1539250609579106424', emojiId: '1534332213443952732' },
+  mythic:    { label: 'Mythic',    roleId: '1539250622401089608', emojiId: '1534332213443952732' },
+  super:     { label: 'Super',     roleId: '1539250640512098354', emojiId: '1534330521755320512' },
+  secret:    { label: 'Secret',    roleId: '1539250652063076392', emojiId: '1534330406227152896' },
+};
+
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('raritypings_')) return;
+
+  const key = interaction.customId.slice('raritypings_'.length);
+  const roleInfo = RARITY_PING_ROLES[key];
+  if (!roleInfo) return;
+
+  try {
+    const member = interaction.member;
+    if (member.roles.cache.has(roleInfo.roleId)) {
+      await member.roles.remove(roleInfo.roleId);
+      await interaction.reply({ content: `🔕 Removed **${roleInfo.label}** pings.`, ephemeral: true });
+    } else {
+      await member.roles.add(roleInfo.roleId);
+      await interaction.reply({ content: `🔔 You'll now get **${roleInfo.label}** pings.`, ephemeral: true });
+    }
+  } catch (err) {
+    console.error('[raritypings] role toggle failed:', err);
+    await interaction.reply({ content: '❌ Something went wrong — make sure the bot\'s role is positioned above the rarity ping roles.', ephemeral: true }).catch(() => {});
+  }
+});
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PREFIX          = '!';
 const DROP_COOLDOWN   = 2 * 60 * 1000;
@@ -150,6 +185,13 @@ let payoutChannels = {};
 let crateChannels = {};
 function isCrateDisabled(guildId, channelId) {
   return !!(crateChannels[guildId] && crateChannels[guildId][channelId]);
+}
+
+// Per-guild map of channelId -> true for channels where !race is explicitly
+// disabled. Same absent/false = allowed pattern as crateChannels above.
+let raceChannels = {};
+function isRaceDisabled(guildId, channelId) {
+  return !!(raceChannels[guildId] && raceChannels[guildId][channelId]);
 }
 
 let sellbatchV10Protection = true;
@@ -397,6 +439,7 @@ function saveSettings(s) { atomicWriteFileSync(SETTINGS_FILE, JSON.stringify(s, 
   if (s.payoutChannels) payoutChannels = s.payoutChannels;
   if (s.droppableChannels) droppableChannels = s.droppableChannels;
   if (s.crateChannels) crateChannels = s.crateChannels;
+  if (s.raceChannels) raceChannels = s.raceChannels;
 })();
 
 // ─── Droppable announcements ──────────────────────────────────────────────────
@@ -4167,6 +4210,32 @@ if (cmd === 'web') {
     return message.reply(`✅ v1 pings → <#${targetCh.id}>.`);
   }
 
+  // ── !setraritypings ──────────────────────────────────────────────────────
+  if (cmd === 'setraritypings') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageRoles)) return message.reply('Need **Manage Roles**.');
+
+    const embed = new EmbedBuilder()
+      .setTitle('🔔 Rarity Ping Roles')
+      .setDescription(
+        'Click a button below to toggle pings for that rarity — click again to remove it.\n\n' +
+        `<:legendary:${RARITY_PING_ROLES.legendary.emojiId}> **Legendary** — <@&${RARITY_PING_ROLES.legendary.roleId}>\n` +
+        `<:mythic:${RARITY_PING_ROLES.mythic.emojiId}> **Mythic** — <@&${RARITY_PING_ROLES.mythic.roleId}>\n` +
+        `<:super:${RARITY_PING_ROLES.super.emojiId}> **Super** — <@&${RARITY_PING_ROLES.super.roleId}>\n` +
+        `<:secret:${RARITY_PING_ROLES.secret.emojiId}> **Secret** — <@&${RARITY_PING_ROLES.secret.roleId}>`
+      )
+      .setColor(0xFFD700)
+      .setFooter({ text: 'Roles are self-assigned — nobody can see who has what from this message.' });
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('raritypings_legendary').setLabel('Legendary').setEmoji({ id: RARITY_PING_ROLES.legendary.emojiId }).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('raritypings_mythic').setLabel('Mythic').setEmoji({ id: RARITY_PING_ROLES.mythic.emojiId }).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('raritypings_super').setLabel('Super').setEmoji({ id: RARITY_PING_ROLES.super.emojiId }).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('raritypings_secret').setLabel('Secret').setEmoji({ id: RARITY_PING_ROLES.secret.emojiId }).setStyle(ButtonStyle.Secondary),
+    );
+
+    return message.channel.send({ embeds: [embed], components: [row] });
+  }
+
   // ── !set droppable <channelid> ────────────────────────────────────────────
   if (cmd === 'set' && args[1]?.toLowerCase() === 'droppable') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
@@ -4546,14 +4615,45 @@ if (cmd === 'web') {
 
   if (cmd === 'setrace') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('Need **Manage Messages**.');
+
+    // Two forms share this command:
+    //   !setrace <seconds>            → race timer duration (5–300)
+    //   !setrace <channel id> on|off  → enable/disable !race in that channel
+    const mode = args[2]?.toLowerCase();
+    if (mode === 'on' || mode === 'off') {
+      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+
+      const rawId = args[1]?.replace(/[<#>]/g, '');
+      let targetCh = rawId ? client.channels.cache.get(rawId) : null;
+      if (!targetCh && rawId) {
+        try { targetCh = await client.channels.fetch(rawId); } catch { /* fall through */ }
+      }
+      if (!targetCh) return message.reply('❌ Channel not found. Use a channel mention or a valid channel ID.');
+      if (targetCh.guild?.id !== message.guild.id) return message.reply('❌ That channel is in a different server.');
+
+      raceChannels[message.guild.id] = raceChannels[message.guild.id] || {};
+      if (mode === 'off') {
+        raceChannels[message.guild.id][targetCh.id] = true;
+        const s = loadSettings(); s.raceChannels = raceChannels; saveSettings(s);
+        return message.reply(`✅ \`!race\` **disabled** in <#${targetCh.id}>.`);
+      } else {
+        delete raceChannels[message.guild.id][targetCh.id];
+        const s = loadSettings(); s.raceChannels = raceChannels; saveSettings(s);
+        return message.reply(`✅ \`!race\` **enabled** in <#${targetCh.id}>.`);
+      }
+    }
+
     const seconds = parseInt(args[1]);
-    if (!seconds || seconds < 5 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300)');
+    if (!seconds || seconds < 5 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300) or `!setrace <channel id> on|off`');
     raceTimer = seconds;
     return message.reply(`✅ Race timer set to **${raceTimer} seconds**.`);
   }
 
   // ── !race ─────────────────────────────────────────────────────────────────
   if (cmd === 'race') {
+    if (message.guild && isRaceDisabled(message.guild.id, message.channel.id)) {
+      return message.reply('❌ `!race` is disabled in this channel.');
+    }
     if (activeRaces[message.channel.id]) return message.reply('A race is already active!');
     // Claim the lock immediately, synchronously — before any await. Previously
     // the lock (activeRaces[channel.id] = {...}) was only set AFTER
