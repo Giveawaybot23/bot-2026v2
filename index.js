@@ -2489,7 +2489,7 @@ async function generateLevelLBImage(entries) {
 
     // Rank title
     ctx.font = '12px Arial'; ctx.fillStyle = '#7986CB';
-    ctx.fillText(`${e.rankEmoji}  ${e.rankName}`, 130, mid + 10);
+    ctx.fillText(e.rankName, 130, mid + 10);
 
     // Level
     ctx.textAlign = 'right';
@@ -3040,40 +3040,136 @@ async function generateLevelCardImage(data) {
 }
 
 // ─── Race Leaderboard Image ───────────────────────────────────────────────────
-function generateRaceLBImage(entries) {
-  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
-  const H = HEADER_H + entries.length * ROW_H + PADDING;
-  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#120a00'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(255,170,0,0.07)'; ctx.lineWidth = 1;
-  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#3d1f00'); grad.addColorStop(1, '#120a00');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
-  ctx.fillStyle = '#FFAA00'; ctx.fillRect(0, 0, 4, HEADER_H);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('🏁  Race Leaderboard', 24, HEADER_H/2);
-  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+// ─── Race Leaderboard Image (styled to match the Money Leaderboard) ───────────
+async function generateRaceLBImage(entries) {
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
+
+  // Accent line
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0, '#FFAA00'); accentGrad.addColorStop(0.5, '#FFD54F'); accentGrad.addColorStop(1, '#FFAA00');
+  ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
+
   for (let i = 0; i < entries.length; i++) {
-    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H/2;
-    ctx.fillStyle = i%2===0 ? 'rgba(255,170,0,0.03)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
-    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
-    ctx.textAlign = 'center';
-    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
-    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 58, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
+    const e   = entries[i];
+    const y   = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Alternating row bg
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Top 3 glow
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
     }
-    ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#FFAA00' : 'rgba(255,255,255,0.7)';
-    ctx.textAlign = 'right'; ctx.fillText(msToStr(e.bestTime), W-16, mid); ctx.textAlign = 'left';
-    const barX = W-170, barW = 100, barH = 5, barY = mid+10;
-    const relPct = entries[0].bestTime / e.bestTime;
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
-    const bGrad = ctx.createLinearGradient(barX, 0, barX+barW, 0); bGrad.addColorStop(0, '#FFAA00'); bGrad.addColorStop(1, '#ff6b6b');
-    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*relPct, 4), barH, 3); ctx.fill();
+
+    // Left accent bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#FFAA00';
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 44, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${i + 1}`, rankX, mid);
+    ctx.restore();
+
+    // Avatar circle
+    const avatarX = 92, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      ctx.fillStyle = '#FFAA00';
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#FFAA00';
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
+
+    // Username
+    ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
+
+    // Relative speed bar (faster time = fuller bar)
+    const relPct = e.bestTime > 0 ? entries[0].bestTime / e.bestTime : 0;
+    const miniBarW = 90, miniBarH = 5, miniBarX = 130, miniBarY = mid + 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, miniBarW, miniBarH, 3); ctx.fill();
+    const miniGrad = ctx.createLinearGradient(miniBarX, 0, miniBarX + miniBarW, 0);
+    miniGrad.addColorStop(0, '#FFAA00'); miniGrad.addColorStop(1, '#FFD54F');
+    ctx.fillStyle = miniGrad; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, Math.max(miniBarW * relPct, 4), miniBarH, 3); ctx.fill();
+
+    // Time
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = i === 0 ? '#FFAA00' : 'rgba(255,255,255,0.75)';
+    ctx.save();
+    if (i === 0) { ctx.shadowColor = '#FFAA00'; ctx.shadowBlur = 12; }
+    ctx.fillText(msToStr(e.bestTime), W - 16, mid - 8);
+    ctx.restore();
+
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText('best time', W - 16, mid + 10);
+    ctx.textAlign = 'left';
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
   }
-  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Racers`);
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '12px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  Race Leaderboard  ·  Top ${entries.length}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
   return canvas.toBuffer('image/png');
 }
 
@@ -4429,7 +4525,13 @@ if (cmd === 'web') {
     if (!lb.length) return message.reply('No race times yet!');
     const db = loadDB();
     const now = Date.now();
-    const imgBuf = generateRaceLBImage(lb.map(e => ({ username: e.username, bestTime: e.bestTime, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })));
+    const entries = await Promise.all(lb.map(async (e) => {
+      let username = e.username, avatarURL = null;
+      try { const u = await client.users.fetch(e.userId); username = u.username; avatarURL = u.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+      const rainbowTag = !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now);
+      return { username, avatarURL, bestTime: e.bestTime, rainbowTag };
+    }));
+    const imgBuf = await generateRaceLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'racelb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://racelb.png').setFooter({ text: `Top ${lb.length} Racers  ·  !rlb` }).setColor(0xFFAA00)], files: [att] });
   }
