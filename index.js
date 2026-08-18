@@ -250,6 +250,7 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
     if (usedIndexes.has(i)) continue;
     if (newPlants && !newPlants.some(np => np.name === p.name && np.version === p.version)) continue;
     if (isLocked(userId, p)) continue;
+    if (p.rarity === 'Exclusive') continue; // Exclusives are unsellable — never auto-sold
     for (const rule of rules) {
       if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
 
@@ -553,7 +554,7 @@ function calcWeightedGardenScore(collection) {
   // Sort by effective value descending
   const sorted = [...collection]
     .map(p => {
-      const base = getLiveSellValue(p);
+      const base = getLiveSellValue(p, collection) || 0;
       const bonus = RARITY_WEIGHT_BONUS[p.rarity] || 1.0;
       const v1Bonus = getLowRarityV1ScoreMultiplier(p.rarity, p.version || 1);
       return dampenPlantScore(base * bonus * v1Bonus);
@@ -802,6 +803,30 @@ function calcSellValue(plant, rarity, mutation, version) {
   const verMult   = getVersionMultiplier(version);
   const mutMult   = mutation ? mutation.multiplier : 1.0;
   return Math.max(1, Math.round(base * dropBonus * verMult * mutMult));
+}
+
+// ─── Exclusive rarity — mimics the owner's best non-Exclusive card ────────────
+// Exclusives have no stats/value of their own. They're worth 115% of the best
+// (highest-value) non-Exclusive card the owner holds. If they own no other card
+// yet, the value is unknown ("???") until they claim a second card.
+const EXCLUSIVE_MIMIC_MULTIPLIER = 1.15;
+
+function isUnsellableRarity(rarityName) {
+  return rarityName === 'Exclusive';
+}
+
+// Returns the highest live sell value among the owner's non-Exclusive cards,
+// or null if they have none (i.e. the Exclusive is the only card they own).
+function getExclusiveBestCardValue(storedPlant, collection) {
+  if (!Array.isArray(collection) || !collection.length) return null;
+  let best = 0;
+  for (const p of collection) {
+    if (p === storedPlant) continue;
+    if (p.rarity === 'Exclusive') continue;
+    const val = getLiveSellValue(p);
+    if (val && val > best) best = val;
+  }
+  return best > 0 ? best : null;
 }
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
@@ -1574,17 +1599,33 @@ function recordVersionHighWater(plantName, version) {
 }
 
 // ─── Inventory value calculator (legacy, used for display only) ───────────────
-function getLiveSellValue(storedPlant) {
+// `collection` is optional and only needed for Exclusive-rarity plants (used to
+// find the owner's best other card to mimic). Returns null when the value is
+// unknown (Exclusive with no other card owned yet) — callers must handle that
+// case, e.g. by displaying "???".
+function getLiveSellValue(storedPlant, collection) {
+  const rarity = getRarityConfig(storedPlant.rarity);
+
+  if (rarity.name === 'Exclusive') {
+    const bestVal = getExclusiveBestCardValue(storedPlant, collection);
+    if (bestVal === null) return null;
+    return Math.max(1, Math.round(bestVal * EXCLUSIVE_MIMIC_MULTIPLIER));
+  }
+
   const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
-  const rarity   = getRarityConfig(storedPlant.rarity);
   const mutDef   = storedPlant.mutation
     ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
     : null;
   return calcSellValue(plantDef, rarity, mutDef, storedPlant.version || 1);
 }
 
+// Formats a sell value for display, showing "???" for unknown Exclusive values.
+function fmtSellValue(v) {
+  return v === null || v === undefined ? '???' : v.toLocaleString();
+}
+
 function calcInventoryValue(collection) {
-  return collection.reduce((sum, p) => sum + getLiveSellValue(p), 0);
+  return collection.reduce((sum, p) => sum + (getLiveSellValue(p, collection) || 0), 0);
 }
 
 // ─── Mutation display ─────────────────────────────────────────────────────────
@@ -3565,10 +3606,10 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     if (!user.collection.length) return message.reply('You have no plants to sell.');
-    const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
-    const totalVal = sellable.reduce((sum, p) => sum + getLiveSellValue(p), 0);
+    const sellable = user.collection.filter(p => !isLocked(message.author.id, p) && !isUnsellableRarity(p.rarity));
+    const totalVal = sellable.reduce((sum, p) => sum + (getLiveSellValue(p, user.collection) || 0), 0);
     const count = sellable.length;
-    user.collection = user.collection.filter(p => isLocked(message.author.id, p));
+    user.collection = user.collection.filter(p => isLocked(message.author.id, p) || isUnsellableRarity(p.rarity));
     user.currency += totalVal;
     trackEarned(user, totalVal);
     let sellTriggered = false;
@@ -3791,7 +3832,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (isLocked(message.author.id, plant)) return message.reply(`🔒 **${plant.name}** ${fmtVersion(plant)} is locked.`);
 
     const hours       = Math.min(72, Math.max(1, hoursMatch ? parseInt(hoursMatch[1]) : 0.1667)); // default 10 min
-    const startPrice  = startMatch ? parseInt(startMatch[1]) : (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
+    const startPrice  = startMatch ? parseInt(startMatch[1]) : (getLiveSellValue(plant, user.collection) || getRarityConfig(plant.rarity).sellPrice);
     const buyoutPrice = buyoutMatch ? parseInt(buyoutMatch[1]) : null;
     const minIncrement = incrMatch ? parseInt(incrMatch[1]) : Math.max(100, Math.round(startPrice * 0.05));
 
@@ -4490,9 +4531,9 @@ const page = Math.max(1, Math.min(pageArg, totalPages));
     const lines = slice.map((p, i) => {
       const rCfg = getRarityConfig(p.rarity), mutBadge = p.mutation ? ` ${p.mutation.emoji} **${p.mutation.name}**` : '', verStr = p.version === 1 ? '`v1` 🔖' : `${fmtVersion(p)}`;
       const num = (page - 1) * PER_PAGE + i + 1;
-      const sellVal = p.sellValue || rCfg.sellPrice;
+      const sellVal = getLiveSellValue(p, user.collection);
       const lockBadge = isLocked(message.author.id, p) ? ' `[L]`' : '';
-return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${sellVal.toLocaleString()}`;
+return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
     });
     const tierHex = '#' + gardenTier.color.toString(16).padStart(6, '0');
     const statsLine = `**${target.username}** · ${user.collection.length} plants · ${gardenTier.emoji} **${gardenTier.name}** · Score: **${gardenScore.toLocaleString()}**`;
@@ -4503,9 +4544,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const ls = sl.map((plant, i) => {
         const rCfg = getRarityConfig(plant.rarity), mutBadge = plant.mutation ? ` ${plant.mutation.emoji} **${plant.mutation.name}**` : '', verStr = plant.version === 1 ? '`v1` 🔖' : `${fmtVersion(plant)}`;
         const num = (p - 1) * PER_PAGE + i + 1;
-        const sellVal = getLiveSellValue(plant);
+        const sellVal = getLiveSellValue(plant, user.collection);
         const lockBadge = isLocked(message.author.id, plant) ? ' `[L]`' : '';
-        return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${sellVal.toLocaleString()}`;
+        const unsellBadge = isUnsellableRarity(plant.rarity) ? ' `[Trade only]`' : '';
+        return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge}${unsellBadge} — ${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
       });
       return new EmbedBuilder()
         .setTitle(`🎒 Inventory — Page ${p}/${totalPages}${filterStr}`)
@@ -4583,17 +4625,18 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
       if (!user.collection.length) return message.reply('You have no plants to sell.');
-      const sellable = user.collection.filter(p => !isLocked(message.author.id, p));
-      const locked = user.collection.length - sellable.length;
-      const totalVal = sellable.reduce((sum, p) => sum + (p.sellValue || getRarityConfig(p.rarity).sellPrice), 0);
+      const sellable = user.collection.filter(p => !isLocked(message.author.id, p) && !isUnsellableRarity(p.rarity));
+      const exclusiveCount = user.collection.filter(p => p.rarity === 'Exclusive').length;
+      const locked = user.collection.length - sellable.length - exclusiveCount;
+      const totalVal = sellable.reduce((sum, p) => sum + (getLiveSellValue(p, user.collection) || 0), 0);
       const CONFIRM_PHRASE = `SELLALL-${message.author.id.slice(-4).toUpperCase()}`;
       pendingWipes[`sellall_${message.author.id}`] = { phrase: CONFIRM_PHRASE, ts: Date.now() };
       setTimeout(() => delete pendingWipes[`sellall_${message.author.id}`], 60_000);
-      if (!sellable.length) return message.reply('All your plants are locked — nothing to sell.');
+      if (!sellable.length) return message.reply('All your plants are locked or Exclusive — nothing to sell.');
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('⚠️  Sell Entire Inventory?')
         .setDescription(
-          `**This will sell ${sellable.length} plants for ${fmt(totalVal)}.**${locked > 0 ? `\n🔒 ${locked} locked plant${locked !== 1 ? 's' : ''} will be kept.` : ''}\n\n` +
+          `**This will sell ${sellable.length} plants for ${fmt(totalVal)}.**${locked > 0 ? `\n🔒 ${locked} locked plant${locked !== 1 ? 's' : ''} will be kept.` : ''}${exclusiveCount > 0 ? `\n✨ ${exclusiveCount} Exclusive plant${exclusiveCount !== 1 ? 's' : ''} will be kept — Exclusives can't be sold, only traded.` : ''}\n\n` +
           `This **cannot be undone**.\n\nTo confirm, type:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`
         )
         .setColor(0xFF0000)
@@ -4626,15 +4669,20 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply(`You don't own **${plantName}**.`);
     }
 
+    // Exclusives have no fixed value and can't be sold — only traded.
+    if (isUnsellableRarity(candidates[0].p.rarity)) {
+      return message.reply(`✨ **${candidates[0].p.name}** is an **Exclusive** — it can't be sold, only traded.`);
+    }
+
     // "!sell <plant> all" — sell all copies at once
     if (hasSellAll && vSellFilter === null) {
       candidates = candidates.filter(({ p }) => !isLocked(message.author.id, p));
       if (!candidates.length) return message.reply(`All copies of **${plantName}** are locked.`);
       const rCfg      = getRarityConfig(candidates[0].p.rarity);
-      const totalVal  = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+      const totalVal  = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p, user.collection), 0);
       const lines     = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        const val    = getLiveSellValue(p);
+        const val    = getLiveSellValue(p, user.collection);
         return `${fmtVersion(p)}${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
       });
       // Store all indices for the confirm handler
@@ -4750,6 +4798,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const candidates = user.collection
       .map((p, i) => ({ p, i }))
       .filter(({ p }) => {
+        if (isUnsellableRarity(p.rarity))                                                   return false;
         if (sellbatchV10Protection && (p.version || 0) <= BATCH_SAFE_MIN_VER) return false;
         if (isLocked(message.author.id, p)) return false;
         if (rarityFilter   && p.rarity.toLowerCase()                    !== rarityFilter)   return false;
@@ -4760,12 +4809,16 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         return true;
       });
 
+    if (rarityFilter === 'exclusive') {
+      return message.reply('✨ Exclusive plants can\'t be sold — only traded.');
+    }
+
     if (!candidates.length) {
       return message.reply('No plants match those filters. *(v1–v10 are always protected from batch sells.)*');
     }
 
     // Tally up
-    const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+    const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p, user.collection), 0);
 
     // Build a summary grouped by rarity
     const byRarity = {};
@@ -4838,6 +4891,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const matched = [];
       const invalidRarities = [];
       for (const r of requested) {
+        if (r.toLowerCase() === 'exclusive') {
+          return message.reply('✨ Exclusive plants can\'t be sold — only traded.');
+        }
         const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
         if (found) { if (!matched.includes(found.name)) matched.push(found.name); }
         else invalidRarities.push(r);
@@ -4849,12 +4905,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       saMatchedRarities = matched;
     }
 
+    const SA_SELLABLE_RARITIES = RARITIES.filter(r => !isUnsellableRarity(r.name));
     const saRaritySelect = new StringSelectMenuBuilder()
       .setCustomId('saw_rarities')
       .setPlaceholder('Choose rarities to sell')
       .setMinValues(1)
-      .setMaxValues(RARITIES.length)
-      .addOptions(RARITIES.map(r => ({ label: r.name, value: r.name })));
+      .setMaxValues(SA_SELLABLE_RARITIES.length)
+      .addOptions(SA_SELLABLE_RARITIES.map(r => ({ label: r.name, value: r.name })));
 
     const saNextRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('saw_next').setLabel('Next ▸').setStyle(ButtonStyle.Primary),
@@ -4922,6 +4979,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return user.collection
         .map((p, i) => ({ p, i }))
         .filter(({ p }) => {
+          if (isUnsellableRarity(p.rarity)) return false;
           if (sellbatchV10Protection && (p.version || 0) <= 10) return false;
           if (isLocked(userId, p)) return false;
           if (!raritiesLower.includes(p.rarity.toLowerCase())) return false;
@@ -5177,6 +5235,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const matched = [];
       const invalidRarities = [];
       for (const r of requested) {
+        if (r.toLowerCase() === 'exclusive') {
+          return message.reply('✨ Exclusive plants can\'t be sold — only traded — so they can\'t be auto-sold either.');
+        }
         const found = RARITIES.find(x => x.name.toLowerCase() === r.toLowerCase());
         if (found) { if (!matched.includes(found.name)) matched.push(found.name); }
         else invalidRarities.push(r);
@@ -5188,12 +5249,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       matchedRarities = matched;
     }
 
+    const ASR_SELLABLE_RARITIES = RARITIES.filter(r => !isUnsellableRarity(r.name));
     const raritySelect = new StringSelectMenuBuilder()
       .setCustomId('asw_rarities')
       .setPlaceholder('Choose rarities to auto-sell')
       .setMinValues(1)
-      .setMaxValues(RARITIES.length)
-      .addOptions(RARITIES.map(r => ({ label: r.name, value: r.name })));
+      .setMaxValues(ASR_SELLABLE_RARITIES.length)
+      .addOptions(ASR_SELLABLE_RARITIES.map(r => ({ label: r.name, value: r.name })));
 
     const nextRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('asw_next').setLabel('Next ▸').setStyle(ButtonStyle.Primary),
@@ -6785,12 +6847,13 @@ pushCollectionUpdate = function(userId) {
     const collection = (user.collection || []).map(p => {
       const base = PLANTS.find(b => b.name === p.name) || DROP_ONLY_PLANTS.find(b => b.name === p.name) || {};
       return {
-        name:      p.name,
-        rarity:    p.rarity,
-        version:   p.version,
-        mutation:  p.mutation || null,
-        image:     base.display || '',
-        sellPrice: getLiveSellValue(p),
+        name:        p.name,
+        rarity:      p.rarity,
+        version:     p.version,
+        mutation:    p.mutation || null,
+        image:       base.display || '',
+        sellPrice:   getLiveSellValue(p, user.collection),
+        unsellable:  isUnsellableRarity(p.rarity),
       };
     });
     const discoveredPlants = Array.from(new Set([...(user.discoveredPlants||[]), ...(user.collection||[]).map(p => p.name)]));
@@ -6913,7 +6976,7 @@ app.post('/api/auction/create', async (req, res) => {
 
   const h          = Math.min(72, Math.max(1, parseInt(hours) || 24));
   const parsedStart = parseInt(startPrice);
-  const start      = (Number.isInteger(parsedStart) && parsedStart > 0) ? parsedStart : (plant.sellValue || getRarityConfig(plant.rarity).sellPrice);
+  const start      = (Number.isInteger(parsedStart) && parsedStart > 0) ? parsedStart : (getLiveSellValue(plant, user.collection) || getRarityConfig(plant.rarity).sellPrice);
   let buyout       = null;
   if (buyoutPrice) {
     const parsedBuyout = parseInt(buyoutPrice);
