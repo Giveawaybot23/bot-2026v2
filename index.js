@@ -634,18 +634,49 @@ const WEATHER_TYPES = [
   { name: 'Aurora',    mutation: 'Aurora',     emoji: '<:aurora:1534229653211054262>', color: 0x66CCFF, weight: 15,
     desc: 'A faint celestial glow washes over everything — mutated cards get a small boost (1.15x).' },
 ];
-const WEATHER_INTERVAL_MS = 60 * 60 * 1000; // how often a new weather event can start
-const WEATHER_DURATION_MS = 30 * 60 * 1000; // how long each weather event lasts
-let currentWeather = null; // { name, emoji, color, desc, startedAt, endsAt }
+const WEATHER_INTERVAL_MS = 60 * 60 * 1000; // one weather "slot" per hour, aligned to the wall clock
+const WEATHER_DURATION_MS = 30 * 60 * 1000; // active for the FIRST 30 min of each slot only — the back half of
+                                             // every hour is always clear. That's the built-in breathing room.
+let weatherOverride = null; // { ...weather, endsAt } — set by !forceweather; takes priority until it expires
+let weatherSuppressedUntil = 0; // set by !forceweather clear — blocks the natural schedule until this timestamp
+
+// Deterministic seeded RNG (mulberry32) — same seed always produces the same
+// result. Used so every server instance, and every restart/redeploy, computes
+// the SAME weather for the SAME clock hour without needing to persist or
+// remember anything. The schedule lives in the clock, not in memory — a push
+// mid-event no longer resets or reshuffles what's active.
+function seededRandom(seed) {
+  let t = seed += 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+function pickWeatherForHour(hourStartMs) {
+  const total = WEATHER_TYPES.reduce((s, w) => s + w.weight, 0);
+  let roll = seededRandom(Math.floor(hourStartMs / WEATHER_INTERVAL_MS)) * total;
+  for (const w of WEATHER_TYPES) { roll -= w.weight; if (roll <= 0) return w; }
+  return WEATHER_TYPES[0];
+}
 function pickWeather() {
+  // Genuinely random — only used for manual !forceweather random, not the
+  // scheduled clock-based weather.
   const total = WEATHER_TYPES.reduce((s, w) => s + w.weight, 0);
   let roll = Math.random() * total;
   for (const w of WEATHER_TYPES) { roll -= w.weight; if (roll <= 0) return w; }
   return WEATHER_TYPES[0];
 }
 function getActiveWeather() {
-  if (currentWeather && Date.now() < currentWeather.endsAt) return currentWeather;
-  return null;
+  // A manual override from !forceweather wins until it naturally expires.
+  if (weatherOverride) {
+    if (Date.now() < weatherOverride.endsAt) return weatherOverride;
+    weatherOverride = null;
+  }
+  const now = Date.now();
+  if (now < weatherSuppressedUntil) return null; // manually cleared via !forceweather clear
+  const hourStart = Math.floor(now / WEATHER_INTERVAL_MS) * WEATHER_INTERVAL_MS;
+  if (now - hourStart >= WEATHER_DURATION_MS) return null; // back half of the hour — always clear
+  const weather = pickWeatherForHour(hourStart);
+  return { ...weather, startedAt: hourStart, endsAt: hourStart + WEATHER_DURATION_MS };
 }
 
 // Flat spawn chance while weather is active. Two separate rates:
@@ -1628,15 +1659,14 @@ const WEATHER_GIF_DIR = path.join(__dirname, 'images', 'Weathers');
 function getWeatherGifPath(weather) {
   return path.join(WEATHER_GIF_DIR, `${weather.name}.gif`);
 }
-async function sendWeatherEvent(channel, forcedWeather = null) {
-  const weather = forcedWeather || pickWeather();
-  const now = Date.now();
-  currentWeather = { ...weather, startedAt: now, endsAt: now + WEATHER_DURATION_MS };
+// Posts the weather embed/gif to a channel. Does NOT touch scheduling state —
+// used both for the automatic hourly announcement and for manual overrides.
+async function postWeatherEmbed(channel, weather) {
   const gifPath  = getWeatherGifPath(weather);
   const fileName = `${weather.name}.gif`;
   const embed = new EmbedBuilder()
     .setTitle(`${weather.emoji} WEATHER EVENT — ${weather.name}`)
-    .setDescription(`${weather.desc}\n\n*Drops for the next hour will show this weather is active.*`)
+    .setDescription(`${weather.desc}\n\n*Drops for the next 30 minutes will show this weather is active.*`)
     .setColor(weather.color)
     .setFooter({ text: `Lasts 30 minutes · ${SERVER_NAME}` })
     .setTimestamp();
@@ -1649,17 +1679,34 @@ async function sendWeatherEvent(channel, forcedWeather = null) {
     await channel.send({ embeds: [embed] }).catch(console.error);
   }
 }
+// Manual override (!forceweather) — sets weatherOverride, which getActiveWeather()
+// checks before falling back to the deterministic clock schedule.
+async function sendWeatherEvent(channel, forcedWeather = null) {
+  const weather = forcedWeather || pickWeather();
+  const now = Date.now();
+  weatherOverride = { ...weather, startedAt: now, endsAt: now + WEATHER_DURATION_MS };
+  await postWeatherEmbed(channel, weather);
+}
 function startWeatherLoop() {
-  setInterval(async () => {
+  // Aligned to the wall clock (fires right at each :00), not to boot time —
+  // so a redeploy mid-hour doesn't shift or duplicate the announcement.
+  const announce = async () => {
+    const weather = getActiveWeather();
+    if (!weather || weatherOverride) return; // only announce a fresh natural slot, not an active override/suppression
     const allDropChIds = new Set([
       ...Object.values(dropChannels),
       ...Object.values(relaxedDropChannels),
     ]);
     for (const chId of allDropChIds) {
       const ch = client.channels.cache.get(chId);
-      if (ch) await sendWeatherEvent(ch).catch(console.error);
+      if (ch) await postWeatherEmbed(ch, weather);
     }
-  }, WEATHER_INTERVAL_MS);
+  };
+  const msUntilNextHour = WEATHER_INTERVAL_MS - (Date.now() % WEATHER_INTERVAL_MS);
+  setTimeout(() => {
+    announce();
+    setInterval(announce, WEATHER_INTERVAL_MS);
+  }, msUntilNextHour);
 }
 
 
@@ -3683,7 +3730,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !web ──────────────────────────────────────────────────────────────────
 if (cmd === 'web') {
-  return message.reply('🌿 **Sprout** — https://www.sproutapp.net/');
+  return message.reply('🌿 **Sprout** — www.sproutapp.net');
 }
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
@@ -3881,8 +3928,11 @@ if (cmd === 'web') {
     }
 
     if (arg.toLowerCase() === 'clear' || arg.toLowerCase() === 'stop') {
-      currentWeather = null;
-      return message.reply('✅ Weather cleared.');
+      weatherOverride = null;
+      const now = Date.now();
+      const hourStart = Math.floor(now / WEATHER_INTERVAL_MS) * WEATHER_INTERVAL_MS;
+      weatherSuppressedUntil = hourStart + WEATHER_DURATION_MS; // suppress only through the rest of this slot
+      return message.reply('✅ Weather cleared for the rest of this slot.');
     }
 
     const match = WEATHER_TYPES.find(w => w.name.toLowerCase() === arg.toLowerCase());
