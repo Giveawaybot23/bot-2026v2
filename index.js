@@ -508,6 +508,7 @@ const RARITY_WEIGHT_BONUS = {
   Legendary: 1.00,  // let base price + version do the work
   Mythic:    1.00,
   Secret:    1.00,  // was 3.50 — this was the whole problem
+  Exclusive: 1.00,
 };
 
 // Low-rarity v1 Garden Score bonus — a v1 Common currently scores ~35, which is
@@ -713,6 +714,7 @@ const RARITY_EMOJIS = {
   Mythic:    '<:mythic:1534326656204931082>',
   Super:     '<:super:1534330521755320512>',
   Secret:    '<:secret:1534330406227152896>',
+  Exclusive: '<:exclusive:1539216016968646666>', // TODO: replace with a custom Discord emoji once one is made
 };
 const RARITIES = [
   { name: 'Common',    color: 0x9E9E9E, weight: 480000, emoji: RARITY_EMOJIS.Common,    sellPrice: 10     },
@@ -723,6 +725,11 @@ const RARITIES = [
   { name: 'Mythic',    color: 0xEA2222, weight: 4000,    emoji: RARITY_EMOJIS.Mythic,    sellPrice: 25000  },
   { name: 'Super',     color: 0x00E5FF, weight: 1400,    emoji: RARITY_EMOJIS.Super,     sellPrice: 60000  },
   { name: 'Secret',    color: 0x000000, weight: 100,     emoji: RARITY_EMOJIS.Secret,    sellPrice: 250000 },
+  // Exclusive — admin-only rarity. weight: 0 so it can never be rolled by pickRarity,
+  // and it's deliberately absent from every CRATES[...].weights table, so regular
+  // players cannot obtain it directly through crates, drops, or any RNG path.
+  // The only way a plant of this rarity reaches a player is via !addplant (admin-only).
+  { name: 'Exclusive', color: 0x00FF00, weight: 0,       emoji: RARITY_EMOJIS.Exclusive, sellPrice: 500000 },
 ];
 
 // ─── Base plant sell prices (version-weighted) ────────────────────────────────
@@ -937,11 +944,9 @@ const PLANTS = [
   { name: 'Mango',      file: './images/Mango.png',    display: 'Mango.png',    rarity: 'Epic' },
 
   // ── Legendary ──────────────────────────────────────────────────────────
-  // NOTE: Rocket Pop excluded (not obtainable in GAG2).
   { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
   { name: 'Cherry', file: './images/CherryProduce.png', display: 'CherryProduce.png', rarity: 'Legendary' },
   { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
-  { name: 'Rocket Pop',        file: './images/RocketPopProduce.png',       display: 'RocketPopProduce.png', rarity: 'Legendary', giftOnly: true },
   { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
 
@@ -962,6 +967,9 @@ const PLANTS = [
   // ── Secret ─────────────────────────────────────────────────────────────
   // TODO: replace with your actual GAG2 secret plant name + image once decideded
   { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
+
+  // ── Exclusive — admin-granted only, never rolled in crates/drops ────────
+  { name: 'Rocket Pop', file: './images/RocketPopProduce.png', display: 'RocketPopProduce.png', rarity: 'Exclusive' },
 
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -4459,7 +4467,7 @@ if (cmd === 'web') {
 
     const cleanArgs = cleanForPlant.replace(plantNameFilter || '', '').trim();
     const pageArg = parseInt(cleanArgs) || 1;
-    const RARITY_SORT = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const RARITY_SORT = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     let filtered = [...user.collection].sort((a, b) => { const ri = RARITY_SORT.indexOf(a.rarity) - RARITY_SORT.indexOf(b.rarity); if (ri !== 0) return ri; return (a.version || 999) - (b.version || 999); });
     if (versionFilter) { const { op, n } = versionFilter; filtered = filtered.filter(p => { const v = p.version || 0; if (op==='>'||op==='gt') return v>n; if (op==='>='||op==='gte') return v>=n; if (op==='<'||op==='lt') return v<n; if (op==='<='||op==='lte') return v<=n; if (op==='='||op==='==') return v===n; return true; }); }
     if (mutationFilter) { if (mutationFilter === 'none') filtered = filtered.filter(p => !p.mutation); else filtered = filtered.filter(p => p.mutation && p.mutation.name.toLowerCase() === mutationFilter); }
@@ -4765,7 +4773,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (!byRarity[p.rarity]) byRarity[p.rarity] = 0;
       byRarity[p.rarity]++;
     }
-    const RARITY_ORDER = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const RARITY_ORDER = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     const summaryLines = RARITY_ORDER
       .filter(r => byRarity[r])
       .map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
@@ -4929,7 +4937,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         });
     };
 
-    const RARITY_ORDER_SA = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const RARITY_ORDER_SA = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
     const saBuildPreview = (candidates) => {
       const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
