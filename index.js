@@ -852,6 +852,7 @@ const PLANTS = [
   { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
   { name: 'Cherry', file: './images/CherryProduce.png', display: 'CherryProduce.png', rarity: 'Legendary' },
   { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
+  { name: 'Rocket Pop',        file: './images/RocketPopProduce.png',       display: 'RocketPopProduce.png', rarity: 'Legendary' },
   { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
 
