@@ -852,7 +852,7 @@ const PLANTS = [
   { name: 'Dragon Fruit', file: './images/DragonFruit.png', display: 'DragonFruit.png', rarity: 'Legendary' },
   { name: 'Cherry', file: './images/CherryProduce.png', display: 'CherryProduce.png', rarity: 'Legendary' },
   { name: 'Acorn',        file: './images/Acorn.png',       display: 'Acorn.png',       rarity: 'Legendary' },
-  { name: 'Rocket Pop',        file: './images/RocketPopProduce.png',       display: 'RocketPopProduce.png', rarity: 'Legendary' },
+  { name: 'Rocket Pop',        file: './images/RocketPopProduce.png',       display: 'RocketPopProduce.png', rarity: 'Legendary', giftOnly: true },
   { name: 'Sunflower',    file: './images/Sunflower.png',   display: 'Sunflower.png',   rarity: 'Legendary' },
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
 
@@ -1373,7 +1373,7 @@ function pickRarityWithCharms(db, userId, customWeights) {
   return pickRarity(weights);
 }
 function pickPlant(rarityName, allowDropOnly = false) {
-  const pool = PLANTS.filter(p => p.rarity === rarityName && (allowDropOnly || !p.dropOnly));
+  const pool = PLANTS.filter(p => p.rarity === rarityName && !p.giftOnly && (allowDropOnly || !p.dropOnly));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
 }
 function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
@@ -4222,18 +4222,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const mktStr = mktMult > 1.05 ? `📈 +${Math.round((mktMult-1)*100)}% demand` : mktMult < 0.95 ? `📉 ${Math.round((mktMult-1)*100)}% demand` : `📊 Normal demand`;
     let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** ${fmtVersion(p)}`; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
 
-    // Find who owns this plant server-wide
-    const allOwners = [];
+    // Find who owns this plant server-wide, grouped by version (v1/v2/v3)
+    const ownersByVersion = {};
     for (const [uid, userData] of Object.entries(db)) {
       for (const p of (userData.collection || [])) {
         if (p.name !== plant.name) continue;
         if (vFilter !== null && p.version !== vFilter) continue;
-        const uname = userData.username || `User#${uid.slice(-4)}`;
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        allOwners.push(`<@${uid}>${mutStr}`);
+        if (!ownersByVersion[p.version]) ownersByVersion[p.version] = [];
+        ownersByVersion[p.version].push(`<@${uid}>${mutStr}`);
       }
     }
-    const ownedByLine = allOwners.length ? `*Owned by: ${allOwners.join('  ·  ')}*` : '*Not owned by anyone yet.*';
+    const versionKeys = Object.keys(ownersByVersion).map(Number).sort((a, b) => a - b);
+    const ownedByLine = versionKeys.length
+      ? `*Owned by:*\n${versionKeys.map(v => `\`v${v}\` — ${ownersByVersion[v].join(', ')}`).join('\n')}`
+      : '*Not owned by anyone yet.*';
 
     const viewAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle(vFilter !== null ? `${rCfg.emoji} ${plant.name} — v${vFilter}` : `${rCfg.emoji} ${plant.name}`).setDescription(`${mktStr}  ·  You own **${owned.length}** cop${owned.length!==1?'ies':'y'}\n\n${copiesLines}\n\n${ownedByLine}\n\n*\`!sell ${plant.name}\` to sell one*`).setImage(`attachment://${plant.display}`).setColor(rCfg.color).setFooter({ text: `Plant Showcase  •  ${plant.name}` })], files: [viewAttach] });
