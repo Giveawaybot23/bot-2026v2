@@ -2344,39 +2344,134 @@ async function generateInvLBImage(entries) {
 
 // ─── Level Leaderboard Image ──────────────────────────────────────────────────
 async function generateLevelLBImage(entries) {
-  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
-  const H = HEADER_H + entries.length * ROW_H + PADDING;
-  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#0b0f1a'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
-  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#1a237e'); grad.addColorStop(1, '#0b0f1a');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
-  ctx.fillStyle = '#5C6BC0'; ctx.fillRect(0, 0, 4, HEADER_H);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('⭐  Level Leaderboard', 24, HEADER_H / 2);
-  const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
+
+  // Accent line
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0, '#5C6BC0'); accentGrad.addColorStop(0.5, '#9575CD'); accentGrad.addColorStop(1, '#5C6BC0');
+  ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
+
   for (let i = 0; i < entries.length; i++) {
-    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H / 2;
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
-    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
-    ctx.textAlign = 'center';
-    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
-    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.font = '18px Arial'; ctx.textAlign = 'left'; ctx.fillText(e.rankEmoji, 54, mid - 1);
-    ctx.font = 'bold 16px Arial';
-    if (e.rainbowTag) {
-      drawRainbowText(ctx, e.username, 80, mid);
-    } else {
-      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fillText(e.username, 80, mid);
+    const e   = entries[i];
+    const y   = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Alternating row bg
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Top 3 glow
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
     }
-    ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#7986CB'; ctx.fillText(`Lv. ${e.level}`, W - 170, mid);
-    const barX = W - 120, barW = 90, barH = 8, barY = mid - barH / 2;
-    ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 4); ctx.fill();
+
+    // Left accent bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#5C6BC0';
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 44, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${e.globalRank || i + 1}`, rankX, mid);
+    ctx.restore();
+
+    // Avatar circle
+    const avatarX = 92, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      ctx.fillStyle = '#5C6BC0';
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#5C6BC0';
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
+
+    // Username
+    ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
+
+    // Rank title
+    ctx.font = '12px Arial'; ctx.fillStyle = '#7986CB';
+    ctx.fillText(`${e.rankEmoji}  ${e.rankName}`, 130, mid + 10);
+
+    // Level
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = i === 0 ? '#9575CD' : 'rgba(255,255,255,0.75)';
+    ctx.save();
+    if (i === 0) { ctx.shadowColor = '#9575CD'; ctx.shadowBlur = 12; }
+    ctx.fillText(`Lv. ${e.level}`, W - 16, mid - 8);
+    ctx.restore();
+    ctx.textAlign = 'left';
+
+    // Mini XP progress bar
+    const barW = 90, barH = 5, barX = W - 16 - barW, barY = mid + 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
     const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
     barGrad.addColorStop(0, '#5C6BC0'); barGrad.addColorStop(1, '#9575CD');
-    ctx.fillStyle = barGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW * (e.pct/100), 4), barH, 4); ctx.fill();
+    ctx.fillStyle = barGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW * (e.pct / 100), 4), barH, 3); ctx.fill();
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
   }
-  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Players`);
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '12px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  Level Leaderboard  ·  Top ${entries.length}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
   return canvas.toBuffer('image/png');
 }
 
@@ -2390,9 +2485,10 @@ async function buildLevelLBData(db, page = 1) {
     const globalRank = (page - 1) * PER_PAGE + i + 1;
     const level = getLevelFromXP(e.xp); const rank = getRank(level); const { pct } = xpToNextLevel(e.xp);
     let username = `User#${e.id.slice(-4)}`;
-    try { const u = await client.users.fetch(e.id); username = u.username; } catch {}
+    let avatarURL = null;
+    try { const u = await client.users.fetch(e.id); username = u.username; avatarURL = u.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
     const rainbowTag = !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now);
-    return { globalRank, username, level, rankEmoji: rank.emoji, rankName: rank.name, xp: e.xp, pct, rainbowTag };
+    return { globalRank, username, avatarURL, level, rankEmoji: rank.emoji, rankName: rank.name, xp: e.xp, pct, rainbowTag };
   }));
   return { entries, totalPages };
 }
@@ -2933,35 +3029,135 @@ function generateRaceLBImage(entries) {
 }
 
 // ─── Money Leaderboard Image ──────────────────────────────────────────────────
-function generateMoneyLBImage(entries) {
-  const W = 520, ROW_H = 52, HEADER_H = 64, PADDING = 24;
-  const H = HEADER_H + entries.length * ROW_H + PADDING;
-  const canvas = createCanvas(W, H); const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#020d05'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(0,200,80,0.06)'; ctx.lineWidth = 1;
-  for (let i = 0; i <= entries.length; i++) { const y = HEADER_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const grad = ctx.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#002d0f'); grad.addColorStop(1, '#020d05');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, HEADER_H);
-  ctx.fillStyle = '#00C853'; ctx.fillRect(0, 0, 4, HEADER_H);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('💰  Money Leaderboard', 24, HEADER_H/2);
-  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+async function generateMoneyLBImage(entries) {
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
+
+  // Accent line
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0, '#00C853'); accentGrad.addColorStop(0.5, '#69F0AE'); accentGrad.addColorStop(1, '#00C853');
+  ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
+
   for (let i = 0; i < entries.length; i++) {
-    const e = entries[i], y = HEADER_H + i * ROW_H, mid = y + ROW_H/2;
-    ctx.fillStyle = i%2===0 ? 'rgba(0,200,80,0.04)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y, W, ROW_H);
-    if (i < 3) drawRowGlow(ctx, y, ROW_H, W, i);
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-    if (i < 3) { ctx.save(); ctx.font = '22px Arial'; ctx.fillStyle = rankColors[i]; ctx.shadowColor = rankColors[i]; ctx.shadowBlur = 8; ctx.fillText(['🥇','🥈','🥉'][i], 30, mid); ctx.restore(); }
-    else { ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText(`${i+1}`, 30, mid); }
-    ctx.textAlign = 'left'; ctx.font = 'bold 16px Arial'; ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.82)'; ctx.fillText(e.username, 58, mid);
-    ctx.font = 'bold 15px Arial'; ctx.fillStyle = i===0 ? '#00C853' : 'rgba(255,255,255,0.7)';
-    ctx.textAlign = 'right'; ctx.fillText(`${e.currency.toLocaleString()} coins`, W-16, mid); ctx.textAlign = 'left';
-    const barX = W-170, barW = 100, barH = 5, barY = mid+10;
-    const relPct = entries[0].currency > 0 ? e.currency/entries[0].currency : 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
-    const bGrad = ctx.createLinearGradient(barX, 0, barX+barW, 0); bGrad.addColorStop(0, '#00C853'); bGrad.addColorStop(1, '#69F0AE');
-    ctx.fillStyle = bGrad; ctx.beginPath(); ctx.roundRect(barX, barY, Math.max(barW*relPct, 4), barH, 3); ctx.fill();
+    const e   = entries[i];
+    const y   = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Alternating row bg
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Top 3 glow
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
+    }
+
+    // Left accent bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#00C853';
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 44, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${i + 1}`, rankX, mid);
+    ctx.restore();
+
+    // Avatar circle
+    const avatarX = 92, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      ctx.fillStyle = '#00C853';
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#00C853';
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
+
+    // Username
+    ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
+
+    // Relative wealth bar
+    const relPct = entries[0].currency > 0 ? e.currency / entries[0].currency : 0;
+    const miniBarW = 90, miniBarH = 5, miniBarX = 130, miniBarY = mid + 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, miniBarW, miniBarH, 3); ctx.fill();
+    const miniGrad = ctx.createLinearGradient(miniBarX, 0, miniBarX + miniBarW, 0);
+    miniGrad.addColorStop(0, '#00C853'); miniGrad.addColorStop(1, '#69F0AE');
+    ctx.fillStyle = miniGrad; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, Math.max(miniBarW * relPct, 4), miniBarH, 3); ctx.fill();
+
+    // Coins
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = i === 0 ? '#00C853' : 'rgba(255,255,255,0.75)';
+    ctx.save();
+    if (i === 0) { ctx.shadowColor = '#00C853'; ctx.shadowBlur = 12; }
+    ctx.fillText(e.currency.toLocaleString(), W - 16, mid - 8);
+    ctx.restore();
+
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText('coins', W - 16, mid + 10);
+    ctx.textAlign = 'left';
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
   }
-  ctx.textBaseline = 'middle'; drawLBFooter(ctx, W, H, PADDING, `Top ${entries.length} Richest`);
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '12px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  Money Leaderboard  ·  Top ${entries.length}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
   return canvas.toBuffer('image/png');
 }
 
@@ -4228,9 +4424,16 @@ if (cmd === 'web') {
   // ── !moneylb / !mlb ───────────────────────────────────────────────────────
   if (cmd === 'moneylb' || cmd === 'mlb') {
     const db = loadDB();
+    const now = Date.now();
     const sorted = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, currency: u.currency||0 })).sort((a,b) => b.currency-a.currency).slice(0, 10);
-    const entries = await Promise.all(sorted.map(async (e) => { let username = `User#${e.id.slice(-4)}`; try { const u = await client.users.fetch(e.id); username = u.username; } catch {} return { username, currency: e.currency }; }));
-    const imgBuf = generateMoneyLBImage(entries);
+    const entries = await Promise.all(sorted.map(async (e) => {
+      let username = `User#${e.id.slice(-4)}`;
+      let avatarURL = null;
+      try { const u = await client.users.fetch(e.id); username = u.username; avatarURL = u.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+      const rainbowTag = !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now);
+      return { username, avatarURL, currency: e.currency, rainbowTag };
+    }));
+    const imgBuf = await generateMoneyLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'moneylb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://moneylb.png').setFooter({ text: `Top ${entries.length} Richest  ·  !mlb` }).setColor(0x00C853)], files: [att] });
   }
@@ -6173,7 +6376,7 @@ async function endRace(channel, race) {
   const winnerId = race.finishers[0].userId;
   const winnerUser = getUser(loadDB(), winnerId);
   const winStreak = winnerUser.winStreak || 0;
-  return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Results!').setDescription(`${medal(0)} <@${winnerId}> 🔥 ${winStreak} <a:fire:1538794886281822208> in **${msToStr(race.finishers[0].time)}**\n\n**Standings:**\n${lines.join('\n')}`).setColor(0xFFAA00)] });
+  return channel.send({ embeds: [new EmbedBuilder().setTitle('🏁 Race Results!').setDescription(`${medal(0)} <@${winnerId}> 🔥 **${winStreak}** <a:fire:1538794886281822208>\n\n**Standings:**\n${lines.join('\n')}`).setColor(0xFFAA00)] });
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
