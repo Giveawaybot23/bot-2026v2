@@ -39,6 +39,10 @@ function fetchImageBuffer(url) {
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  // Safe default: never let @everyone/@here/role mentions fire from bot output,
+  // even if a plant name, username, or other text field somehow contains one.
+  // Direct user mentions (<@id>, used everywhere for claims/ownership) still work.
+  allowedMentions: { parse: ['users'] },
 });
 
 client.on('error', (err) => console.error('Discord client error:', err));
@@ -62,12 +66,48 @@ const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
 const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
 const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
+const BACKUPS_DIR      = `${DATA_DIR}/backups`;
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+
+// ─── Automatic backups ─────────────────────────────────────────────────────
+// Atomic writes protect against a corrupted half-written file, but not against
+// a bad deploy, a wipe command typo, or disk failure. This snapshots the DB +
+// meta file on a schedule and prunes old ones — cheap insurance once real
+// player data exists that can't be regenerated.
+const BACKUP_INTERVAL_MS = 60 * 60 * 1000; // hourly
+const BACKUP_RETENTION   = 48;             // keep last 48 hourly snapshots (~2 days)
+function runBackup() {
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    for (const [label, file] of [['users', DB_FILE], ['meta', META_FILE]]) {
+      if (fs.existsSync(file)) {
+        fs.copyFileSync(file, `${BACKUPS_DIR}/${label}_${stamp}.json`);
+      }
+    }
+    const files = fs.readdirSync(BACKUPS_DIR).sort();
+    if (files.length > BACKUP_RETENTION * 2) { // *2 since we save 2 files (users+meta) per run
+      const excess = files.length - BACKUP_RETENTION * 2;
+      for (const f of files.slice(0, excess)) fs.unlinkSync(`${BACKUPS_DIR}/${f}`);
+    }
+  } catch (err) {
+    console.error('[backup] failed:', err);
+  }
+}
+setInterval(runBackup, BACKUP_INTERVAL_MS);
+runBackup(); // one on boot too, so a crash right after launch isn't a total loss window
 
 // Atomic write: write to a temp file in the same directory, then rename over the target.
 // Rename is effectively instantaneous, so a crash/OOM mid-save leaves either the old
 // complete file or the new complete file — never a half-written, corrupted JSON file.
+// Generic API error responder — logs full detail server-side but never
+// leaks internal error messages/stack traces to the client.
+function apiError(res, err, context) {
+  console.error(`[API${context ? ' ' + context : ''}] error:`, err);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
+}
+
 function atomicWriteFileSync(filePath, data) {
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmpPath, data);
@@ -470,20 +510,6 @@ const RARITY_WEIGHT_BONUS = {
   Secret:    1.00,  // was 3.50 — this was the whole problem
 };
 
-// A single plant can already be worth a LOT before it ever reaches this scoring
-// function — e.g. a v1 Secret is 875,000, and a v1 Secret with a dropOnly bonus
-// AND an Eclipsed mutation stacks up past 5,000,000. Since the very first item
-// in the weighted sum always counts at full value (0.95^0 = 1), one lucky pull
-// like that could nearly max out the entire tier ladder by itself.
-// PLANT_SCORE_CAP lets values up to that point count fully (so normal Rare/Epic/
-// Legendary/Mythic progression feels exactly the same as before), but anything
-// above it grows via sqrt instead of linearly — so no single plant, however
-// insane its rarity/version/mutation combo, can carry someone to the endgame
-// tiers alone. Reaching Grandmaster/Secret now takes accumulating MANY high-value
-// plants (grinding AND trading), not one drop. Tune these two constants to
-// taste — raising the cap lets big single hits matter more, raising the dampen
-// factor softens the falloff above the cap.
-
 // Low-rarity v1 Garden Score bonus — a v1 Common currently scores ~35, which is
 // invisible against tier thresholds (Bronze starts at 20,000). This bonus makes
 // v1 copies of the cheap rarities meaningfully add up WITHOUT touching sell
@@ -501,6 +527,19 @@ function getLowRarityV1ScoreMultiplier(rarityName, version) {
   return inGracePeriod ? Math.min(bonus, LOW_RARITY_V1_SCORE_GRACE_CAP) : bonus;
 }
 
+// A single plant can already be worth a LOT before it ever reaches this scoring
+// function — e.g. a v1 Secret is 875,000, and a v1 Secret with a dropOnly bonus
+// AND an Eclipsed mutation stacks up past 5,000,000. Since the very first item
+// in the weighted sum always counts at full value (0.95^0 = 1), one lucky pull
+// like that could nearly max out the entire tier ladder by itself.
+// PLANT_SCORE_CAP lets values up to that point count fully (so normal Rare/Epic/
+// Legendary/Mythic progression feels exactly the same as before), but anything
+// above it grows via sqrt instead of linearly — so no single plant, however
+// insane its rarity/version/mutation combo, can carry someone to the endgame
+// tiers alone. Reaching Grandmaster/Secret now takes accumulating MANY high-value
+// plants (grinding AND trading), not one drop. Tune these two constants to
+// taste — raising the cap lets big single hits matter more, raising the dampen
+// factor softens the falloff above the cap.
 const PLANT_SCORE_CAP = 150000;
 const PLANT_SCORE_DAMPEN = 30;
 function dampenPlantScore(value) {
@@ -526,6 +565,7 @@ function calcWeightedGardenScore(collection) {
   }
   return Math.round(score);
 }
+
 // Garden Elo tiers — Grandmaster is the top VISIBLE tier. Secret is a true hidden
 // tier: it exists in this list (so getGardenTier/getNextGardenTier work correctly
 // once someone reaches it) but is deliberately excluded from any tier list shown
@@ -942,6 +982,11 @@ const PLANTS = [
 
 
 const processedMessages = new Set(); const claimingDaily = new Set(); const claimingWeekly = new Set();
+// Lightweight per-user cooldown for expensive canvas-rendered commands (profile
+// card, etc.) — image generation is CPU-heavy; without this, a few users
+// spamming it back-to-back can visibly lag the bot for everyone else.
+const lastProfileRender = {};
+const PROFILE_RENDER_COOLDOWN_MS = 5000;
 
 // ─── Per-user async queue ─────────────────────────────────────────────────────
 const userQueues = {};
@@ -3189,48 +3234,52 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     if (lower === 'yes') {
       const pending = pendingSells[message.author.id];
       delete pendingSells[message.author.id];
-      const db = loadDB(); const user = getUser(db, message.author.id);
-    user.username = message.author.username;
-    user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-      touchActivity(db, message.author.id, message.author);
+      // Wrapped in the same per-user mutex as crate buys/trades/auctions —
+      // keeps the actual currency/collection mutation serialized per user.
+      return queueForUser(message.author.id, async () => {
+        const db = loadDB(); const user = getUser(db, message.author.id);
+        user.username = message.author.username;
+        user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+        touchActivity(db, message.author.id, message.author);
 
-      // Sell-all path
-      if (pending.sellAllCandidates) {
-        const { sellAllCandidates, totalVal } = pending;
-        // Remove from highest index down to avoid shift bugs
-        let sellTriggered = false;
-        for (const { plant: soldPlant, name, version } of sellAllCandidates) {
-          const idx = user.collection.findIndex(p => p.name === name && p.version === version);
-          if (idx !== -1) user.collection.splice(idx, 1);
-          if (markSellTriggers(user, soldPlant)) sellTriggered = true;
+        // Sell-all path
+        if (pending.sellAllCandidates) {
+          const { sellAllCandidates, totalVal } = pending;
+          // Remove from highest index down to avoid shift bugs
+          let sellTriggered = false;
+          for (const { plant: soldPlant, name, version } of sellAllCandidates) {
+            const idx = user.collection.findIndex(p => p.name === name && p.version === version);
+            if (idx !== -1) user.collection.splice(idx, 1);
+            if (markSellTriggers(user, soldPlant)) sellTriggered = true;
+          }
+          user.currency += totalVal;
+          trackEarned(user, totalVal);
+          if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
+          saveDB(db);
+          for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
+          const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
+          return message.channel.send(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
         }
-        user.currency += totalVal;
-        trackEarned(user, totalVal);
-        if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
-        saveDB(db);
-        for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
-        const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
-        return message.reply(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
-      }
 
-      // Single sell path
-      const { plant, plantName, plantVersion } = pending;
-      const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
-      if (index === -1) return message.reply(`❌ Could not find **${plantName}** ${fmtVersion(plantVersion)} — it may have already been sold or traded.`);
-      user.collection.splice(index, 1);
-      const price = getLiveSellValue(plant);
-      user.currency += price;
-      trackEarned(user, price);
-      if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
-      // remove locks for plants no longer owned
-      const remaining = loadLocks(message.author.id).filter(l => {
-        if (!l.name) return true;
-        return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
+        // Single sell path
+        const { plant, plantName, plantVersion } = pending;
+        const index = user.collection.findIndex(p => p.name === plantName && p.version === plantVersion);
+        if (index === -1) return message.channel.send(`❌ Could not find **${plantName}** ${fmtVersion(plantVersion)} — it may have already been sold or traded.`);
+        user.collection.splice(index, 1);
+        const price = getLiveSellValue(plant);
+        user.currency += price;
+        trackEarned(user, price);
+        if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
+        // remove locks for plants no longer owned
+        const remaining = loadLocks(message.author.id).filter(l => {
+          if (!l.name) return true;
+          return user.collection.some(p => p.name.toLowerCase() === l.name.toLowerCase());
+        });
+        saveLocks(message.author.id, remaining);
+        saveDB(db);
+        announceDroppable(plant, 'sold', message.guild?.id).catch(() => {});
+        return message.channel.send(`✅ Sold **${plant.name}** ${fmtVersion(plant)}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
       });
-      saveLocks(message.author.id, remaining);
-      saveDB(db);
-      announceDroppable(plant, 'sold', message.guild?.id).catch(() => {});
-      return message.reply(`✅ Sold **${plant.name}** ${fmtVersion(plant)}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
     }
     if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
   }
@@ -3879,6 +3928,12 @@ if (cmd === 'web') {
 
   // ── !profile / !prof ──────────────────────────────────────────────────────
   if (cmd === 'profile' || cmd === 'prof') {
+    const lastRender = lastProfileRender[message.author.id] || 0;
+    const sinceLast  = Date.now() - lastRender;
+    if (sinceLast < PROFILE_RENDER_COOLDOWN_MS) {
+      return message.reply(`⏳ Slow down a bit — try again in ${Math.ceil((PROFILE_RENDER_COOLDOWN_MS - sinceLast) / 1000)}s.`);
+    }
+    lastProfileRender[message.author.id] = Date.now();
     let target = message.mentions.users.first();
     if (!target && args[1]) { try { target = await client.users.fetch(args[1]); } catch {} }
     target = target || message.author;
@@ -4238,7 +4293,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (vFilter !== null) owned = owned.filter(p => p.version === vFilter);
     const mktMult = getMarketMultiplier(plant.name);
     const mktStr = mktMult > 1.05 ? `📈 +${Math.round((mktMult-1)*100)}% demand` : mktMult < 0.95 ? `📉 ${Math.round((mktMult-1)*100)}% demand` : `📊 Normal demand`;
-    let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.map(p => { const base = `${rCfg.emoji} **${plant.name}** ${fmtVersion(p)}`; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n');
+    let copiesLines = !owned.length ? (vFilter !== null ? `*You don't own v${vFilter} of this plant.*` : '*None owned.*') : owned.slice(0, 10).map(p => { const base = `${rCfg.emoji} **${plant.name}** ${fmtVersion(p)}`; return p.mutation ? `${base}  ${p.mutation.emoji} **${p.mutation.name}**` : base; }).join('\n') + (owned.length > 10 ? `\n*+${owned.length - 10} more*` : '');
 
     // Find who owns this plant server-wide, grouped by version (v1/v2/v3)
     const ownersByVersion = {};
@@ -5138,24 +5193,33 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
   if (cmd === 'buy' || cmd === 'b') {
     const itemKey = args[1]?.toLowerCase();
     if (!itemKey) return message.reply('Usage: `!buy <item>`. See `!shop` for items.');
+    if (CHARMS[itemKey] || SHOP_TITLES[itemKey]) {
+      // Wrapped in the same per-user mutex used for crate buys/trades/auctions —
+      // prevents a double-fire (double-click, retry, multi-device) from buying
+      // the same charm/title twice or double-spending currency.
+      return queueForUser(message.author.id, async () => {
+        const db = loadDB(); const user = getUser(db, message.author.id);
+        user.username = message.author.username;
+        user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+        touchActivity(db, message.author.id, message.author);
+        if (CHARMS[itemKey]) {
+          const ch = CHARMS[itemKey];
+          if (user.charms.includes(itemKey)) return message.channel.send(`You already own **${ch.name}**!`);
+          if (user.currency < ch.price) return message.channel.send(`❌ Need ${fmt(ch.price)}.`);
+          user.currency -= ch.price; trackSpent(user, message.author.id, ch.price, message.channel); user.charms.push(itemKey); saveDB(db);
+          return message.channel.send(`${ch.emoji} Purchased **${ch.name}**! Use \`!equip ${itemKey}\` to activate.`);
+        }
+        const t = SHOP_TITLES[itemKey];
+        if (user.titles.includes(itemKey)) return message.channel.send(`You already own the **${t.name}** title!`);
+        if (user.currency < t.price) return message.channel.send(`❌ Need ${fmt(t.price)}.`);
+        user.currency -= t.price; trackSpent(user, message.author.id, t.price, message.channel); user.titles.push(itemKey); saveDB(db);
+        return message.channel.send(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
+      });
+    }
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     touchActivity(db, message.author.id, message.author);
-    if (CHARMS[itemKey]) {
-      const ch = CHARMS[itemKey];
-      if (user.charms.includes(itemKey)) return message.reply(`You already own **${ch.name}**!`);
-      if (user.currency < ch.price) return message.reply(`❌ Need ${fmt(ch.price)}.`);
-      user.currency -= ch.price; trackSpent(user, message.author.id, ch.price, message.channel); user.charms.push(itemKey); saveDB(db);
-      return message.reply(`${ch.emoji} Purchased **${ch.name}**! Use \`!equip ${itemKey}\` to activate.`);
-    }
-    if (SHOP_TITLES[itemKey]) {
-      const t = SHOP_TITLES[itemKey];
-      if (user.titles.includes(itemKey)) return message.reply(`You already own the **${t.name}** title!`);
-      if (user.currency < t.price) return message.reply(`❌ Need ${fmt(t.price)}.`);
-      user.currency -= t.price; trackSpent(user, message.author.id, t.price, message.channel); user.titles.push(itemKey); saveDB(db);
-      return message.reply(`${t.emoji} Purchased title **${t.name}**! Use \`!title ${itemKey}\` to equip it.`);
-    }
     let autoEarned = 0;
     const crateKey = Object.keys(CRATES).find(k => CRATES[k].name.split(' ')[0].toLowerCase() === itemKey || k === itemKey);
     if (!crateKey) return message.reply('Unknown item. Check `!shop`.');
@@ -6082,6 +6146,15 @@ app.use(express.json());
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
+// Session secret must be set explicitly in production — a hardcoded fallback
+// here would let anyone who reads the source forge valid session cookies for
+// the web dashboard. Only allow the fallback in local/dev.
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('❌ No SESSION_SECRET set in production — refusing to start.');
+  process.exit(1);
+}
+
 app.use(session({
   store: new FileStore({
     path: SESSIONS_DIR,
@@ -6089,7 +6162,7 @@ app.use(session({
     retries: 1,
     logFn: () => {}, // silence noisy default logging
   }),
-  secret: process.env.SESSION_SECRET || 'gardenhorizons_secret',
+  secret: SESSION_SECRET || 'dev_only_insecure_secret',
   resave: false,
   saveUninitialized: false,
   cookie: { 
@@ -6177,7 +6250,7 @@ app.get('/api/leaderboards', (req, res) => {
       daily:  daily.map(e  => ({ ...e, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })),
       weekly: weekly.map(e => ({ ...e, rainbowTag: !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now) })),
     });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.get('/api/profile/:id', (req, res) => {
@@ -6212,7 +6285,7 @@ app.get('/api/profile/:id', (req, res) => {
       cratesOpened: user.cratesOpened || 0,
       raceWins: user.raceWins || 0,
     });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.get('/api/players', (req, res) => {
@@ -6230,7 +6303,7 @@ app.get('/api/players', (req, res) => {
       .filter(e => e.plants >= 0)
       .sort((a,b) => b.score - a.score);
     res.json(players);
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, res) => {
@@ -6351,7 +6424,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       endsAt: auction.endsAt,
       newMin: Math.ceil(bidAmount * 1.05),
     });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
   });
 });
 
@@ -6394,7 +6467,7 @@ app.get('/api/auctions', (req, res) => {
         timeLeft: Math.max(0, a.endsAt - now),
       };
     }).sort((a, b) => (b.boosted ? 1 : 0) - (a.boosted ? 1 : 0)));
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.get('/api/avatar/:id', async (req, res) => {
@@ -6678,7 +6751,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
         autoSold: autoEarned,
         cooldownMs: CRATE_COOLDOWNS[crateId] || 0,
       });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { apiError(res, err); }
   });
 });
 
@@ -6719,7 +6792,7 @@ app.get('/api/plants', (req, res) => {
     sellPrice: rCfg.sellPrice || 0,
   };
 }));
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.get('/api/market', (req, res) => {
@@ -6749,7 +6822,7 @@ app.get('/api/market', (req, res) => {
         };
       })
       .sort((a, b) => (b.boosted ? 1 : 0) - (a.boosted ? 1 : 0)));
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { apiError(res, err); }
 });
 
 app.post('/api/market/list', async (req, res) => {
