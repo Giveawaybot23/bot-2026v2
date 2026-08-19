@@ -1138,6 +1138,15 @@ let pendingWipes = {};
 let pendingCrates ={};
 let devRarity = null; const versionLocks = new Set();
 
+// ─── Cross-channel claim cooldown ──────────────────────────────────────────────
+// With multiple !setdropchat channels active in a guild, a fast claimer could
+// otherwise camp all of them at once and snatch every drop. After claiming in
+// one channel, that user can't claim in a *different* channel of the same
+// guild for CHANNEL_CLAIM_COOLDOWN_MS — gives others in the other channel(s)
+// a real chance.
+const CHANNEL_CLAIM_COOLDOWN_MS = 60 * 1000; // 1 minute
+const lastClaimChannel = {}; // userId -> { guildId, channelId, time }
+
 // ─── DB / Meta ────────────────────────────────────────────────────────────────
 function loadDB() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -3524,6 +3533,18 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     const drop  = activeDrops[message.channel.id];
     if (input !== drop.captcha) return;
     if (!COOLDOWN_EXEMPT_IDS.includes(message.author.id)) {
+      // Cross-channel claim cooldown — block claiming in a different channel
+      // shortly after claiming elsewhere, so a fast claimer can't camp every
+      // drop channel at once.
+      const lastClaim = lastClaimChannel[message.author.id];
+      if (lastClaim && lastClaim.guildId === message.guild?.id && lastClaim.channelId !== message.channel.id) {
+        const remaining = CHANNEL_CLAIM_COOLDOWN_MS - (Date.now() - lastClaim.time);
+        if (remaining > 0) {
+          const secs = Math.ceil(remaining / 1000);
+          const errMsg = await message.channel.send(`<@${message.author.id}> ⏳ You just claimed in <#${lastClaim.channelId}> — wait **${secs}s** before claiming in another channel.`);
+          setTimeout(() => errMsg.delete().catch(() => {}), 5000); return;
+        }
+      }
       const cdDb = loadDB(), cdUser = getUser(cdDb, message.author.id);
       const cdMs = CLAIM_COOLDOWNS[drop.rarity.name] || 0;
       const remaining = cdMs - (Date.now() - ((cdUser.claimCooldowns || {})[drop.rarity.name] || 0));
@@ -3537,6 +3558,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     drop.claimers.push({ userId: message.author.id, username: message.author.username, time: elapsed });
     if (drop.claimers.length === 1) {
       delete activeDrops[message.channel.id];
+      lastClaimChannel[message.author.id] = { guildId: message.guild?.id, channelId: message.channel.id, time: Date.now() };
       await queueForUser(message.author.id, async () => {
         const db      = loadDB();
         const user    = getUser(db, message.author.id);
