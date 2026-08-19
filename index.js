@@ -101,6 +101,10 @@ const SETTINGS_FILE   = `${DATA_DIR}/settings.json`;
 const AUCTION_FILE    = `${DATA_DIR}/auctions.json`;
 const TRADES_FILE     = `${DATA_DIR}/trades.json`;
 const AUTOSELL_FILE   = `${DATA_DIR}/autosell.json`;
+const EVENTS_FILE           = `${DATA_DIR}/events.json`;
+const RACE_FINISH_LOG_FILE  = `${DATA_DIR}/event_race_finishes.json`;
+const RACE_STREAK_LOG_FILE  = `${DATA_DIR}/event_race_streaks.json`;
+const CLAIM_VALUE_LOG_FILE  = `${DATA_DIR}/event_claim_values.json`;
 const BACKUPS_DIR      = `${DATA_DIR}/backups`;
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1237,7 +1241,7 @@ function getClaimsInWindow(claims, ms) {
   return claims.filter(t => now - t <= ms).length;
 }
 
-async function generateClaimsLBImage(entries, footerLabel) {
+async function generateClaimsLBImage(entries, footerLabel, unitLabel = 'claims') {
   const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
   const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
   const canvas = createCanvas(W, H);
@@ -1350,7 +1354,7 @@ async function generateClaimsLBImage(entries, footerLabel) {
     ctx.restore();
 
     ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillText('claims', W - 16, mid + 10);
+    ctx.fillText(unitLabel, W - 16, mid + 10);
     ctx.textAlign = 'left';
 
     // Divider
@@ -2191,6 +2195,258 @@ function startPayoutLoop() {
     if (stateChanged) savePayoutState(state);
     await broadcastPayoutEmbeds(embedsToSend);
   }, 60 * 1000);
+}
+
+// ─── Custom Events (!startevent) ───────────────────────────────────────────────
+// Timed leaderboard competitions an admin can spin up with !startevent <type> <duration>.
+// Data range for the leaderboard is always [event.startAt, min(now, event.endAt)] — the
+// "min to max" window the event covers. The running !eventlb image is deleted the moment
+// the event ends so the next event starts with a clean slate.
+
+function loadJSONArrayFile(file) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(file)) fs.writeFileSync(file, '[]');
+  try { return JSON.parse(fs.readFileSync(file)); } catch { return []; }
+}
+function saveJSONArrayFile(file, arr) { atomicWriteFileSync(file, JSON.stringify(arr, null, 2)); }
+
+const EVENT_LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — plenty for any event window
+function appendEventLog(file, entry) {
+  const arr = loadJSONArrayFile(file);
+  arr.push(entry);
+  const now = Date.now();
+  saveJSONArrayFile(file, arr.filter(e => now - e.time <= EVENT_LOG_RETENTION_MS));
+}
+
+function recordRaceFinish(userId, username) {
+  if (TEST_IDS.has(userId)) return;
+  appendEventLog(RACE_FINISH_LOG_FILE, { userId, username, time: Date.now() });
+}
+function recordRaceStreak(userId, username, streak) {
+  if (TEST_IDS.has(userId)) return;
+  appendEventLog(RACE_STREAK_LOG_FILE, { userId, username, value: streak, time: Date.now() });
+}
+function recordClaimValue(userId, username, value) {
+  if (TEST_IDS.has(userId)) return;
+  appendEventLog(CLAIM_VALUE_LOG_FILE, { userId, username, value, time: Date.now() });
+}
+
+// Sum of occurrences per user within [start,end] — e.g. races completed.
+function aggregateCountLog(file, start, end) {
+  const arr = loadJSONArrayFile(file).filter(e => e.time >= start && e.time <= end && !TEST_IDS.has(e.userId));
+  const map = new Map();
+  for (const e of arr) {
+    const cur = map.get(e.userId) || { userId: e.userId, username: e.username, value: 0 };
+    cur.value += 1; cur.username = e.username;
+    map.set(e.userId, cur);
+  }
+  return [...map.values()];
+}
+// Highest single value per user within [start,end] — e.g. best streak, best sell value.
+function aggregateMaxLog(file, start, end) {
+  const arr = loadJSONArrayFile(file).filter(e => e.time >= start && e.time <= end && !TEST_IDS.has(e.userId));
+  const map = new Map();
+  for (const e of arr) {
+    const cur = map.get(e.userId);
+    if (!cur || e.value > cur.value) map.set(e.userId, { userId: e.userId, username: e.username, value: e.value });
+  }
+  return [...map.values()];
+}
+function computeClaimsCountRange(start, end) {
+  const lb = loadClaimsLB();
+  return lb.filter(e => !TEST_IDS.has(e.userId))
+    .map(e => ({ userId: e.userId, username: e.username, value: e.claims.filter(t => t >= start && t <= end).length }))
+    .filter(e => e.value > 0);
+}
+
+const EVENT_TYPES = {
+  claims:     { label: 'Highest Claims',         unit: 'claims', compute: (s, e) => computeClaimsCountRange(s, e) },
+  races:      { label: 'Races Completed',        unit: 'races',  compute: (s, e) => aggregateCountLog(RACE_FINISH_LOG_FILE, s, e) },
+  racestreak: { label: 'Highest Race Streak',     unit: 'streak', compute: (s, e) => aggregateMaxLog(RACE_STREAK_LOG_FILE, s, e) },
+  bestclaim:  { label: 'Best Claim (Sell Value)', unit: 'coins',  compute: (s, e) => aggregateMaxLog(CLAIM_VALUE_LOG_FILE, s, e) },
+};
+const EVENT_TYPE_ALIASES = {
+  claims: 'claims', highestclaims: 'claims',
+  races: 'races', race: 'races', racescompleted: 'races', raceswon: 'races',
+  streak: 'racestreak', racestreak: 'racestreak', highestracestreak: 'racestreak', winstreak: 'racestreak',
+  bestclaim: 'bestclaim', bestclaimsellvalue: 'bestclaim', sellvalue: 'bestclaim', highestsellvalue: 'bestclaim', bestsell: 'bestclaim',
+};
+function resolveEventType(input) {
+  const k = (input || '').toLowerCase().replace(/[\s_-]/g, '');
+  return EVENT_TYPE_ALIASES[k] || null;
+}
+
+function parseDuration(str) {
+  if (!str) return null;
+  const re = /(\d+)\s*(d|h|m|s)/gi;
+  let match, total = 0, matched = false;
+  while ((match = re.exec(str))) {
+    matched = true;
+    const n = parseInt(match[1]);
+    const mult = { d: 86400000, h: 3600000, m: 60000, s: 1000 }[match[2].toLowerCase()];
+    total += n * mult;
+  }
+  if (!matched) {
+    const n = parseInt(str);
+    return (!isNaN(n) && n > 0) ? n * 60000 : null; // bare number = minutes
+  }
+  return total;
+}
+function formatDuration(ms) {
+  let rem = ms;
+  const d = Math.floor(rem / 86400000); rem -= d * 86400000;
+  const h = Math.floor(rem / 3600000);  rem -= h * 3600000;
+  const m = Math.floor(rem / 60000);
+  const parts = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  if (m || !parts.length) parts.push(`${m}m`);
+  return parts.join(' ');
+}
+
+// ── Active event storage — keyed by guildId, one event (or setup-in-progress draft) at a time ──
+function loadActiveEvents() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(EVENTS_FILE)) fs.writeFileSync(EVENTS_FILE, '{}');
+  try { return JSON.parse(fs.readFileSync(EVENTS_FILE)); } catch { return {}; }
+}
+function saveActiveEvents(all) { atomicWriteFileSync(EVENTS_FILE, JSON.stringify(all, null, 2)); }
+function getActiveEvent(guildId) { return loadActiveEvents()[guildId] || null; }
+function saveActiveEvent(event) { const all = loadActiveEvents(); all[event.guildId] = event; saveActiveEvents(all); }
+function clearActiveEvent(guildId) { const all = loadActiveEvents(); delete all[guildId]; saveActiveEvents(all); }
+
+function eventTierForRank(rank) { return rank === 1 ? 1 : rank <= 3 ? 2 : 3; }
+function eventTierLabel(t) { return t === 1 ? '🥇 Top 1 (#1)' : t === 2 ? '🥈 Top 3 (#2–#3)' : '🥉 Top 5 (#4–#5)'; }
+function eventRewardText(reward) {
+  if (!reward) return '*not set*';
+  return reward.type === 'coins' ? fmt(reward.amount) : `🌱 **${reward.plantName}**`;
+}
+
+async function enrichEventEntries(rawEntries) {
+  const db = loadDB();
+  const now = Date.now();
+  const out = [];
+  for (const e of rawEntries) {
+    let avatarURL = null;
+    try { const u = await client.users.fetch(e.userId); avatarURL = u.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+    const rainbowTag = !!(db[e.userId]?.rainbowTag && db[e.userId].rainbowTag.expiresAt > now);
+    out.push({ userId: e.userId, username: db[e.userId]?.username || e.username || 'Unknown', count: e.value, avatarURL, rainbowTag });
+  }
+  return out;
+}
+
+function buildEventEmbed(event, entries, statusText) {
+  const type = EVENT_TYPES[event.type];
+  const endTs = Math.floor(event.endAt / 1000);
+  const startTs = Math.floor(event.startAt / 1000);
+  const rewardLines = [1, 2, 3].map(t => `${eventTierLabel(t)} — ${eventRewardText(event.rewards[`tier${t}`])}`).join('\n');
+  const embed = new EmbedBuilder()
+    .setTitle(`🏆 Event: ${type.label}`)
+    .setDescription(statusText || `Climb the **${type.label}** leaderboard to win!\n\n**Ends:** <t:${endTs}:R>`)
+    .addFields(
+      { name: '📅 Period', value: `**Start:** <t:${startTs}:F>\n**End:** <t:${endTs}:F>` },
+      { name: '🎁 Rewards', value: rewardLines },
+    )
+    .setColor(0xFFD700)
+    .setFooter({ text: `${SERVER_NAME} · ${entries.length} on the board` })
+    .setTimestamp();
+  if (entries.length) embed.setImage('attachment://eventlb.png');
+  return embed;
+}
+
+async function refreshEventLB(event, statusText) {
+  const channel = client.channels.cache.get(event.channelId);
+  if (!channel) return;
+  const end = Math.min(Date.now(), event.endAt);
+  const type = EVENT_TYPES[event.type];
+  const raw = type.compute(event.startAt, end).sort((a, b) => b.value - a.value).slice(0, 10);
+  const entries = await enrichEventEntries(raw);
+
+  const embed = buildEventEmbed(event, entries, statusText);
+  const files = [];
+  if (entries.length) {
+    const buf = await generateClaimsLBImage(entries, type.label, type.unit);
+    files.push(new AttachmentBuilder(buf, { name: 'eventlb.png' }));
+  } else {
+    embed.setDescription(`${statusText ? statusText + '\n\n' : ''}*No entries yet — be the first on the board!*`);
+  }
+
+  try {
+    if (event.lbMessageId) {
+      const msg = await channel.messages.fetch(event.lbMessageId).catch(() => null);
+      if (msg) { await msg.edit({ embeds: [embed], files }); return; }
+    }
+    const msg = await channel.send({ embeds: [embed], files });
+    event.lbMessageId = msg.id;
+    saveActiveEvent(event);
+  } catch (err) { console.error('[event] refresh failed:', err); }
+}
+
+async function endEvent(guildId) {
+  const event = getActiveEvent(guildId);
+  if (!event || event.pendingSetup) return;
+  const type = EVENT_TYPES[event.type];
+  const raw = type.compute(event.startAt, event.endAt).sort((a, b) => b.value - a.value).slice(0, 5);
+  const top5 = await enrichEventEntries(raw);
+
+  const channel = client.channels.cache.get(event.channelId);
+  if (channel && event.lbMessageId) {
+    const msg = await channel.messages.fetch(event.lbMessageId).catch(() => null);
+    if (msg) await msg.delete().catch(() => {});
+  }
+
+  const db = loadDB();
+  const resultLines = [];
+  for (let i = 0; i < top5.length; i++) {
+    const rank = i + 1;
+    const reward = event.rewards[`tier${eventTierForRank(rank)}`];
+    const entry = top5[i];
+    const user = getUser(db, entry.userId);
+    let rewardText = '*no reward set*';
+    if (reward?.type === 'coins') {
+      user.currency += reward.amount;
+      trackEarned(user, reward.amount);
+      pushCoinUpdate(entry.userId, user.currency);
+      rewardText = fmt(reward.amount);
+    } else if (reward?.type === 'plant') {
+      const plant = PLANTS.find(p => p.name.toLowerCase() === reward.plantName.toLowerCase());
+      if (plant) {
+        const rarity = getRarityConfig(plant.rarity);
+        const version = getAvailableVersion(plant.name, db);
+        recordVersionHighWater(plant.name, version);
+        const sellValue = calcSellValue(plant, rarity, null, version);
+        grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: null, version, sellValue, claimedAt: new Date().toISOString() });
+        rewardText = `🌱 **${plant.name}** ${fmtVersion(version)}`;
+      } else {
+        rewardText = '*reward plant no longer exists*';
+      }
+    }
+    resultLines.push(`${medal(i)} <@${entry.userId}> — **${entry.count.toLocaleString()} ${type.unit}** → ${rewardText}`);
+  }
+  saveDB(db);
+
+  if (channel) {
+    await channel.send({ embeds: [new EmbedBuilder()
+      .setTitle(`🏆 Event Ended — ${type.label}`)
+      .setDescription(top5.length ? resultLines.join('\n') : 'No one placed on the leaderboard this time — no payouts.')
+      .setColor(0xFFD700)
+      .setFooter({ text: `${SERVER_NAME} · Event complete` })
+      .setTimestamp(),
+    ] }).catch(console.error);
+  }
+
+  clearActiveEvent(guildId);
+}
+
+function startEventLoop() {
+  setInterval(async () => {
+    const all = loadActiveEvents();
+    for (const guildId of Object.keys(all)) {
+      const event = all[guildId];
+      if (!event || event.pendingSetup || Date.now() >= event.endAt) continue;
+      await refreshEventLB(event).catch(console.error);
+    }
+  }, 60_000);
 }
 
 // ─── Decay Loop ───────────────────────────────────────────────────────────────
@@ -3485,6 +3741,7 @@ client.once('ready', () => {
   startDecayLoop();
   startPayoutLoop();
   startWeatherLoop();
+  startEventLoop();
 
   // Resume any auctions that were running before restart
   const auctions = loadAuctions();
@@ -3495,6 +3752,17 @@ client.once('ready', () => {
     } else {
       setTimeout(() => endAuction(auction.id, null).catch(console.error), remaining);
     }
+  }
+
+  // Resume any custom event that was running before restart (setup drafts are dropped —
+  // the admin needs to relaunch those since the reward wizard state lives in memory).
+  const activeEvents = loadActiveEvents();
+  for (const guildId of Object.keys(activeEvents)) {
+    const event = activeEvents[guildId];
+    if (!event || event.pendingSetup) { clearActiveEvent(guildId); continue; }
+    const remaining = event.endAt - Date.now();
+    if (remaining <= 0) endEvent(guildId).catch(console.error);
+    else setTimeout(() => endEvent(guildId).catch(console.error), remaining);
   }
 });
 
@@ -3595,6 +3863,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
           saveDB(db);
           recordClaim(message.author.id, message.author.username);
+          recordClaimValue(message.author.id, message.author.username, sellValue);
         }
 
         const mutLine = mutation ? `  ·  ${mutation.emoji} **${mutation.name}**` : '';
@@ -3619,6 +3888,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     } else {
       const elapsed = Date.now() - race.startTime;
       race.finishers.push({ userId: message.author.id, username: message.author.username, time: elapsed });
+      recordRaceFinish(message.author.id, message.author.username);
       const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
@@ -3632,6 +3902,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         user.raceWins = (user.raceWins || 0) + 1;
         user.winStreak = (user.winStreak || 0) + 1;
         if (user.winStreak > (user.bestWinStreak || 0)) user.bestWinStreak = user.winStreak;
+        recordRaceStreak(message.author.id, message.author.username, user.winStreak);
       } else {
         // This user finished but didn't win this race — their streak breaks.
         if (user.winStreak > 0) {
@@ -4758,6 +5029,153 @@ if (cmd === 'web') {
     const imgBuf = await generateRaceLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'racelb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://racelb.png').setFooter({ text: `Top ${lb.length} Racers  ·  !rlb` }).setColor(0xFFAA00)], files: [att] });
+  }
+
+  // ── !startevent <type> <duration> — admin: launch a timed leaderboard competition ──
+  if (cmd === 'startevent') {
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
+    if (!message.guild) return message.reply('❌ This command must be used in a server.');
+    if (getActiveEvent(message.guild.id)) return message.reply('❌ An event is already running (or being configured) here. Use `!endevent` first.');
+
+    const typeKey = resolveEventType(args[1]);
+    if (!typeKey) {
+      return message.reply(
+        'Usage: `!startevent <type> <duration>`\n' +
+        '**Types:** `claims` (highest claims) · `races` (races completed) · `streak` (highest race streak) · `bestclaim` (best claim sell value)\n' +
+        '**Duration examples:** `30m`, `2h`, `1d`, `1h30m`'
+      );
+    }
+    const durationMs = parseDuration(args[2]);
+    if (!durationMs || durationMs < 60_000) return message.reply('❌ Give a valid duration of at least 1 minute, e.g. `2h`, `45m`, `1d`.');
+    if (durationMs > 14 * 24 * 60 * 60 * 1000) return message.reply('❌ Duration too long — max 14 days.');
+
+    const type = EVENT_TYPES[typeKey];
+    const draft = {
+      guildId: message.guild.id,
+      channelId: message.channel.id,
+      type: typeKey,
+      durationMs,
+      rewards: { tier1: null, tier2: null, tier3: null },
+      pendingSetup: true,
+      createdBy: message.author.id,
+    };
+    saveActiveEvent(draft);
+
+    const buildSetupEmbed = () => new EmbedBuilder()
+      .setTitle(`⚙️ Setting Up Event — ${type.label}`)
+      .setDescription(`Duration: **${formatDuration(durationMs)}**\n\nConfigure rewards for each placement, then press **Launch Event**.`)
+      .addFields({ name: '🎁 Rewards', value: [1, 2, 3].map(t => `${eventTierLabel(t)} — ${eventRewardText(draft.rewards[`tier${t}`])}`).join('\n') })
+      .setColor(0xFFAA00);
+    const buildSetupRows = () => [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('evsetup_tier1').setLabel('Set Top 1 Reward').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('evsetup_tier2').setLabel('Set Top 3 Reward').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('evsetup_tier3').setLabel('Set Top 5 Reward').setStyle(ButtonStyle.Primary),
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('evsetup_launch').setLabel('🚀 Launch Event').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('evsetup_cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger),
+      ),
+    ];
+
+    const setupMsg = await message.reply({ embeds: [buildSetupEmbed()], components: buildSetupRows() });
+    const setupCollector = setupMsg.createMessageComponentCollector({ time: 10 * 60_000, filter: i => i.user.id === message.author.id });
+    let finished = false;
+
+    setupCollector.on('collect', async (interaction) => {
+      const tierMatch = interaction.customId.match(/^evsetup_tier([123])$/);
+      if (tierMatch) {
+        const tierNum = tierMatch[1];
+        const modal = new ModalBuilder()
+          .setCustomId(`evsetup_modal_tier${tierNum}`)
+          .setTitle(`${eventTierLabel(Number(tierNum))} Reward`)
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('evsetup_type').setLabel('Reward type: coins or plant').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('coins'),
+            ),
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder().setCustomId('evsetup_value').setLabel('Amount (coins) or plant name').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('e.g. 50000  or  Glowflower'),
+            ),
+          );
+        await interaction.showModal(modal);
+        try {
+          const modalSubmit = await interaction.awaitModalSubmit({ time: 120_000, filter: mi => mi.user.id === message.author.id && mi.customId === `evsetup_modal_tier${tierNum}` });
+          const rTypeRaw = modalSubmit.fields.getTextInputValue('evsetup_type').trim().toLowerCase();
+          const rValueRaw = modalSubmit.fields.getTextInputValue('evsetup_value').trim();
+          if (rTypeRaw === 'coins' || rTypeRaw === 'coin') {
+            const amount = parseInt(rValueRaw.replace(/[,_]/g, ''));
+            if (isNaN(amount) || amount <= 0) { await modalSubmit.reply({ content: '❌ Give a valid positive coin amount.', ephemeral: true }); return; }
+            draft.rewards[`tier${tierNum}`] = { type: 'coins', amount };
+          } else if (rTypeRaw === 'plant') {
+            const plant = PLANTS.find(p => p.name.toLowerCase() === rValueRaw.toLowerCase());
+            if (!plant) { await modalSubmit.reply({ content: `❌ Plant **${rValueRaw}** not found. Check spelling.`, ephemeral: true }); return; }
+            draft.rewards[`tier${tierNum}`] = { type: 'plant', plantName: plant.name };
+          } else {
+            await modalSubmit.reply({ content: '❌ Reward type must be `coins` or `plant`.', ephemeral: true });
+            return;
+          }
+          saveActiveEvent(draft);
+          await modalSubmit.update({ embeds: [buildSetupEmbed()], components: buildSetupRows() });
+        } catch { /* modal timed out or dismissed — leave as-is */ }
+        return;
+      }
+
+      if (interaction.customId === 'evsetup_cancel') {
+        finished = true;
+        setupCollector.stop('cancelled');
+        clearActiveEvent(message.guild.id);
+        return interaction.update({ embeds: [new EmbedBuilder().setTitle('❌ Event Cancelled').setColor(0xFF5252)], components: [] });
+      }
+
+      if (interaction.customId === 'evsetup_launch') {
+        finished = true;
+        setupCollector.stop('launched');
+        const now = Date.now();
+        draft.startAt = now;
+        draft.endAt = now + durationMs;
+        draft.pendingSetup = false;
+        saveActiveEvent(draft);
+
+        await interaction.update({
+          embeds: [new EmbedBuilder().setTitle('🚀 Event Launched!').setDescription(`**${type.label}** is live until <t:${Math.floor(draft.endAt / 1000)}:F>.`).setColor(0x00C853)],
+          components: [],
+        });
+
+        setTimeout(() => endEvent(message.guild.id).catch(console.error), durationMs);
+        await refreshEventLB(draft, `🎉 The **${type.label}** event has begun! Compete for the top spots.`);
+        return;
+      }
+    });
+
+    setupCollector.on('end', () => {
+      if (finished) return;
+      const cur = getActiveEvent(message.guild.id);
+      if (cur && cur.pendingSetup) clearActiveEvent(message.guild.id);
+      setupMsg.edit({ components: [] }).catch(() => {});
+    });
+    return;
+  }
+
+  // ── !eventlb — refresh the running event's leaderboard image ───────────────
+  if (cmd === 'eventlb') {
+    if (!message.guild) return message.reply('❌ This command must be used in a server.');
+    const event = getActiveEvent(message.guild.id);
+    if (!event || event.pendingSetup) return message.reply('❌ No event is currently running.');
+    await refreshEventLB(event);
+    const confirm = await message.reply('✅ Leaderboard refreshed.');
+    setTimeout(() => confirm.delete().catch(() => {}), 4000);
+    return;
+  }
+
+  // ── !endevent — admin: force-end (or cancel a pending setup for) the running event ──
+  if (cmd === 'endevent') {
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
+    if (!message.guild) return message.reply('❌ This command must be used in a server.');
+    const event = getActiveEvent(message.guild.id);
+    if (!event) return message.reply('❌ No event is currently running.');
+    if (event.pendingSetup) { clearActiveEvent(message.guild.id); return message.reply('✅ Cancelled the pending event setup.'); }
+    await endEvent(message.guild.id);
+    return message.reply('✅ Event ended early.');
   }
 
   if (cmd === 'dailylb' || cmd === 'dlb') {
