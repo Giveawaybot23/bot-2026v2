@@ -4203,7 +4203,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !web ──────────────────────────────────────────────────────────────────
 if (cmd === 'web') {
-  return message.reply('🌿 **Sprout** — www.sproutapp.net');
+  return message.reply('🌿 **Sprout** — https://www.sproutapp.net/');
 }
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
