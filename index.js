@@ -2393,9 +2393,14 @@ async function refreshEventLB(event, statusText) {
   } catch (err) { console.error('[event] refresh failed:', err); }
 }
 
-async function endEvent(guildId) {
+async function endEvent(guildId, expectedId) {
   const event = getActiveEvent(guildId);
   if (!event || event.pendingSetup) return;
+  // Guard against stale/duplicate timers (e.g. left over from a bot restart, or a
+  // previous shorter event) firing late and force-ending a DIFFERENT event that's
+  // since been launched in this guild. Only a manual !endevent (which passes no
+  // expectedId) is allowed to end whatever is currently running.
+  if (expectedId && event.id !== expectedId) return;
   const type = EVENT_TYPES[event.type];
   const raw = type.compute(event.startAt, event.endAt).sort((a, b) => b.value - a.value).slice(0, 5);
   const top5 = await enrichEventEntries(raw);
@@ -3772,8 +3777,8 @@ client.once('ready', () => {
     const event = activeEvents[guildId];
     if (!event || event.pendingSetup) { clearActiveEvent(guildId); continue; }
     const remaining = event.endAt - Date.now();
-    if (remaining <= 0) endEvent(guildId).catch(console.error);
-    else setTimeout(() => endEvent(guildId).catch(console.error), remaining);
+    if (remaining <= 0) endEvent(guildId, event.id).catch(console.error);
+    else setTimeout(() => endEvent(guildId, event.id).catch(console.error), remaining);
   }
 });
 
@@ -5142,6 +5147,7 @@ if (cmd === 'web') {
         finished = true;
         setupCollector.stop('launched');
         const now = Date.now();
+        draft.id = `${now}_${Math.random().toString(36).slice(2, 10)}`;
         draft.startAt = now;
         draft.endAt = now + durationMs;
         draft.pendingSetup = false;
@@ -5152,7 +5158,7 @@ if (cmd === 'web') {
           components: [],
         });
 
-        setTimeout(() => endEvent(message.guild.id).catch(console.error), durationMs);
+        setTimeout(() => endEvent(message.guild.id, draft.id).catch(console.error), durationMs);
         await refreshEventLB(draft, `🎉 The **${type.label}** event has begun! Compete for the top spots.`);
         return;
       }
