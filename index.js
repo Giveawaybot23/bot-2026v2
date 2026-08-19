@@ -1883,7 +1883,15 @@ async function sendDrop(channel, opts = {}) {
   Secret: '1539250652063076392'
 };
 const pingContent = rarityRoles[rarity.name] ? `<@&${rarityRoles[rarity.name]}>` : undefined;
-const msg = await channel.send({ content: pingContent, embeds: [embed], files: [attachment] });
+const msg = await channel.send({
+  content: pingContent,
+  embeds: [embed],
+  files: [attachment],
+  // Global client default is parse: ['users'] (see client init), which silently
+  // suppresses role pings so they render but never notify. Explicitly allow
+  // just the rarity role that's actually being pinged here.
+  allowedMentions: pingContent ? { roles: [rarityRoles[rarity.name]] } : { parse: [] },
+});
   activeDrops[channel.id] = { plant, rarity, captcha, mutation, messageId: msg.id, dropTime, claimers: [] };
   setTimeout(() => {
     if (activeDrops[channel.id]?.messageId === msg.id) {
