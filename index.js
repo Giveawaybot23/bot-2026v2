@@ -1062,7 +1062,7 @@ const PLANTS = [
   { name: 'Eclipse Bloom', file: './images/EclipseBloom.png', display: 'EclipseBloom.png', rarity: 'Secret', dropOnly: true },
 
   // ── Exclusive — admin-granted only, never rolled in crates/drops ────────
-  { name: 'Rocket Pop', file: './images/RocketPopProduce.png', display: 'RocketPopProduce.png', rarity: 'Exclusive' },
+  { name: 'Rocket Pop', file: './images/RocketPopProduce.webp', display: 'RocketPopProduce.webp', rarity: 'Exclusive' },
 
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -7674,10 +7674,10 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
   const db = loadDB();
   const user = db[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
+  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret','Exclusive'];
   if (plants !== undefined) {
     for (const p of plants) {
-      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, and Secret plants can be traded.' });
+      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, Secret, and Exclusive plants can be traded.' });
       const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
       if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
     }
