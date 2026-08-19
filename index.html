@@ -1318,7 +1318,7 @@
 }
 
 /* ── AUCTION DETAIL PAGE ── */
-.auction-detail { padding: 32px 48px 80px; max-width: 1060px; margin: 0 auto; }
+.auction-detail { padding: 40px 56px 100px; max-width: 1380px; margin: 0 auto; }
 .auction-detail-grid {
   display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-top: 24px; align-items: start;
 }
@@ -1434,48 +1434,54 @@
   letter-spacing: -0.02em; display: block; margin-top: 2px;
 }
 .auction-buy-now {
-  width: 100%; padding: 14px; border-radius: 100px;
+  width: 100%; padding: 18px; border-radius: 100px;
   background: var(--green); color: white;
-  font-size: 15px; font-weight: 700; border: none;
+  font-size: 16.5px; font-weight: 700; border: none;
   cursor: pointer; font-family: inherit; transition: all 0.2s;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 20px rgba(45,106,79,0.22);
+  letter-spacing: -0.01em;
 }
-.auction-buy-now:hover { background: var(--green-light); transform: translateY(-1px); }
-.auction-bid-input-wrap { display: flex; gap: 8px; }
+.auction-buy-now:hover { background: var(--green-light); transform: translateY(-1px); box-shadow: 0 10px 26px rgba(45,106,79,0.3); }
+.auction-bid-input-wrap { display: flex; gap: 10px; }
 .auction-bid-input {
-  flex: 1; padding: 11px 16px; border-radius: 100px;
+  flex: 1; padding: 15px 20px; border-radius: 100px;
   border: 1.5px solid var(--border); background: var(--bg);
-  font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+  font-size: 16px; font-family: inherit; color: var(--ink); outline: none;
   transition: border-color 0.2s;
 }
-.auction-bid-input:focus { border-color: var(--green); }
+.auction-bid-input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(82,183,136,0.12); }
 .auction-bid-btn {
-  padding: 11px 20px; border-radius: 100px;
+  padding: 15px 28px; border-radius: 100px;
   background: var(--ink); color: var(--bg);
-  font-size: 13px; font-weight: 600; border: none;
+  font-size: 14.5px; font-weight: 700; border: none;
   cursor: pointer; font-family: inherit; transition: all 0.15s;
+  letter-spacing: -0.01em;
 }
-.auction-bid-btn:hover { background: var(--green); }
+.auction-bid-btn:hover:not(:disabled) { background: var(--green); transform: translateY(-1px); }
 
 /* right column */
 .auction-right { display: flex; flex-direction: column; gap: 20px; }
 .auction-panel {
-  background: var(--card); border-radius: 16px;
+  background: var(--card); border-radius: 20px;
   border: 1px solid var(--border); overflow: hidden;
+  box-shadow: 0 2px 16px rgba(14,13,11,0.04);
 }
 .auction-panel-header {
-  padding: 16px 20px; border-bottom: 1px solid var(--border);
-  font-size: 14px; font-weight: 700; color: var(--ink);
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  font-size: 16px; font-weight: 700; color: var(--ink);
   display: flex; align-items: center; justify-content: space-between;
+  letter-spacing: -0.01em;
 }
-.auction-panel-header span { font-size: 12px; font-weight: 400; color: var(--ink3); }
+.auction-panel-header span { font-size: 12.5px; font-weight: 500; color: var(--ink3); }
 .bid-entry {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  padding: 15px 24px; border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
 }
 .bid-entry:last-child { border-bottom: none; }
 .bid-history-scroll {
-  max-height: 340px; overflow-y: auto; overflow-x: hidden;
+  max-height: 400px; overflow-y: auto; overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -1483,47 +1489,49 @@
 .bid-history-scroll::-webkit-scrollbar-track { background: transparent; }
 .bid-history-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
 .bid-entry-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 40px; height: 40px; border-radius: 50%;
   background: var(--green-pale); display: flex; align-items: center;
-  justify-content: center; font-size: 12px; font-weight: 700; color: var(--green);
+  justify-content: center; font-size: 14px; font-weight: 700; color: var(--green);
   flex-shrink: 0;
 }
 .bid-entry-user { flex: 1; }
-.bid-entry-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-.bid-entry-time { font-size: 11px; color: var(--ink3); }
-.bid-entry-amount { font-size: 14px; font-weight: 700; color: var(--ink); }
+.bid-entry-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.bid-entry-time { font-size: 12px; color: var(--ink3); margin-top: 1px; }
+.bid-entry-amount { font-size: 15.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
 .bid-entry.top-bid .bid-entry-amount { color: var(--green); }
-.bid-entry.top-bid { background: rgba(45,106,79,0.04); }
+.bid-entry.top-bid { background: rgba(45,106,79,0.05); }
 
 /* chat */
 .chat-messages {
-  height: 560px; overflow-y: auto; overflow-x: hidden; padding: 12px 20px;
-  display: flex; flex-direction: column; gap: 10px;
+  height: 596px; overflow-y: auto; overflow-x: hidden; padding: 16px 24px;
+  display: flex; flex-direction: column; gap: 13px;
   scrollbar-width: none;
 }
 .chat-messages::-webkit-scrollbar { display: none; }
-.chat-msg { display: flex; gap: 8px; align-items: flex-start; }
+.chat-msg { display: flex; gap: 10px; align-items: flex-start; }
 .chat-msg-avatar {
-  width: 24px; height: 24px; border-radius: 50%;
-  background: var(--green-pale); font-size: 10px; font-weight: 700;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--green-pale); font-size: 12px; font-weight: 700;
   color: var(--green); display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; margin-top: 1px;
 }
 .chat-msg-body { flex: 1; }
-.chat-msg-name { font-size: 11px; font-weight: 700; color: var(--green); }
+.chat-msg-name { font-size: 12.5px; font-weight: 700; color: var(--green); }
 .chat-msg-name[onclick]:hover, .chat-msg-avatar[onclick]:hover { text-decoration: underline; opacity: 0.85; }
-.chat-msg-text { font-size: 13px; color: var(--ink2); line-height: 1.4; word-break: break-word; overflow-wrap: anywhere; }
+.chat-msg-text { font-size: 14px; color: var(--ink2); line-height: 1.45; word-break: break-word; overflow-wrap: anywhere; margin-top: 1px; }
 .chat-input-wrap {
-  display: flex; gap: 8px; padding: 12px 16px;
+  display: flex; gap: 10px; padding: 16px 20px;
   border-top: 1px solid var(--border);
 }
 .chat-input {
-  flex: 1; padding: 9px 14px; border-radius: 100px;
+  flex: 1; padding: 12px 18px; border-radius: 100px;
   border: 1.5px solid var(--border); background: var(--bg);
-  font-size: 13px; font-family: inherit; color: var(--ink); outline: none;
+  font-size: 14px; font-family: inherit; color: var(--ink); outline: none;
+  transition: border-color 0.2s;
 }
-.chat-input:focus { border-color: var(--green); }
-.chat-send { padding: 9px 16px; border-radius: 100px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 600; border: none; cursor: pointer; font-family: inherit; }
+.chat-input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(82,183,136,0.12); }
+.chat-send { padding: 12px 22px; border-radius: 100px; background: var(--ink); color: var(--bg); font-size: 13.5px; font-weight: 700; border: none; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.chat-send:hover { background: var(--green); }
 
 /* ── MERCHANT PAGE ── */
 .merchant-page { padding: 0; min-height: calc(100vh - 64px); }
@@ -5187,10 +5195,10 @@ function connectAuctionWS(auctionId) {
           if (existing) existing.classList.remove('top-bid');
           const newEntry = document.createElement('div');
           newEntry.className = 'bid-entry top-bid';
-          newEntry.style.background = 'rgba(45,106,79,0.04)';
+          newEntry.style.background = 'rgba(45,106,79,0.05)';
           newEntry.innerHTML = `
             <div class="bid-entry-avatar" style="overflow:hidden;padding:0;background:var(--green-pale)">
-              <span style="font-size:12px;font-weight:700;color:var(--green)">${topBid.username[0].toUpperCase()}</span>
+              <span style="font-size:14px;font-weight:700;color:var(--green)">${topBid.username[0].toUpperCase()}</span>
             </div>
             <div class="bid-entry-user">
               <div class="bid-entry-name">${topBid.username} 👑</div>
@@ -5269,7 +5277,7 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
       fetchAvatar(b.userId).then(url => {
         if (!url) return;
         const el = document.getElementById(`bid-av-${b.userId}`);
-        if (el) el.innerHTML = `<img src="${url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`;
+        if (el) el.innerHTML = `<img src="${url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`;
       });
     });
 
@@ -5277,8 +5285,8 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
       <div class="bid-entry${i === 0 ? ' top-bid' : ''}">
         <div class="bid-entry-avatar" id="bid-av-${b.userId}" style="overflow:hidden;padding:0">
           ${bidAvatarMap[b.userId]
-            ? `<img src="${bidAvatarMap[b.userId]}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
-            : `<span style="font-size:12px;font-weight:700;color:var(--green)">${b.username[0].toUpperCase()}</span>`}
+            ? `<img src="${bidAvatarMap[b.userId]}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`
+            : `<span style="font-size:14px;font-weight:700;color:var(--green)">${b.username[0].toUpperCase()}</span>`}
         </div>
         <div class="bid-entry-user">
           <div class="bid-entry-name">${b.username}${i === 0 ? ' 👑' : ''}</div>
@@ -5286,7 +5294,7 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
         </div>
         <div class="bid-entry-amount">${b.amount.toLocaleString()} coins</div>
       </div>`).join('')
-    : '<div style="padding:20px;color:var(--ink3);font-size:13px;text-align:center">No bids yet — be the first!</div>';
+    : '<div style="padding:24px;color:var(--ink3);font-size:14px;text-align:center">No bids yet — be the first!</div>';
 
     // Secret v1 gets an extra crown badge above the name overlay
     const secretV1Crown = (isSecret && isV1)
@@ -5300,42 +5308,42 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
       : '';
 
     content.innerHTML = `
-      <div style="display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start" id="auction-detail-grid">
+      <div style="display:grid;grid-template-columns:392px 1fr;gap:36px;align-items:start" id="auction-detail-grid">
 
         <!-- LEFT: plant image only — kept as a compact side card (sticky while
              scrolling) so the wide right column has real room for bid history
              and, especially, live chat instead of squeezing them into a
              narrow fixed sidebar. -->
-        <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:84px">
+        <div style="display:flex;flex-direction:column;gap:18px;position:sticky;top:84px">
 
           <!-- Hero image card -->
-          <div class="${glowClass}" style="border-radius:18px;border:1px solid var(--border);overflow:hidden;position:relative;background:var(--card)">
+          <div class="${glowClass}" style="border-radius:26px;border:1px solid var(--border);overflow:hidden;position:relative;background:var(--card);box-shadow:0 16px 44px rgba(14,13,11,0.09)">
             ${secretV1Crown}
             <!-- Image zone -->
             <div style="position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:var(--bg2)">
-              <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};z-index:3"></div>
+              <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${color};z-index:3"></div>
               ${a.plant.localImage
-                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:22px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
+                ? `<img src="${a.plant.localImage}" loading="lazy" style="width:100%;height:100%;object-fit:contain;padding:34px" onerror="this.style.display='none';document.getElementById('fallback-emoji-${auctionId}').style.display='flex'">`
                 : ''}
-              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:80px">${a.plant.emoji}</div>
+              <div id="fallback-emoji-${auctionId}" style="display:${a.plant.localImage?'none':'flex'};align-items:center;justify-content:center;width:100%;height:100%;font-size:104px">${a.plant.emoji}</div>
               <!-- Bottom gradient overlay: name + seller + badges -->
-              <div style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px 13px;background:linear-gradient(0deg,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.28) 60%,transparent 100%);z-index:3">
-                <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:5px">${a.plant.name}</div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:8px">Listed by <strong style="color:rgba(255,255,255,0.82)">${a.sellerName}</strong></div>
-                <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-                  <span style="background:${color}cc;color:#fff;font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 22px 18px;background:linear-gradient(0deg,rgba(0,0,0,0.76) 0%,rgba(0,0,0,0.32) 62%,transparent 100%);z-index:3">
+                <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#fff;letter-spacing:-0.02em;line-height:1.1;margin-bottom:7px">${a.plant.name}</div>
+                <div style="font-size:12.5px;color:rgba(255,255,255,0.58);margin-bottom:11px">Listed by <strong style="color:rgba(255,255,255,0.85)">${a.sellerName}</strong></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span style="background:${color}cc;color:#fff;font-size:11px;font-weight:700;padding:5px 13px;border-radius:100px;backdrop-filter:blur(6px)">${a.plant.rarity}</span>
                   ${a.plant.version === 1
-                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
-                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:10px;font-weight:600;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
-                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
+                    ? `<span style="background:rgba(201,168,76,0.22);color:#f0d070;font-size:11px;font-weight:700;padding:5px 13px;border-radius:100px;backdrop-filter:blur(6px);border:1px solid rgba(201,168,76,0.4)">👑 v1</span>`
+                    : `<span style="background:rgba(0,0,0,0.45);color:rgba(255,255,255,0.75);font-size:11px;font-weight:600;padding:5px 13px;border-radius:100px;backdrop-filter:blur(6px)">v${a.plant.version||'?'}</span>`}
+                  ${a.plant.mutation ? `<span style="background:rgba(0,0,0,0.45);color:${mutationColor(a.plant.mutation.name)};font-size:11px;font-weight:700;padding:5px 13px;border-radius:100px;backdrop-filter:blur(6px)">${mutationEmoji(a.plant.mutation.name)} ${a.plant.mutation.name}</span>` : ''}
                 </div>
               </div>
             </div>
             <!-- Remove button (seller, no bids) -->
             ${a.sellerId === window._loggedInId
               ? (!a.bids.length
-                ? `<div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg2)"><button onclick="confirmRemoveAuction('${a.id}')" style="width:100%;padding:9px;border-radius:100px;border:none;background:#e53935;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button></div>`
-                : `<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--ink3);text-align:center;background:var(--bg2)">🔒 Can't remove — bids have been placed</div>`)
+                ? `<div style="padding:14px 18px;border-top:1px solid var(--border);background:var(--bg2)"><button onclick="confirmRemoveAuction('${a.id}')" style="width:100%;padding:12px;border-radius:100px;border:none;background:#e53935;color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.2s" onmouseover="this.style.background='#c62828'" onmouseout="this.style.background='#e53935'">🗑 Remove Listing</button></div>`
+                : `<div style="padding:12px 18px;border-top:1px solid var(--border);font-size:13px;color:var(--ink3);text-align:center;background:var(--bg2)">🔒 Can't remove — bids have been placed</div>`)
               : ''}
           </div>
 
@@ -5344,33 +5352,33 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
         <!-- RIGHT: stats + bid controls, then bid history + live chat — this
              column now carries most of the page width so the chat has real
              room to breathe instead of living in a cramped fixed sidebar. -->
-        <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:20px">
 
           <!-- Stat tiles row: timer + current bid -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Time Remaining</div>
-              <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1">--</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div style="background:var(--card);border:1px solid var(--border);border-top:3px solid var(--ink);border-radius:18px;padding:22px 26px;box-shadow:0 2px 16px rgba(14,13,11,0.04)">
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:10px">⏱ Time Remaining</div>
+              <div id="detail-timer-${auctionId}" style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.02em;line-height:1">--</div>
             </div>
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px">
-              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:7px">Current Bid</div>
-              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1" id="detail-current-bid-${auctionId}">${a.currentBid.toLocaleString()}<span style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--ink3);margin-left:4px">coins</span></div>
+            <div style="background:var(--card);border:1px solid var(--border);border-top:3px solid var(--green);border-radius:18px;padding:22px 26px;box-shadow:0 2px 16px rgba(14,13,11,0.04)">
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--ink3);margin-bottom:10px">💰 Current Bid</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--ink);letter-spacing:-0.02em;line-height:1" id="detail-current-bid-${auctionId}">${a.currentBid.toLocaleString()}<span style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--ink3);margin-left:5px">coins</span></div>
             </div>
           </div>
 
           <!-- Bid / buy card -->
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:18px;padding:26px;box-shadow:0 2px 16px rgba(14,13,11,0.04)">
             ${a.buyoutPrice ? `
-            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:4px">
+            <button class="auction-buy-now" id="buynow-btn-${auctionId}" onclick="submitBuyNow('${auctionId}', ${a.buyoutPrice})" style="margin-bottom:6px">
               ⚡ Buy Now — ${a.buyoutPrice.toLocaleString()} coins
             </button>
-            <div style="font-size:11px;color:var(--ink3);text-align:center;margin-bottom:14px">Seller nets ${taxNet(a.buyoutPrice).toLocaleString()} coins after ${Math.round(MARKET_TAX_RATE*100)}% market tax</div>` : ''}
+            <div style="font-size:12px;color:var(--ink3);text-align:center;margin-bottom:18px">Seller nets ${taxNet(a.buyoutPrice).toLocaleString()} coins after ${Math.round(MARKET_TAX_RATE*100)}% market tax</div>` : ''}
 
-            <div id="bid-feedback-${auctionId}" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-bottom:12px;text-align:center"></div>
+            <div id="bid-feedback-${auctionId}" style="display:none;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:500;margin-bottom:14px;text-align:center"></div>
 
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:7px;font-weight:500">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink3);margin-bottom:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">
               <span>Place your bid</span>
-              <span id="bid-balance-${auctionId}" style="color:var(--ink2)"></span>
+              <span id="bid-balance-${auctionId}" style="color:var(--ink2);text-transform:none;font-weight:500;letter-spacing:normal"></span>
             </div>
             <div class="auction-bid-input-wrap">
               <input class="auction-bid-input" type="number" id="bid-input-${auctionId}"
@@ -5379,12 +5387,12 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
                 oninput="validateBidInput('${auctionId}', ${a.currentBid}, this.value)">
               <button class="auction-bid-btn" id="bid-btn-${auctionId}" onclick="submitWebBid('${auctionId}', ${a.currentBid})" disabled style="opacity:0.5">Bid</button>
             </div>
-            <div style="font-size:11px;color:var(--ink3);margin-top:9px">Min increment +5% · next min: <strong style="color:var(--ink2)">${minBid.toLocaleString()} coins</strong></div>
+            <div style="font-size:12px;color:var(--ink3);margin-top:11px">Min increment +5% · next min: <strong style="color:var(--ink2)">${minBid.toLocaleString()} coins</strong></div>
           </div>
 
           <!-- Bid history + live chat side by side — chat gets the lion's
                share of this now much-wider row. -->
-          <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start" id="auction-detail-subgrid">
+          <div style="display:grid;grid-template-columns:352px 1fr;gap:20px;align-items:start" id="auction-detail-subgrid">
 
             <!-- Bid history -->
             <div class="auction-panel">
@@ -5401,7 +5409,7 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
               </div>
               <div class="chat-messages" id="chat-msgs-${auctionId}">
                 ${(_auctionChats[auctionId]||[]).map(m => renderChatMsg(m)).join('')}
-                ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">No messages yet</div>' : ''}
+                ${!(_auctionChats[auctionId]||[]).length ? '<div style="color:var(--ink3);font-size:14px;text-align:center;padding:20px">No messages yet</div>' : ''}
               </div>
               <div class="chat-input-wrap">
                 <input class="chat-input" id="chat-input-${auctionId}" placeholder="Say something..."
@@ -5459,7 +5467,7 @@ function renderChatMsg(m) {
   const clickable = m.userId ? `onclick="loadProfile('${m.userId}')" style="cursor:pointer"` : '';
   return `<div class="chat-msg">
     <div class="chat-msg-avatar" ${clickable} style="overflow:hidden;padding:0;background:var(--green-pale)${m.userId ? ';cursor:pointer' : ''}">
-      ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<span style="font-size:10px;font-weight:700;color:var(--green)">${m.name[0].toUpperCase()}</span>`}
+      ${m.avatarUrl ? `<img src="${m.avatarUrl}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">` : `<span style="font-size:12px;font-weight:700;color:var(--green)">${m.name[0].toUpperCase()}</span>`}
     </div>
     <div class="chat-msg-body">
       <div class="chat-msg-name" ${clickable}>${(m.name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
