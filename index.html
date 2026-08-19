@@ -1139,6 +1139,9 @@
 .market-card.secret-electric {
   overflow: visible !important;
 }
+.market-card.exclusive-electric {
+  overflow: visible !important;
+}
 
 /* ── Plant Index: glow-on-hover ── */
 #page-inventory .market-card {
@@ -1175,6 +1178,12 @@
     0 0 0 1px #c9a84c,
     0 0 30px 4px rgba(201,168,76,0.5),
     0 0 60px 8px rgba(201,168,76,0.25);
+}
+#page-inventory .market-card.exclusive-electric:hover {
+  box-shadow:
+    0 0 0 1px #FF1493,
+    0 0 30px 4px rgba(255,20,147,0.5),
+    0 0 60px 8px rgba(255,20,147,0.25);
 }
 
 /* ── Plant Index: Super rarity — passively glowing, "alive" on hover ──
@@ -1338,6 +1347,15 @@
   8%        { opacity: 0.35; }
   55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
 }
+@keyframes _adExclusivePulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(255,20,147,0.45), 0 0 28px rgba(255,20,147,0.14), 0 4px 32px rgba(14,13,11,0.08); }
+  50%     { box-shadow: 0 0 0 1px rgba(255,90,180,0.9), 0 0 55px rgba(255,20,147,0.36), 0 4px 32px rgba(14,13,11,0.08); }
+}
+@keyframes _adExclusiveSweep {
+  0%        { transform: translateX(-120%) skewX(-18deg); opacity:0; }
+  8%        { opacity: 0.4; }
+  55%,100%  { transform: translateX(320%) skewX(-18deg); opacity:0; }
+}
 
 .ad-glow-v1 {
   border-color: rgba(201,168,76,0.55) !important;
@@ -1373,6 +1391,18 @@
   content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
   background: linear-gradient(90deg, transparent, rgba(200,150,255,0.11), rgba(255,200,255,0.05), transparent);
   animation: _adSecretSweep 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.ad-glow-exclusive {
+  border-color: rgba(255,20,147,0.5) !important;
+  background: linear-gradient(160deg, var(--card) 50%, rgba(255,20,147,0.06) 100%) !important;
+  animation: _adExclusivePulse 2.6s ease-in-out infinite !important;
+  position: relative; overflow: hidden;
+}
+.ad-glow-exclusive::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 48%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,105,190,0.1), transparent);
+  animation: _adExclusiveSweep 4.2s ease-in-out 0.5s infinite;
   pointer-events: none;
 }
 .auction-plant-card {
@@ -3131,7 +3161,7 @@ async function loadMarketHighlights() {
       const rColor = rarityAccent(item.rarity);
       const mutStr = item.mutation ? `<span style="font-size:11px;font-weight:700;color:${mutationColor(item.mutation.name)}">${mutationEmoji(item.mutation.name)} ${item.mutation.name}</span>` : '';
       const cachedAv = _avatarCache[item.sellerId];
-      return `<div class="highlight-card reveal${item.rarity==='Secret' ? ((item.version||99)===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
+      return `<div class="highlight-card reveal${item.rarity==='Secret' ? ((item.version||99)===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : item.rarity==='Exclusive' ? ' exclusive-electric' : ''}" style="animation-delay:${i*0.08}s;border-top-color:${h.accent}">
         <div class="highlight-card-visual" style="background:${h.accent}14">
           ${item.localImage ? `<img src="${item.localImage}" onerror="this.style.display='none'">` : `<span style="font-size:36px">${item.emoji||'🌿'}</span>`}
           ${(item.version||99)===1 ? `<div style="position:absolute;bottom:3px;right:3px;font-size:9px;background:rgba(201,168,76,0.92);color:#fff;border-radius:4px;padding:1px 5px;font-weight:800">v1</div>` : ''}
@@ -4354,7 +4384,7 @@ ${isPodium ? `
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
         const glow = isV1 ? '#c9a84c' : rc;
         return `
-          <div class="_pc${p.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
+          <div class="_pc${p.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity === 'Exclusive' ? ' exclusive-electric' : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
             <div class="_pc-bar" style="background:${barBg}"></div>
             ${imgContent}
             <div class="_pc-foot">
@@ -4476,7 +4506,7 @@ ${isPodium ? `
           .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
           .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:visible;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity==='Exclusive' ? ' exclusive-electric' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:visible;position:relative;background:${cardBg}">
 
           <!-- inner wrapper clips the decorative background/texture to the card's
                rounded corners; the outer pv-card stays overflow:visible so the
@@ -4696,7 +4726,7 @@ function renderMarket() {
   }
   grid.innerHTML = items.map(item => {
     const color = rarityColors[item.rarity] || '#999';
-    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? (item.version===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}" data-rarity="${item.rarity}" style="position:relative">
+    return `<div class="market-card${item.boosted ? ' boosted' : ''}${item.rarity === 'Secret' ? (item.version===1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : item.rarity === 'Exclusive' ? ' exclusive-electric' : ''}" data-rarity="${item.rarity}" style="position:relative">
       ${item.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
       <div class="market-card-rarity-bar" style="background:${color};${item.rarity==='Secret'?'box-shadow:0 0 8px #9c5fff,0 0 16px #9c5fff55':''}"></div>
       ${item.localImage
@@ -4969,7 +4999,7 @@ async function loadAuctionData() {
       const badge = rarityBadgeColor[a.plant.rarity] || '#999';
       const isV1 = a.plant.version === 1;
       return `
-        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
+        <div class="auction-card${isV1 ? ' auction-v1-card' : ''}${a.plant.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : a.plant.rarity === 'Exclusive' ? ' exclusive-electric' : ''}${a.boosted ? ' boosted' : ''}" onclick="showAuctionDetail('${a.id}')" id="ac-${a.id}" style="position:relative">
           ${a.boosted ? `<div class="market-boost-badge">📌</div>` : ''}
           ${isV1 ? `<div class="auction-v1-crown">👑 v1 · First Copy</div>` : ''}
           <div class="auction-card-live">LIVE</div>
@@ -5215,9 +5245,11 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
     const a        = auctions.find(x => x.id === auctionId);
     if (!a) { content.innerHTML = '<p style="padding:40px;color:var(--ink3)">Auction not found or has ended.</p>'; return; }
 
-    const isV1     = a.plant.version === 1;
-    const isSecret = a.plant.rarity === 'Secret';
+    const isV1        = a.plant.version === 1;
+    const isSecret    = a.plant.rarity === 'Secret';
+    const isExclusive = a.plant.rarity === 'Exclusive';
     const glowClass = isSecret && isV1 ? 'ad-glow-secret-v1'
+                    : isExclusive      ? 'ad-glow-exclusive'
                     : isV1            ? 'ad-glow-v1'
                     : isSecret        ? 'ad-glow-secret'
                     : '';
@@ -5263,6 +5295,8 @@ async function showAuctionDetail(auctionId, { skipHash = false } = {}) {
       ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,0.18);border:1px solid rgba(201,168,76,0.45);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#e8c96a;backdrop-filter:blur(8px);box-shadow:0 0 14px rgba(201,168,76,0.28)">👑 v1 · First Copy</div>`
       : isSecret
       ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(160,100,255,0.15);border:1px solid rgba(160,100,255,0.38);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#b880ff;backdrop-filter:blur(8px)">💎 Secret</div>`
+      : isExclusive
+      ? `<div style="position:absolute;top:14px;right:14px;z-index:4;display:inline-flex;align-items:center;gap:5px;background:rgba(255,20,147,0.15);border:1px solid rgba(255,20,147,0.4);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:#ff7fc0;backdrop-filter:blur(8px)">✨ Exclusive</div>`
       : '';
 
     content.innerHTML = `
@@ -5851,7 +5885,8 @@ function renderInventoryPage() {
   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">No plants found.</div>'; return; }
   grid.innerHTML = filtered.map((p, idx) => {
     const color = rarityColors[p.rarity] || '#999';
-    const isSecretRarity = p.rarity === 'Secret';
+    const isSecretRarity    = p.rarity === 'Secret';
+    const isExclusiveRarity = p.rarity === 'Exclusive';
     const isDiscovered = window._discoveredPlants?.has(p.name);
 
     // Undiscovered — every rarity gets a silhouette card until the player
@@ -5872,6 +5907,23 @@ function renderInventoryPage() {
             🪙 ???
           </div>
           <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(156,95,255,0.02) 8px,rgba(156,95,255,0.02) 16px);pointer-events:none"></div>
+        </div>`;
+      }
+      if (isExclusiveRarity) {
+        return `
+        <div class="market-card exclusive-electric" style="cursor:default;background:#0a0308;border-color:rgba(255,20,147,0.25);position:relative;overflow:visible">
+          <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#800040,#FF1493,#800040);box-shadow:0 0 10px #FF149388,0 0 20px #FF149344"></div>
+          <div style="width:64px;height:64px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;background:rgba(255,20,147,0.08);border-radius:12px;border:1px solid rgba(255,20,147,0.2)">
+            <span style="font-size:28px;opacity:0.5;filter:blur(1px)">?</span>
+          </div>
+          <div class="market-card-name" style="color:#ff5aad;font-size:18px;font-weight:800;letter-spacing:0.08em;text-shadow:0 0 12px rgba(255,20,147,0.9),0 0 24px rgba(255,20,147,0.5),0 0 40px rgba(255,20,147,0.25)">???</div>
+          <div class="market-card-meta" style="margin-top:6px">
+            <span class="market-card-version" style="color:#ff5aad;font-weight:700;background:rgba(255,20,147,0.12);border-color:rgba(255,20,147,0.3)">Exclusive</span>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:rgba(255,20,147,0.4);background:rgba(255,20,147,0.07);border:1px solid rgba(255,20,147,0.15);border-radius:100px;padding:4px 12px;display:inline-block">
+            🪙 ???
+          </div>
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,20,147,0.02) 8px,rgba(255,20,147,0.02) 16px);pointer-events:none"></div>
         </div>`;
       }
       return `
@@ -5903,6 +5955,21 @@ function renderInventoryPage() {
             🪙 ${p.sellPrice.toLocaleString()} coins
           </div>
           <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(156,95,255,0.02) 8px,rgba(156,95,255,0.02) 16px);pointer-events:none"></div>
+        </div>`;
+    }
+    if (isExclusiveRarity) {
+      return `
+        <div class="market-card exclusive-electric" onclick="openPlantDetail(${idx})" style="cursor:pointer;background:#0a0308;border-color:rgba(255,20,147,0.25);position:relative;overflow:visible">
+          <div class="market-card-rarity-bar" style="background:linear-gradient(90deg,#800040,#FF1493,#800040);box-shadow:0 0 10px #FF149388,0 0 20px #FF149344"></div>
+          <img src="${resolveImg(p.image)}" loading="lazy" style="width:64px;height:64px;object-fit:contain;margin-bottom:10px;display:block;filter:drop-shadow(0 0 10px rgba(255,20,147,0.55))" onerror="this.style.display='none'">
+          <div class="market-card-name" style="color:#ff5aad;font-weight:800;letter-spacing:0.02em;text-shadow:0 0 12px rgba(255,20,147,0.9),0 0 24px rgba(255,20,147,0.5)">${p.name}</div>
+          <div class="market-card-meta" style="margin-top:6px">
+            <span class="market-card-version" style="color:#ff5aad;font-weight:700;background:rgba(255,20,147,0.12);border-color:rgba(255,20,147,0.3)">Exclusive</span>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:rgba(255,20,147,0.4);background:rgba(255,20,147,0.07);border:1px solid rgba(255,20,147,0.15);border-radius:100px;padding:4px 12px;display:inline-block">
+            🪙 ${p.sellPrice.toLocaleString()} coins
+          </div>
+          <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,20,147,0.02) 8px,rgba(255,20,147,0.02) 16px);pointer-events:none"></div>
         </div>`;
     }
     return `
@@ -5948,7 +6015,7 @@ function openPlantDetail(idx) {
   overlay.id = 'plant-detail-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,0.5)';
   overlay.innerHTML = `
-    <div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
+    <div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : p.rarity === 'Exclusive' ? 'exclusive-electric' : ''}" style="border-radius:24px;padding:36px 32px;width:100%;max-width:340px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.5);text-align:center;position:relative;background:${bg}">
       <button onclick="document.getElementById('plant-detail-overlay').remove()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
       <div style="width:130px;height:130px;border-radius:50%;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.07);border:2px solid ${color}55;box-shadow:0 0 40px ${color}44">
         <img src="${resolveImg(p.image)}" style="width:100px;height:100px;object-fit:contain" onerror="this.style.display='none'">
@@ -6478,7 +6545,7 @@ for (let i = 0; i < SLOTS; i++) {
   const isAddSlot = isMyGrid && !mySide.confirmed && i === plants.length && plants.length < SLOTS;
   if (p) {
     const rarityColor = rarityColors[p.rarity] || 'var(--ink3)';
-    html += `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" style="min-height:150px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;position:relative;overflow:hidden">
+    html += `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : p.rarity === 'Exclusive' ? 'exclusive-electric' : ''}" style="min-height:150px;background:var(--bg2);border:1.5px solid ${rarityColors[p.rarity]||'var(--border)'};border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 8px;position:relative;overflow:hidden">
       <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:64px;height:64px;object-fit:contain;flex-shrink:0">
       <div style="font-size:12px;font-weight:700;color:var(--ink);text-align:center;line-height:1.25;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:center">
@@ -6696,7 +6763,7 @@ function renderTradeCollectionList(q) {
   listEl.innerHTML = plants.map((p,i)=>{
     const inTrade = alreadyAdded.some(a=>a.name===p.name&&a.version===p.version);
     const origIdx = _myTradeCollection.indexOf(p);
-    return `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : ''}" onclick="${inTrade?'':`addPlantToTrade(${origIdx})`}"
+    return `<div class="${p.rarity === 'Secret' ? (p.version===1 ? 'secret-electric secret-electric-v1' : 'secret-electric') : p.rarity === 'Exclusive' ? 'exclusive-electric' : ''}" onclick="${inTrade?'':`addPlantToTrade(${origIdx})`}"
       style="aspect-ratio:1;background:var(--bg2);border:2px solid ${inTrade?'rgba(0,200,100,0.5)':rarityColors[p.rarity]||'var(--border)'};border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;cursor:${inTrade?'default':'pointer'};opacity:${inTrade?'0.5':'1'};position:relative;transition:all 0.15s"
       onmouseover="${inTrade?'':`this.style.transform='scale(1.04)'`}" onmouseout="${inTrade?'':`this.style.transform='scale(1)'`}">
       <img src="${resolveImg(p.image)}" onerror="this.style.display='none'" style="width:52px;height:52px;object-fit:contain">
@@ -7809,7 +7876,8 @@ async function deletePriceAlert(alertId) {
   // matching the site's existing v1 crown/badge color (#c9a84c).
   const PALETTES = {
     purple: { core: '#d6bbff', mid: 'rgba(156,95,255,0.8)',  outer: 'rgba(156,95,255,0.4)' },
-    gold:   { core: '#ffe9a8', mid: 'rgba(201,168,76,0.85)', outer: 'rgba(201,168,76,0.42)' }
+    gold:   { core: '#ffe9a8', mid: 'rgba(201,168,76,0.85)', outer: 'rgba(201,168,76,0.42)' },
+    pink:   { core: '#ffc2e6', mid: 'rgba(255,20,147,0.82)', outer: 'rgba(255,20,147,0.42)' }
   };
 
   function rand(x) { return ((Math.sin(x * 12.9898) * 43758.5453) % 1 + 1) % 1; }
@@ -7863,7 +7931,10 @@ async function deletePriceAlert(alertId) {
     container._ebInit = true;
 
     // .secret-electric-v1 (first-copy Secret pulls) renders gold instead of purple.
-    const palette = container.classList.contains('secret-electric-v1') ? PALETTES.gold : PALETTES.purple;
+    // .exclusive-electric (Exclusive rarity) renders pink.
+    const palette = container.classList.contains('secret-electric-v1') ? PALETTES.gold
+                  : container.classList.contains('exclusive-electric')  ? PALETTES.pink
+                  : PALETTES.purple;
 
     // The noise displacement swings the path up to DISPLACEMENT px outward
     // from the card edge in any direction. If the canvas were sized to the
@@ -7994,7 +8065,7 @@ async function deletePriceAlert(alertId) {
   }
 
   function applyToAll() {
-    document.querySelectorAll('.secret-electric').forEach(el => initElectricBorder(el));
+    document.querySelectorAll('.secret-electric, .exclusive-electric').forEach(el => initElectricBorder(el));
   }
 
   if (document.readyState === 'loading') {
