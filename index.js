@@ -3796,9 +3796,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     // !setdropchat — chat/claim only channel: ignore all commands except claim
     const isClaimAttempt = message.content.trim().toLowerCase().startsWith('claim ');
     const isCommand = message.content.trim().startsWith(PREFIX);
-    const isMod = message.member?.permissions.has(PermissionsBitField.Flags.ManageMessages)
-      || message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)
-      || message.member?.permissions.has(PermissionsBitField.Flags.Administrator);
+    const isMod = isBotAdmin(message.author.id);
     if (!isClaimAttempt && isCommand && !isMod) {
       return;
     }
@@ -4157,7 +4155,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const auctions = loadAuctions();
       const auction  = auctions.find(a => a.id === auctionId);
       if (!auction) return message.reply('Auction not found.');
-      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+      if (!isBotAdmin(message.author.id)) {
         if (auction.sellerId !== message.author.id) return message.reply('You can only cancel your own auctions.');
         if (auction.bids.length) return message.reply('❌ Cannot cancel — this auction already has bids.');
       }
@@ -4376,8 +4374,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   // ── !setpayout ────────────────────────────────────────────────────────────
   if (cmd === 'setpayout') {
     if (!message.guild) return message.reply('❌ Use this command in a server channel.');
-    if (!message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
-      return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) {
+      return message.reply('Admins only.');
     }
 
     if (args[1]?.toLowerCase() === 'stop') {
@@ -4429,7 +4427,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
   // ── !setauction ───────────────────────────────────────────────────────────
   if (cmd === 'setauction') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     if (args[1]?.toLowerCase() === 'stop') {
       delete auctionChannels[message.guild.id];
       const s = loadSettings(); s.auctionChannels = auctionChannels; saveSettings(s);
@@ -4449,8 +4447,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   // blocks it in that channel, "on" re-allows it there.
   if (cmd === 'setcrate') {
     if (!message.guild) return message.reply('❌ Use this command in a server channel.');
-    if (!message.member?.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
-      return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) {
+      return message.reply('Admins only.');
     }
 
     const rawId = args[1]?.replace(/[<#>]/g, '');
@@ -4503,7 +4501,7 @@ if (cmd === 'web') {
 
   // ── !setdrop ──────────────────────────────────────────────────────────────
   if (cmd === 'setdrop') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     if (args[1]?.toLowerCase() === 'stop') { delete dropChannels[message.guild.id]; delete channelActivity[message.channel.id]; const s = loadSettings(); s.dropChannels = dropChannels; saveSettings(s); return message.reply(`✅ Command channel unset.`); }
     const rawId = args[1]?.replace(/[<#>]/g, '');
     const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
@@ -4517,7 +4515,7 @@ if (cmd === 'web') {
   // Multiple channels per guild are supported — each run of !setdropchat adds
   // another channel to the list rather than overriding the previous one.
   if (cmd === 'setdropchat') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     const list = relaxedDropChannels[message.guild.id] || [];
 
     if (args[1]?.toLowerCase() === 'stop') {
@@ -4542,7 +4540,7 @@ if (cmd === 'web') {
 
   // ── !setvping ─────────────────────────────────────────────────────────────
   if (cmd === 'setvping') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     if (args[1]?.toLowerCase() === 'stop') { delete vPingChannels[message.guild.id]; const s = loadSettings(); s.vPingChannels = vPingChannels; saveSettings(s); return message.reply('✅ v1 pings disabled.'); }
     const rawId = args[1]?.replace(/[<#>]/g, ''), targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
     if (!targetCh) return message.reply(`❌ Channel not found.`);
@@ -4553,7 +4551,7 @@ if (cmd === 'web') {
 
   // ── !setraritypings ──────────────────────────────────────────────────────
   if (cmd === 'setraritypings') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageRoles)) return message.reply('Need **Manage Roles**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
 
     const embed = new EmbedBuilder()
       .setTitle('🔔 Rarity Ping Roles')
@@ -4579,7 +4577,7 @@ if (cmd === 'web') {
 
   // ── !set droppable <channelid> ────────────────────────────────────────────
   if (cmd === 'set' && args[1]?.toLowerCase() === 'droppable') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     if (args[2]?.toLowerCase() === 'stop') {
       delete droppableChannels[message.guild.id];
       const s = loadSettings(); s.droppableChannels = droppableChannels; saveSettings(s);
@@ -4703,7 +4701,7 @@ if (cmd === 'web') {
 
   // ── !drop ─────────────────────────────────────────────────────────────────
   if (cmd === 'drop') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('Need **Manage Messages**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
     const dropArgs = args.slice(1).join(' ');
     const rMatch = dropArgs.match(/-r\s+([a-z]+)/i), pMatch = dropArgs.match(/-p\s+"([^"]+)"|(-p\s+([A-Za-z ]+?)(?:\s+-[rpm]|$))/i), mMatch = dropArgs.match(/-m\s+([a-z]+)/i);
     await sendDrop(message.channel, { rarityName: rMatch ? rMatch[1] : null, plantName: pMatch ? (pMatch[1] || pMatch[3]?.trim()) : null, mutationName: mMatch ? mMatch[1] : null });
@@ -4955,14 +4953,14 @@ if (cmd === 'web') {
   }
 
   if (cmd === 'setrace') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('Need **Manage Messages**.');
+    if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
 
     // Two forms share this command:
     //   !setrace <seconds>            → race timer duration (5–300)
     //   !setrace <channel id> on|off  → enable/disable !race in that channel
     const mode = args[2]?.toLowerCase();
     if (mode === 'on' || mode === 'off') {
-      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+      if (!isBotAdmin(message.author.id)) return message.reply('Admins only.');
 
       const rawId = args[1]?.replace(/[<#>]/g, '');
       let targetCh = rawId ? client.channels.cache.get(rawId) : null;
@@ -7098,7 +7096,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
     // ── Admin ─────────────────────────────────────────────────────────────────
     if (sub === 'admin') {
-      if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return message.reply('You don\'t have permission to view admin commands.');
+      if (!isBotAdmin(message.author.id)) return message.reply('You don\'t have permission to view admin commands.');
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('🔧 Admin & Mod Commands')
         .addFields(
