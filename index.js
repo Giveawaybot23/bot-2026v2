@@ -5764,6 +5764,30 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         });
     };
 
+    // Same filters as saComputeCandidates, but for the v1–v10 plants that
+    // protection excluded — used to offer a separate, explicit follow-up
+    // confirmation instead of silently refusing to touch them.
+    const saComputeCandidatesUnderV10 = (user, userId) => {
+      const raritiesLower = saSelectedRarities.map(r => r.toLowerCase());
+      return user.collection
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => {
+          if (isUnsellableRarity(p.rarity)) return false;
+          if ((p.version || 0) > 10) return false;
+          if (isLocked(userId, p)) return false;
+          if (!raritiesLower.includes(p.rarity.toLowerCase())) return false;
+          if (saSelectedVersionRanges && saSelectedVersionRanges.length) {
+            if (!versionMatchesRanges(p.version || 0, saSelectedVersionRanges)) return false;
+          }
+          if (saSelectedMutations && saSelectedMutations.length) {
+            const mutName = p.mutation ? p.mutation.name.toLowerCase() : null;
+            const matches = saSelectedMutations.some(m => (m === 'none' && !mutName) || (mutName && m.toLowerCase() === mutName));
+            if (!matches) return false;
+          }
+          return true;
+        });
+    };
+
     const RARITY_ORDER_SA = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
     const saBuildPreview = (candidates) => {
@@ -5868,12 +5892,34 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         const candidates = saComputeCandidates(user, message.author.id);
 
         if (!candidates.length) {
+          // Nothing above v10 matched — but if the only reason is that
+          // everything left is v1–v10 (protected), let them proceed straight
+          // to the sell flow, which will offer the protected-plants prompt.
+          const onlyProtected = sellbatchV10Protection ? saComputeCandidatesUnderV10(user, message.author.id) : [];
+          if (!onlyProtected.length) {
+            return interaction.update({
+              embeds: [new EmbedBuilder()
+                .setTitle('🔍 Nothing Matches')
+                .setDescription(`No plants match those filters right now.${sellbatchV10Protection ? ' *(locked plants are always excluded.)*' : ''}`)
+                .setColor(0xFFAA00)],
+              components: [new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('saw_back').setLabel('◂ Back').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+              )],
+            });
+          }
+          const { totalCoins: onlyProtTotal, summaryLines: onlyProtLines } = saBuildPreview(onlyProtected);
           return interaction.update({
             embeds: [new EmbedBuilder()
-              .setTitle('🔍 Nothing Matches')
-              .setDescription('No plants match those filters right now. *(v1–v10 and locked plants are always excluded.)*')
-              .setColor(0xFFAA00)],
+              .setTitle('🛡️ Only v1–v10 Matches')
+              .setDescription(
+                `Nothing above v10 matches those filters, but **${onlyProtected.length}** protected v1–v10 plant${onlyProtected.length !== 1 ? 's' : ''} ${onlyProtected.length !== 1 ? 'do' : 'does'}:\n\n` +
+                onlyProtLines.join('\n') +
+                `\n\n**Worth:** ${fmt(onlyProtTotal)}\n\nSell ${onlyProtected.length !== 1 ? 'these' : 'this'} anyway?`
+              )
+              .setColor(0xFF6600)],
             components: [new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('saw_confirm_v10_only').setLabel('⚠️ Yes, Sell v1–v10').setStyle(ButtonStyle.Danger),
               new ButtonBuilder().setCustomId('saw_back').setLabel('◂ Back').setStyle(ButtonStyle.Secondary),
               new ButtonBuilder().setCustomId('saw_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
             )],
@@ -5892,6 +5938,46 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             )
             .setColor(0xFF6600)],
           components: [saConfirmRow],
+        });
+      }
+
+      // ── Only v1–v10 matched — explicit opt-in sell of just the protected set
+      if (interaction.customId === 'saw_confirm_v10_only') {
+        saCollector.stop('confirmed');
+
+        const db = loadDB();
+        const user = getUser(db, message.author.id);
+        user.username = message.author.username;
+        user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+        const finalCandidates = saComputeCandidatesUnderV10(user, message.author.id);
+        if (!finalCandidates.length) {
+          return interaction.update({
+            embeds: [new EmbedBuilder().setTitle('🔍 Nothing To Sell').setDescription('Nothing still matches those filters — your collection changed since the preview.').setColor(0xFFAA00)],
+            components: [],
+          });
+        }
+
+        const { totalCoins: finalTotal, summaryLines: finalLines, filterParts } = saBuildPreview(finalCandidates);
+        const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
+        for (const idx of idxs) user.collection.splice(idx, 1);
+        user.currency += finalTotal;
+        trackEarned(user, finalTotal);
+        touchActivity(db, message.author.id, message.author);
+        checkAchievements(user, message.author.id, message.channel);
+        saveDB(db);
+        for (const { p } of finalCandidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
+
+        return interaction.update({
+          embeds: [new EmbedBuilder()
+            .setTitle(`✅ Sold — ${finalCandidates.length} plants`)
+            .setDescription(
+              `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
+              finalLines.join('\n') +
+              `\n\n**Earned:** ${fmt(finalTotal)}\n**New balance:** ${fmt(user.currency)}`
+            )
+            .setColor(0x00C853)],
+          components: [],
         });
       }
 
@@ -5923,17 +6009,100 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         saveDB(db);
         for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
-        return interaction.update({
+        const soldSummaryDesc =
+          `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
+          summaryLines.join('\n') +
+          `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`;
+
+        // ── v1–v10 are protected by default and were already excluded above.
+        // If any protected plants still match the filters, offer a separate,
+        // explicit confirmation to sell those too rather than silently
+        // refusing — the person can say no and keep them.
+        const underV10Candidates = sellbatchV10Protection ? saComputeCandidatesUnderV10(user, message.author.id) : [];
+
+        if (!underV10Candidates.length) {
+          return interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle(`✅ Sold — ${candidates.length} plants`)
+              .setDescription(soldSummaryDesc)
+              .setColor(0x00C853)],
+            components: [],
+          });
+        }
+
+        const { totalCoins: v10TotalCoins, summaryLines: v10SummaryLines } = saBuildPreview(underV10Candidates);
+
+        await interaction.update({
           embeds: [new EmbedBuilder()
             .setTitle(`✅ Sold — ${candidates.length} plants`)
             .setDescription(
-              `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
-              summaryLines.join('\n') +
-              `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`
+              soldSummaryDesc +
+              `\n\n🛡️ **${underV10Candidates.length} more plant${underV10Candidates.length !== 1 ? 's' : ''} match your filters but ${underV10Candidates.length !== 1 ? 'are' : 'is'} v1–v10 (protected):**\n` +
+              v10SummaryLines.join('\n') +
+              `\n**Worth:** ${fmt(v10TotalCoins)}\n\nSell ${underV10Candidates.length !== 1 ? 'these' : 'this'} too?`
             )
             .setColor(0x00C853)],
-          components: [],
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('saw_confirm_v10').setLabel('⚠️ Yes, Sell v1–v10 Too').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('saw_skip_v10').setLabel('No, Keep Them').setStyle(ButtonStyle.Secondary),
+          )],
         });
+
+        const v10Collector = saWizardMsg.createMessageComponentCollector({ time: 30_000, filter: i => i.user.id === message.author.id, max: 1 });
+
+        v10Collector.on('collect', async (v10Interaction) => {
+          if (v10Interaction.customId === 'saw_skip_v10') {
+            return v10Interaction.update({
+              embeds: [new EmbedBuilder()
+                .setTitle(`✅ Sold — ${candidates.length} plants`)
+                .setDescription(soldSummaryDesc + `\n\n🛡️ Kept ${underV10Candidates.length} v1–v10 plant${underV10Candidates.length !== 1 ? 's' : ''}.`)
+                .setColor(0x00C853)],
+              components: [],
+            });
+          }
+
+          // saw_confirm_v10 — sell the protected plants too
+          const db2 = loadDB();
+          const user2 = getUser(db2, message.author.id);
+          const finalCandidates = saComputeCandidatesUnderV10(user2, message.author.id);
+          if (!finalCandidates.length) {
+            return v10Interaction.update({
+              embeds: [new EmbedBuilder()
+                .setTitle(`✅ Sold — ${candidates.length} plants`)
+                .setDescription(soldSummaryDesc + `\n\n🔍 Those v1–v10 plants no longer match — your collection changed since then.`)
+                .setColor(0x00C853)],
+              components: [],
+            });
+          }
+
+          const { totalCoins: finalTotal, summaryLines: finalLines } = saBuildPreview(finalCandidates);
+          const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
+          for (const idx of idxs) user2.collection.splice(idx, 1);
+          user2.currency += finalTotal;
+          trackEarned(user2, finalTotal);
+          touchActivity(db2, message.author.id, message.author);
+          checkAchievements(user2, message.author.id, message.channel);
+          saveDB(db2);
+          for (const { p } of finalCandidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
+
+          return v10Interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle(`✅ Sold — ${candidates.length + finalCandidates.length} plants`)
+              .setDescription(
+                soldSummaryDesc +
+                `\n\n🛡️ **Also sold v1–v10:**\n` + finalLines.join('\n') +
+                `\n\n**Total earned:** ${fmt(totalCoins + finalTotal)}\n**New balance:** ${fmt(user2.currency)}`
+              )
+              .setColor(0x00C853)],
+            components: [],
+          });
+        });
+
+        v10Collector.on('end', (collected) => {
+          if (collected.size === 0) saWizardMsg.edit({ components: [] }).catch(() => {});
+        });
+
+        return;
       }
     });
 
