@@ -2171,6 +2171,7 @@
   <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     <span style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:0.08em">Rarity</span>
     <button class="shop-filter-btn active" onclick="setMarketRarity('all',this)">All</button>
+    <button class="shop-filter-btn" onclick="setMarketRarity('Exclusive',this)">Exclusive</button>
     <button class="shop-filter-btn" onclick="setMarketRarity('Secret',this)">Secret</button>
     <button class="shop-filter-btn" onclick="setMarketRarity('Mythic',this)">Mythic</button>
     <button class="shop-filter-btn" onclick="setMarketRarity('Legendary',this)">Legendary</button>
@@ -2352,6 +2353,7 @@
     <!-- Rarity filter tabs -->
     <div style="padding:12px 22px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap">
       <button onclick="setTradeRarityFilter('all',this)" id="trade-filter-all" style="padding:5px 12px;border-radius:100px;border:1.5px solid var(--border);background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s">All</button>
+      <button onclick="setTradeRarityFilter('Exclusive',this)" id="trade-filter-exclusive" style="padding:5px 12px;border-radius:100px;border:1.5px solid #FF1493;background:transparent;color:#FF1493;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s">💗 Exclusive</button>
       <button onclick="setTradeRarityFilter('Epic',this)" id="trade-filter-epic" style="padding:5px 12px;border-radius:100px;border:1.5px solid #9C27B0;background:transparent;color:#9C27B0;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s">🟣 Epic</button>
       <button onclick="setTradeRarityFilter('Legendary',this)" id="trade-filter-legendary" style="padding:5px 12px;border-radius:100px;border:1.5px solid #FFD700;background:transparent;color:#FFD700;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s">🌟 Legendary</button>
       <button onclick="setTradeRarityFilter('Mythic',this)" id="trade-filter-mythic" style="padding:5px 12px;border-radius:100px;border:1.5px solid #F44336;background:transparent;color:#F44336;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s">🔥 Mythic</button>
@@ -2378,6 +2380,7 @@
       <input id="inv-page-search" placeholder="Search plants..." oninput="filterInventoryPage(this.value)" style="padding:10px 18px;border-radius:100px;border:1.5px solid var(--border);background:var(--card);font-size:13px;font-family:inherit;color:var(--ink);outline:none;width:220px;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border)'">
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="inv-rarity-filters">
         <button onclick="setInvFilter('all',this)" class="shop-filter-btn active">All</button>
+        <button onclick="setInvFilter('Exclusive',this)" class="shop-filter-btn">Exclusive</button>
         <button onclick="setInvFilter('Secret',this)" class="shop-filter-btn">Secret</button>
         <button onclick="setInvFilter('Super',this)" class="shop-filter-btn">Super</button>
         <button onclick="setInvFilter('Mythic',this)" class="shop-filter-btn">Mythic</button>
@@ -3100,7 +3103,7 @@ function pkBurst(x,y,color,count=24){
 }
 
 function rarityAccent(rarity) {
-  return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' }[rarity] || '#999';
+  return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff',Exclusive:'#FF1493' }[rarity] || '#999';
 }
 
 async function loadMarketHighlights() {
@@ -3109,7 +3112,7 @@ async function loadMarketHighlights() {
   try {
     const market = await fetch('/api/market').then(r => r.json());
     if (!market.length) { grid.style.display = 'none'; return; }
-    const rarityRank = { Secret:0,Mythic:1,Legendary:2,Epic:3,Rare:4,Uncommon:5,Common:6 };
+    const rarityRank = { Exclusive:-1,Secret:0,Mythic:1,Legendary:2,Epic:3,Rare:4,Uncommon:5,Common:6 };
     const topListed  = [...market].sort((a,b) => b.price - a.price)[0];
     const topMutated = [...market].filter(m => m.mutation).sort((a,b) => b.price - a.price)[0];
     const topRare    = [...market].sort((a,b) => rarityRank[a.rarity] - rarityRank[b.rarity])[0];
@@ -3173,7 +3176,7 @@ async function loadMarketHighlights() {
   function loadMorePlants(btn, rarity, grid) {
   const offset = parseInt(btn.dataset.offset);
   const plants = window._profileGrouped[rarity];
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#000000' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#000000',Exclusive:'#FF1493' };
   const next = plants.slice(offset, offset + 50);
   const html = next.map((p, pi) => `
     <div class="pd-collection-item${p.version===1?' v1-item':''}" style="${p.version===1?'border-color:rgba(201,168,76,0.5);background:linear-gradient(135deg,var(--card) 40%,rgba(201,168,76,0.07) 100%);box-shadow:0 0 12px rgba(201,168,76,0.15);':''}">
@@ -3829,10 +3832,10 @@ async function loadProfile(id, { skipHash = false } = {}) {
 
     const rarityColors = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
-      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#aa88ff',
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#aa88ff', Exclusive:'#FF1493',
     };
-    const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-    const rarityWeight = { Secret:8, Super:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
+    const rarityOrder  = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityWeight = { Exclusive:9, Secret:8, Super:7, Mythic:6, Legendary:5, Epic:4, Rare:3, Uncommon:2, Common:1 };
 
     /* ── Group collection by rarity ── */
     const grouped = {};
@@ -4425,6 +4428,7 @@ ${isPodium ? `
       Mythic:   'linear-gradient(165deg, #5c0a0a 0%, #240303 100%)',
       Super:    'linear-gradient(165deg, #00434f 0%, #001a1f 100%)',
       Secret:   'linear-gradient(165deg, #200c47 0%, #0a0420 100%)',
+      Exclusive:'linear-gradient(165deg, #5c0a3a 0%, #240316 100%)',
     };
     // Best-effort read of an "obtained from" style field — the API doesn't
     // consistently send one, so this only renders when something is there.
@@ -4445,7 +4449,7 @@ ${isPodium ? `
       const cardBg  = rarityGradients[p.rarity] || rarityGradients.Common;
       const isV1    = p.version === 1;
       const glow    = rc; // live glow always matches the plant's rarity color, even for v1
-      const highTier= ['Legendary','Mythic','Super','Secret'].includes(p.rarity);
+      const highTier= ['Legendary','Mythic','Super','Secret','Exclusive'].includes(p.rarity);
       const obtained = readObtained(p);
 
       const mutRow = p.mutation ? `
@@ -4653,7 +4657,7 @@ function toggleMyAuctions(btn) {
 let _marketSort   = 'none';
 let _marketItems  = [];
 
-const _rarityRank = { Secret:0, Super:1, Mythic:2, Legendary:3, Epic:4, Rare:5, Uncommon:6, Common:7 };
+const _rarityRank = { Exclusive:-1, Secret:0, Super:1, Mythic:2, Legendary:3, Epic:4, Rare:5, Uncommon:6, Common:7 };
 
 function setMarketRarity(rarity, btn) {
   _marketRarity = rarity;
@@ -4672,7 +4676,7 @@ function setMarketSort(sort, btn) {
 }
 
 function renderMarket() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#111' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#111',Exclusive:'#FF1493' };
   const grid = document.getElementById('market-grid');
   let items = [..._marketItems];
   if (_marketRarity !== 'all') items = items.filter(item => item.rarity === _marketRarity);
@@ -4956,7 +4960,7 @@ async function loadAuctionData() {
 
     const rarityBadgeColor = {
       Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3',
-      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111'
+      Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#111', Exclusive:'#FF1493'
     };
 
     const displayAuctions = _auctionMineOnly && window._loggedInId ? auctions.filter(a => a.sellerId === window._loggedInId) : auctions;
@@ -5430,8 +5434,8 @@ function renderChatMsg(m) {
   </div>`;
 }
 
-const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF' };
-const rarityOrder  = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+const rarityColors = { Common:'#9E9E9E', Uncommon:'#4CAF50', Rare:'#2196F3', Epic:'#9C27B0', Legendary:'#FFD700', Mythic:'#F44336', Super:'#00E5FF', Secret:'#9C5FFF', Exclusive:'#FF1493' };
+const rarityOrder  = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
 // ── Market Tax (client-side mirror) ─────────────────────────────────────────
 // Cosmetic only — purely so players can see what they'll net BEFORE confirming
@@ -5813,7 +5817,7 @@ async function loadInventoryPage() {
     // sold or traded away.
     window._discoveredPlants = new Set(profile?.discoveredPlants || []);
 
-    const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+    const rarityOrder = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
     _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
     document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
     renderInventoryPage();
@@ -5835,7 +5839,7 @@ function filterInventoryPage(val) {
 }
 
 function renderInventoryPage() {
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff',Exclusive:'#FF1493' };
   const grid = document.getElementById('inv-page-grid');
   if (!grid) return;
   let filtered = _invPageCollection;
@@ -5925,7 +5929,7 @@ function openPlantDetail(idx) {
   });
   const p = filtered[idx];
   if (!p || !window._discoveredPlants?.has(p.name)) return;
-  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff' };
+  const rarityColors = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff',Exclusive:'#FF1493' };
   const rarityGradients = {
     Common:   'linear-gradient(160deg, #3a3a3a 0%, #1a1a1a 100%)',
     Uncommon: 'linear-gradient(160deg, #1a4a2e 0%, #0a2016 100%)',
@@ -5934,6 +5938,7 @@ function openPlantDetail(idx) {
     Legendary:'linear-gradient(160deg, #503a00 0%, #281e00 100%)',
     Mythic:   'linear-gradient(160deg, #500808 0%, #280404 100%)',
     Secret:   'linear-gradient(160deg, #1a0a3a 0%, #0a0520 100%)',
+    Exclusive:'linear-gradient(160deg, #500832 0%, #280419 100%)',
   };
   const color = rarityColors[p.rarity] || '#999';
   const bg    = rarityGradients[p.rarity] || rarityGradients.Common;
@@ -6216,7 +6221,7 @@ function toggleDark() {
 })();
 
 // ─── TRADE SYSTEM ─────────────────────────────────────────────────────────────
-const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎' };
+const rarityEmoji  = { Common:'⚪', Uncommon:'🟢', Rare:'🔵', Epic:'🟣', Legendary:'🌟', Mythic:'🔥', Secret:'💎', Exclusive:'✨' };
 let _tradeId = null, _tradeData = null, _myTradeCollection = [], _tradePollInterval = null, _tradeTargetId = null, _allPlayers = [], _pendingTradeId = null, _tradeAccepted = false, _selfCancelled = false;
 
 function showTradeRequestToast(senderName, tradeId) {
@@ -6644,7 +6649,7 @@ async function cancelTrade() {
   setTimeout(showTradeStartPanel, 2500);
 }
 
-const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret'];
+const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret','Exclusive'];
 let _tradeRarityFilter = 'all';
 
 async function openAddPlantModal() {
@@ -7051,7 +7056,7 @@ if (msg.type === 'trade_complete') {
 if (msg.type === 'collection_update') {
   // Live-refresh the inventory page if it's currently visible
   if (msg.discoveredPlants) window._discoveredPlants = new Set(msg.discoveredPlants);
-  const rarityOrder = ['Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
+  const rarityOrder = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
   _invPageCollection = msg.collection.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
   const invCount = document.getElementById('inv-page-count');
   if (invCount) invCount.textContent = `${_invPageCollection.length} plants in the game.`;
@@ -7474,6 +7479,7 @@ async function openPriceAlertSetupModal() {
             <option value="Legendary">Legendary</option>
             <option value="Mythic">Mythic</option>
             <option value="Secret">Secret</option>
+            <option value="Exclusive">Exclusive</option>
           </select>
         </div>
         <div>
