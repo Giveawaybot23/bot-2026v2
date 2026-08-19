@@ -433,7 +433,20 @@ function saveSettings(s) { atomicWriteFileSync(SETTINGS_FILE, JSON.stringify(s, 
 ;(function initSettings() {
   const s = loadSettings();
   if (s.dropChannels)        dropChannels        = s.dropChannels;
-  if (s.relaxedDropChannels) relaxedDropChannels = s.relaxedDropChannels;
+  if (s.relaxedDropChannels) {
+    relaxedDropChannels = s.relaxedDropChannels;
+    // Migrate old format (guildId -> single channelId string) to the new
+    // format (guildId -> array of channelIds) so existing installs upgrade
+    // in place without losing their configured channel.
+    let migrated = false;
+    for (const gid of Object.keys(relaxedDropChannels)) {
+      if (typeof relaxedDropChannels[gid] === 'string') {
+        relaxedDropChannels[gid] = [relaxedDropChannels[gid]];
+        migrated = true;
+      }
+    }
+    if (migrated) { const s2 = loadSettings(); s2.relaxedDropChannels = relaxedDropChannels; saveSettings(s2); }
+  }
   if (s.vPingChannels)       vPingChannels       = s.vPingChannels;
   if (s.auctionChannels) auctionChannels = s.auctionChannels;
   if (s.payoutChannels) payoutChannels = s.payoutChannels;
@@ -1797,7 +1810,7 @@ function startWeatherLoop() {
     if (!weather || weatherOverride) return; // only announce a fresh natural slot, not an active override/suppression
     const allDropChIds = new Set([
       ...Object.values(dropChannels),
-      ...Object.values(relaxedDropChannels),
+      ...Object.values(relaxedDropChannels).flat(),
     ]);
     for (const chId of allDropChIds) {
       const ch = client.channels.cache.get(chId);
@@ -1875,7 +1888,7 @@ function startDropLoop() {
   setInterval(async () => {
     // !setdrop channels are now command-only (no passive drops) — only
     // !setdropchat channels spawn drops. See the messageCreate handler.
-    const allDropChIds = new Set(Object.values(relaxedDropChannels));
+    const allDropChIds = new Set(Object.values(relaxedDropChannels).flat());
     for (const chId of allDropChIds) {
       const ch = client.channels.cache.get(chId);
       if (ch) await tryActivityDrop(ch).catch(console.error);
@@ -3475,9 +3488,9 @@ processedMessages.add(message.id);
 setTimeout(() => processedMessages.delete(message.id), 30000);
   if (message.author.bot) return;
 
-  const relaxedChId = relaxedDropChannels[message.guild?.id];
+  const relaxedChIds = relaxedDropChannels[message.guild?.id] || [];
 
-  if (relaxedChId && message.channel.id === relaxedChId) {
+  if (relaxedChIds.includes(message.channel.id)) {
     channelActivity[message.channel.id] = Date.now();
     // !setdropchat — chat/claim only channel: ignore all commands except claim
     const isClaimAttempt = message.content.trim().toLowerCase().startsWith('claim ');
@@ -4184,19 +4197,30 @@ if (cmd === 'web') {
   }
 
   // ── !setdropchat ──────────────────────────────────────────────────────────
+  // Multiple channels per guild are supported — each run of !setdropchat adds
+  // another channel to the list rather than overriding the previous one.
   if (cmd === 'setdropchat') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return message.reply('Need **Manage Channels**.');
+    const list = relaxedDropChannels[message.guild.id] || [];
+
     if (args[1]?.toLowerCase() === 'stop') {
-      delete relaxedDropChannels[message.guild.id];
+      const rawStopId = args[2]?.replace(/[<#>]/g, '');
+      const stopCh = rawStopId ? client.channels.cache.get(rawStopId) : message.channel;
+      if (!stopCh) return message.reply('❌ Channel not found.');
+      const next = list.filter(id => id !== stopCh.id);
+      if (next.length) relaxedDropChannels[message.guild.id] = next;
+      else delete relaxedDropChannels[message.guild.id];
       const s = loadSettings(); s.relaxedDropChannels = relaxedDropChannels; saveSettings(s);
-      return message.reply('✅ Relaxed drop channel disabled.');
+      return message.reply(`✅ Relaxed drops disabled in <#${stopCh.id}>.`);
     }
+
     const rawId = args[1]?.replace(/[<#>]/g, '');
     const targetCh = rawId ? client.channels.cache.get(rawId) : message.channel;
     if (!targetCh) return message.reply('❌ Channel not found.');
-    relaxedDropChannels[message.guild.id] = targetCh.id;
+    if (list.includes(targetCh.id)) return message.reply(`⚠️ <#${targetCh.id}> is already a relaxed drop channel.`);
+    relaxedDropChannels[message.guild.id] = [...list, targetCh.id];
     const s = loadSettings(); s.relaxedDropChannels = relaxedDropChannels; saveSettings(s);
-    return message.reply(`✅ Relaxed drop channel set to <#${targetCh.id}> — drops will appear but all commands still work.`);
+    return message.reply(`✅ Relaxed drop channel added: <#${targetCh.id}> — drops will appear but all commands still work. (${relaxedDropChannels[message.guild.id].length} total)`);
   }
 
   // ── !setvping ─────────────────────────────────────────────────────────────
@@ -6618,8 +6642,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             value: [
               '`!setdrop [#channel or ID]` — Set a command-only channel (no passive drops)',
               '`!setdrop stop` — Unset the command channel',
-              '`!setdropchat [#channel or ID]` — Set a passive-drop channel (claim only, no other commands)',
-              '`!setdropchat stop` — Disable passive drops',
+              '`!setdropchat [#channel or ID]` — Add a passive-drop channel (claim only, no other commands). Run again to add more.',
+              '`!setdropchat stop [#channel or ID]` — Remove a passive-drop channel (defaults to current channel)',
               '`!setvping [#channel or ID]` — Set the v1 ping channel',
               '`!setvping stop` — Disable v1 pings',
               '`!set droppable <#channel or ID>` — Announce plants that become claimable again (sold v1–v10, decayed Mythic+ v11–v20)',
