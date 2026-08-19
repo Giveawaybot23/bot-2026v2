@@ -2252,6 +2252,17 @@ function aggregateMaxLog(file, start, end) {
   }
   return [...map.values()];
 }
+// Sum of values per user within [start,end] — e.g. combined claim sell value.
+function aggregateSumLog(file, start, end) {
+  const arr = loadJSONArrayFile(file).filter(e => e.time >= start && e.time <= end && !TEST_IDS.has(e.userId));
+  const map = new Map();
+  for (const e of arr) {
+    const cur = map.get(e.userId) || { userId: e.userId, username: e.username, value: 0 };
+    cur.value += e.value; cur.username = e.username;
+    map.set(e.userId, cur);
+  }
+  return [...map.values()];
+}
 function computeClaimsCountRange(start, end) {
   const lb = loadClaimsLB();
   return lb.filter(e => !TEST_IDS.has(e.userId))
@@ -2263,7 +2274,7 @@ const EVENT_TYPES = {
   claims:     { label: 'Highest Claims',         unit: 'claims', compute: (s, e) => computeClaimsCountRange(s, e) },
   races:      { label: 'Races Completed',        unit: 'races',  compute: (s, e) => aggregateCountLog(RACE_FINISH_LOG_FILE, s, e) },
   racestreak: { label: 'Highest Race Streak',     unit: 'streak', compute: (s, e) => aggregateMaxLog(RACE_STREAK_LOG_FILE, s, e) },
-  bestclaim:  { label: 'Best Claim (Sell Value)', unit: 'coins',  compute: (s, e) => aggregateMaxLog(CLAIM_VALUE_LOG_FILE, s, e) },
+  bestclaim:  { label: 'Combined Claims (Sell Value)', unit: 'coins',  compute: (s, e) => aggregateSumLog(CLAIM_VALUE_LOG_FILE, s, e) },
 };
 const EVENT_TYPE_ALIASES = {
   claims: 'claims', highestclaims: 'claims',
@@ -5041,7 +5052,7 @@ if (cmd === 'web') {
     if (!typeKey) {
       return message.reply(
         'Usage: `!startevent <type> <duration>`\n' +
-        '**Types:** `claims` (highest claims) · `races` (races completed) · `streak` (highest race streak) · `bestclaim` (best claim sell value)\n' +
+        '**Types:** `claims` (highest claims) · `races` (races completed) · `streak` (highest race streak) · `bestclaim` (combined claim sell value)\n' +
         '**Duration examples:** `30m`, `2h`, `1d`, `1h30m`'
       );
     }
