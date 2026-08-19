@@ -5851,8 +5851,21 @@ async function loadInventoryPage() {
     // sold or traded away.
     window._discoveredPlants = new Set(profile?.discoveredPlants || []);
 
+    // /api/plants is a species-level list (name/rarity/image/sellPrice only —
+    // no version), since the Index shows one card per plant, not per owned
+    // copy. To still light up the gold "v1" electric variant on Secret/
+    // Exclusive cards, cross-reference the logged-in user's own collection:
+    // if they own a v1 copy of a given plant, tag that species entry with
+    // version:1 so the existing p.version===1 checks below have something
+    // to key off.
+    const ownedV1Names = new Set(
+      (profile?.collection || []).filter(c => c.version === 1).map(c => c.name)
+    );
+
     const rarityOrder = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
-    _invPageCollection = plants.sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
+    _invPageCollection = plants
+      .map(p => ownedV1Names.has(p.name) ? { ...p, version: 1 } : p)
+      .sort((a,b) => rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity));
     document.getElementById('inv-page-count').textContent = `${_invPageCollection.length} plants in the game.`;
     renderInventoryPage();
   } catch {
