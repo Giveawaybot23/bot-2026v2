@@ -516,71 +516,262 @@
   .feature-title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
   .feature-desc { font-size: 14px; color: var(--ink2); line-height: 1.65; }
 
-  /* ── LEADERBOARDS PAGE ── */
+  /* ── LEADERBOARDS PAGE (showcase rework) ── */
   .lb-page { padding: 48px; }
-  .lb-header { margin-bottom: 40px; }
-  .lb-tabs {
+  .lb-header { margin-bottom: 32px; }
+
+  /* Category quick-jump pills */
+  .lbx-catbar {
     display: flex; gap: 4px; background: var(--bg2);
-    padding: 4px; border-radius: 12px; width: fit-content;
-    margin-bottom: 32px;
+    padding: 4px; border-radius: 100px; width: fit-content;
+    margin-bottom: 28px; position: relative;
   }
-  .lb-tab {
-    padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
-    color: var(--ink2); cursor: pointer; transition: all 0.2s; border: none;
-    background: transparent; font-family: inherit;
+  .lbx-catbtn {
+    position: relative; padding: 10px 22px; border-radius: 100px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--ink3); cursor: pointer; transition: color 0.25s ease;
+    border: none; background: transparent; font-family: inherit;
+    z-index: 1;
   }
-  .lb-tab.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(14,13,11,0.08); }
+  .lbx-catbtn.active { color: var(--ink); }
+  .lbx-catbtn-pill {
+    position: absolute; top: 4px; bottom: 4px; left: 4px;
+    border-radius: 100px; background: var(--card);
+    box-shadow: 0 1px 6px rgba(14,13,11,0.10);
+    transition: transform 0.35s cubic-bezier(.4,0,.2,1), width 0.35s cubic-bezier(.4,0,.2,1);
+    z-index: 0;
+  }
 
-  .lb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  /* Showcase shell */
+  .lbx-showcase {
+    display: flex; align-items: flex-start; gap: 18px;
+    max-width: 900px;
+  }
+  .lbx-arrow {
+    flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%;
+    border: 1.5px solid var(--border); background: var(--card);
+    color: var(--ink2); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s ease; margin-top: 140px;
+  }
+  .lbx-arrow:hover { border-color: var(--green-light); color: var(--green); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(14,13,11,0.08); }
+  .lbx-arrow:active { transform: translateY(0) scale(0.94); }
+  .lbx-arrow svg { width: 18px; height: 18px; }
 
-  .lb-card {
-    background: var(--card); border-radius: var(--radius);
-    border: 1px solid var(--border); overflow: hidden;
+  .lbx-frame {
+    flex: 1; min-width: 0; position: relative;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 22px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(14,13,11,0.04);
   }
-  .lb-card-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
+
+  .lbx-panel { transition: opacity 0.32s cubic-bezier(.4,0,.2,1), transform 0.32s cubic-bezier(.4,0,.2,1); }
+  .lbx-slide-out-l { opacity: 0; transform: translateX(-26px) scale(0.985); }
+  .lbx-slide-out-r { opacity: 0; transform: translateX(26px) scale(0.985); }
+  .lbx-slide-in-r  { opacity: 0; transform: translateX(26px) scale(0.985); }
+  .lbx-slide-in-l  { opacity: 0; transform: translateX(-26px) scale(0.985); }
+
+  .lbx-panel-header {
+    padding: 28px 32px 22px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
   }
-  .lb-card-title { font-size: 15px; font-weight: 600; color: var(--ink); }
-  .lb-card-badge {
-    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  .lbx-panel-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--green); margin-bottom: 6px;
+  }
+  .lbx-panel-title {
+    font-family: 'DM Serif Display', serif; font-size: 26px; letter-spacing: -0.01em;
+    color: var(--ink); margin-bottom: 4px;
+  }
+  .lbx-panel-desc { font-size: 13.5px; color: var(--ink3); max-width: 420px; }
+  .lbx-panel-badge {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
     text-transform: uppercase; color: var(--green);
-    background: var(--green-pale); padding: 4px 10px; border-radius: 100px;
+    background: var(--green-pale); padding: 6px 14px; border-radius: 100px;
+    white-space: nowrap; margin-top: 3px;
   }
 
-  .lb-entry {
+  .lbx-panel-body { padding: 8px 0 12px; max-height: 560px; overflow-y: auto; }
+  .lbx-panel-body::-webkit-scrollbar { width: 6px; }
+  .lbx-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 100px; }
+
+  /* Standard rows (rank 2+, or all ranks for level) */
+  .lbx-row {
     display: flex; align-items: center; gap: 14px;
-    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    padding: 13px 32px; border-bottom: 1px solid var(--border);
     transition: background 0.15s;
   }
-  .lb-entry:last-child { border-bottom: none; }
-  .lb-entry:hover { background: var(--bg); }
+  .lbx-row:last-child { border-bottom: none; }
+  .lbx-row:hover { background: var(--bg); }
 
-  .lb-rank {
-    width: 28px; text-align: center;
-    font-size: 13px; font-weight: 600; color: var(--ink3);
-    flex-shrink: 0;
-  }
-  .lb-rank.gold { color: #c9a84c; font-size: 18px; }
-  .lb-rank.silver { color: #9aa0a6; font-size: 18px; }
-  .lb-rank.bronze { color: #a0693a; font-size: 18px; }
-
-  .lb-avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: var(--green-pale); flex-shrink: 0;
+  .lbx-row-rank {
+    width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 600; color: var(--green);
+    font-size: 12px; font-weight: 700; color: var(--ink3);
+    background: var(--bg2);
   }
-  .lb-user { flex: 1; min-width: 0; }
-  .lb-username { font-size: 14px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lb-sub { font-size: 12px; color: var(--ink3); margin-top: 1px; }
-  .lb-value { font-size: 14px; font-weight: 600; color: var(--ink); text-align: right; flex-shrink: 0; }
-  .lb-value small { display: block; font-size: 11px; font-weight: 400; color: var(--ink3); }
-  .lb-user .fuzzy-name-canvas { margin-left: -32px; }
+  .lbx-row-rank.r2 { color: #6b7280; background: rgba(154,160,166,0.18); }
+  .lbx-row-rank.r3 { color: #9a5b30; background: rgba(160,105,58,0.15); }
 
-  .lb-bar-wrap { width: 60px; height: 4px; background: var(--bg2); border-radius: 100px; overflow: hidden; }
-  .lb-bar { height: 100%; background: var(--green-light); border-radius: 100px; }
+  .lbx-row-avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    background: var(--green-pale); overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; color: var(--green); cursor: pointer;
+  }
+  .lbx-row-user { flex: 1; min-width: 0; cursor: pointer; }
+  .lbx-row-name {
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--border);
+  }
+  .lbx-row-sub { font-size: 12px; color: var(--ink3); margin-top: 2px; display: flex; align-items: center; gap: 5px; }
+  .lbx-row-sub img { width: 13px; height: 13px; object-fit: contain; }
+
+  .lbx-row-value { text-align: right; flex-shrink: 0; }
+  .lbx-row-value-main { font-size: 14.5px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .lbx-row-value-sub { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+
+  /* Level XP progress bar within rows */
+  .lbx-level-badge {
+    font-size: 13px; font-weight: 700; color: var(--green);
+    background: var(--green-pale); padding: 3px 10px; border-radius: 100px;
+    display: inline-block; margin-bottom: 4px;
+  }
+  .lbx-xp-track {
+    width: 130px; height: 5px; background: var(--bg2); border-radius: 100px; overflow: hidden;
+  }
+  .lbx-xp-fill {
+    height: 100%; border-radius: 100px;
+    background: linear-gradient(90deg, var(--green) 0%, var(--green-light) 100%);
+    transition: width 1s cubic-bezier(.16,1,.3,1);
+  }
+
+  /* Fuzzy gold name inside compact rows: small size (JS excludes .lbx-row from hero sizing) */
+  .lbx-row-user .fuzzy-name-canvas { display: block; }
+
+  /* ── Garden Score #1 — Throne block ── */
+  .lbx-throne {
+    position: relative; margin: 24px 32px 8px; padding: 36px 24px 28px;
+    border-radius: 18px; overflow: hidden; text-align: center;
+    background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.14), transparent 70%), var(--bg);
+    border: 1px solid rgba(201,168,76,0.25);
+  }
+  .lbx-throne-aura {
+    position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,168,76,0.30) 0%, rgba(201,168,76,0) 68%);
+    animation: lbxAuraPulse 3.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes lbxAuraPulse {
+    0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+    50%      { opacity: 1;    transform: translateX(-50%) scale(1.12); }
+  }
+  .lbx-crown { position: relative; width: 34px; height: 34px; margin: 0 auto 10px; filter: drop-shadow(0 2px 6px rgba(201,168,76,0.55)); animation: lbxFloat 3s ease-in-out infinite; }
+  @keyframes lbxFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .lbx-throne-avatar-wrap { position: relative; width: 84px; height: 84px; margin: 0 auto 16px; }
+  .lbx-throne-ring {
+    position: absolute; inset: -6px; border-radius: 50%;
+    background: conic-gradient(from 0deg, #c9a84c, #f4e2a8, #c9a84c, #8a6d2f, #c9a84c);
+    animation: lbxSpin 5s linear infinite;
+  }
+  @keyframes lbxSpin { to { transform: rotate(360deg); } }
+  .lbx-throne-avatar {
+    position: absolute; inset: 4px; border-radius: 50%; overflow: hidden;
+    background: var(--card); border: 2px solid var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; color: var(--gold); cursor: pointer;
+  }
+  .lbx-throne-name { display: flex; justify-content: center; margin-bottom: 6px; min-height: 30px; }
+  .lbx-throne-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    color: #a4813a; margin-bottom: 16px;
+  }
+  .lbx-throne-score {
+    font-family: 'DM Serif Display', serif; font-size: 40px; letter-spacing: -0.01em;
+    color: var(--ink); line-height: 1; margin-bottom: 8px; font-variant-numeric: tabular-nums;
+  }
+  .lbx-throne-tier { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink2); font-weight: 500; }
+  .lbx-throne-tier img { width: 15px; height: 15px; object-fit: contain; }
+
+  /* ── Race #1 — Speed throne block ── */
+  .lbx-speed {
+    position: relative; margin: 24px 32px 8px; padding: 36px 24px 28px;
+    border-radius: 18px; overflow: hidden; text-align: center;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,224,255,0.14), transparent 70%), var(--bg);
+    border: 1px solid rgba(0,200,255,0.25);
+  }
+  .lbx-speed-lines { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .lbx-speed-lines span {
+    position: absolute; height: 2px; border-radius: 100px;
+    background: linear-gradient(90deg, transparent, rgba(0,224,255,0.55), transparent);
+    animation: lbxStreak 1.6s linear infinite;
+  }
+  .lbx-speed-lines span:nth-child(1) { top: 22%; width: 140px; left: -160px; animation-delay: 0s; }
+  .lbx-speed-lines span:nth-child(2) { top: 46%; width: 100px; left: -160px; animation-delay: 0.35s; }
+  .lbx-speed-lines span:nth-child(3) { top: 68%; width: 170px; left: -160px; animation-delay: 0.7s; }
+  .lbx-speed-lines span:nth-child(4) { top: 84%; width: 90px;  left: -160px; animation-delay: 1.05s; }
+  @keyframes lbxStreak { to { transform: translateX(calc(100vw)); } }
+  .lbx-bolt { position: relative; width: 30px; height: 34px; margin: 0 auto 10px; filter: drop-shadow(0 0 8px rgba(0,224,255,0.65)); animation: lbxBoltPulse 1.8s ease-in-out infinite; }
+  @keyframes lbxBoltPulse { 0%,100% { opacity: 0.85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+  .lbx-speed-avatar-wrap { position: relative; width: 84px; height: 84px; margin: 0 auto 16px; }
+  .lbx-speed-ring {
+    position: absolute; inset: -6px; border-radius: 50%;
+    background: conic-gradient(from 0deg, #00e0ff, #b6faff, #00e0ff, #0077a8, #00e0ff);
+    animation: lbxSpin 2.4s linear infinite;
+  }
+  .lbx-speed-avatar {
+    position: absolute; inset: 4px; border-radius: 50%; overflow: hidden;
+    background: var(--card); border: 2px solid var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; color: #00a8c9; cursor: pointer;
+  }
+  .lbx-speed-name { display: flex; justify-content: center; margin-bottom: 6px; min-height: 30px; }
+  .lbx-speed-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #0090ad; margin-bottom: 16px;
+  }
+  .lbx-speed-time {
+    font-family: 'DM Serif Display', serif; font-size: 40px; letter-spacing: -0.01em;
+    color: var(--ink); line-height: 1; margin-bottom: 8px; font-variant-numeric: tabular-nums;
+  }
+  .lbx-speed-time span { font-size: 18px; color: var(--ink3); margin-left: 3px; }
+  .lbx-speed-sub { font-size: 12.5px; color: var(--ink2); font-weight: 500; }
+
+  /* Claims side-by-side columns */
+  .lbx-claims-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .lbx-claims-col:first-child { border-right: 1px solid var(--border); }
+  .lbx-claims-col-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px 12px; margin: 0 8px;
+  }
+  .lbx-claims-col-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .lbx-claims-col-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink3); background: var(--bg2); padding: 3px 9px; border-radius: 100px;
+  }
+  .lbx-claims-list .lbx-row { padding: 11px 20px; gap: 10px; }
+  .lbx-claims-list .lbx-row-avatar { width: 32px; height: 32px; }
+  .lbx-claims-list .lbx-row-name { font-size: 13px; }
+
+  .lbx-empty { padding: 48px 24px; text-align: center; color: var(--ink3); font-size: 13.5px; }
+
+  @media (max-width: 860px) {
+    .lbx-showcase { max-width: 100%; }
+    .lbx-arrow { width: 38px; height: 38px; margin-top: 100px; }
+    .lbx-arrow svg { width: 15px; height: 15px; }
+    .lbx-panel-header { padding: 22px 18px 18px; flex-direction: column; }
+    .lbx-panel-title { font-size: 21px; }
+    .lbx-row { padding: 12px 18px; }
+    .lbx-throne, .lbx-speed { margin: 18px 14px 8px; padding: 28px 16px 22px; }
+    .lbx-claims-grid { grid-template-columns: 1fr; }
+    .lbx-claims-col:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+  @media (max-width: 560px) {
+    .lb-page { padding: 24px 16px; }
+    .lbx-showcase { gap: 8px; }
+    .lbx-arrow { width: 32px; height: 32px; margin-top: 90px; }
+  }
 
   /* ── PROFILES PAGE ── */
   .profiles-page { padding: 48px; }
@@ -2084,102 +2275,27 @@
       <p style="font-size:15px;color:var(--ink2)">Updated in real-time from the bot.</p>
     </div>
 
-    <div class="lb-tabs">
-      <button class="lb-tab active" onclick="switchLBTab(this,'lb-overview')">Overview</button>
-      <button class="lb-tab" onclick="switchLBTab(this,'lb-garden')">Garden Score</button>
-      <button class="lb-tab" onclick="switchLBTab(this,'lb-level')">Level</button>
-      <button class="lb-tab" onclick="switchLBTab(this,'lb-race')">Race</button>
-      <button class="lb-tab" onclick="switchLBTab(this,'lb-claims')">Claims</button>
+    <div class="lbx-catbar reveal" id="lbx-catbar">
+      <div class="lbx-catbtn-pill" id="lbx-catbtn-pill"></div>
+      <button class="lbx-catbtn active" data-cat="garden" onclick="goToLBCategory('garden')">Garden Score</button>
+      <button class="lbx-catbtn" data-cat="level" onclick="goToLBCategory('level')">Level</button>
+      <button class="lbx-catbtn" data-cat="race" onclick="goToLBCategory('race')">Race</button>
+      <button class="lbx-catbtn" data-cat="claims" onclick="goToLBCategory('claims')">Claims</button>
     </div>
 
-    <!-- Overview -->
-    <div class="lb-content active" id="lb-overview">
-      <div class="lb-grid">
+    <div class="lbx-showcase reveal">
+      <button class="lbx-arrow lbx-arrow-prev" onclick="navigateLBCategory(-1)" aria-label="Previous leaderboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
 
-        <div class="lb-card reveal">
-          <div class="lb-card-header">
-            <div class="lb-card-title">🌿 Garden Score</div>
-            <div class="lb-card-badge">Top 5</div>
-          </div>
-          <div id="lb-garden-mini"></div>
-        </div>
-
-        <div class="lb-card reveal">
-          <div class="lb-card-header">
-            <div class="lb-card-title">⭐ Level</div>
-            <div class="lb-card-badge">Top 5</div>
-          </div>
-          <div id="lb-level-mini"></div>
-        </div>
-
-        <div class="lb-card reveal">
-          <div class="lb-card-header">
-            <div class="lb-card-title">🏁 Race Times</div>
-            <div class="lb-card-badge">Top 5</div>
-          </div>
-          <div id="lb-race-mini"></div>
-        </div>
-
-        <div class="lb-card reveal">
-          <div class="lb-card-header">
-            <div class="lb-card-title">🌱 Daily Claims</div>
-            <div class="lb-card-badge">24 hrs</div>
-          </div>
-          <div id="lb-daily-mini"></div>
-        </div>
-
+      <div class="lbx-frame">
+        <div class="lbx-panel" id="lbx-panel"></div>
       </div>
-    </div>
 
-    <!-- Garden full -->
-    <div class="lb-content" id="lb-garden" style="display:none">
-      <div class="lb-card reveal" style="max-width:600px">
-        <div class="lb-card-header">
-          <div class="lb-card-title">🌿 Garden Score — Full Rankings</div>
-          <div class="lb-card-badge">Weighted</div>
-        </div>
-        <div id="lb-garden-full"></div>
-      </div>
+      <button class="lbx-arrow lbx-arrow-next" onclick="navigateLBCategory(1)" aria-label="Next leaderboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
     </div>
-
-    <!-- Level full -->
-    <div class="lb-content" id="lb-level" style="display:none">
-      <div class="lb-card reveal" style="max-width:600px">
-        <div class="lb-card-header">
-          <div class="lb-card-title">⭐ Level Leaderboard</div>
-          <div class="lb-card-badge">XP Based</div>
-        </div>
-        <div id="lb-level-full"></div>
-      </div>
-    </div>
-
-    <!-- Race full -->
-    <div class="lb-content" id="lb-race" style="display:none">
-      <div class="lb-card reveal" style="max-width:600px">
-        <div class="lb-card-header">
-          <div class="lb-card-title">🏁 Race Leaderboard</div>
-          <div class="lb-card-badge">Fastest</div>
-        </div>
-        <div id="lb-race-full"></div>
-      </div>
-    </div>
-
-    <!-- Claims full -->
-    <div class="lb-content" id="lb-claims" style="display:none">
-      <div class="lb-card reveal" style="max-width:600px">
-        <div class="lb-card-header">
-          <div class="lb-card-title">🌱 Claims Leaderboard</div>
-          <div class="lb-card-badge" id="claims-badge">24 hrs</div>
-        </div>
-        <div class="lb-subtabs">
-          <button class="lb-subtab active" onclick="switchClaimsTab(this,'lb-claims-daily')">Daily</button>
-          <button class="lb-subtab" onclick="switchClaimsTab(this,'lb-claims-weekly')">Weekly</button>
-        </div>
-        <div class="lb-subcontent active" id="lb-claims-daily"></div>
-        <div class="lb-subcontent" id="lb-claims-weekly"></div>
-      </div>
-    </div>
-
   </div>
 </div>
 
@@ -3316,15 +3432,6 @@ function pkBurst(x,y,color,count=24){
 
 <script>
 
-  function switchClaimsTab(btn, id) {
-  document.querySelectorAll('.lb-subtab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.lb-subcontent').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById(id).classList.add('active');
-  const badge = document.getElementById('claims-badge');
-  if (badge) badge.textContent = id.includes('weekly') ? '7 days' : '24 hrs';
-}
-
 function rarityAccent(rarity) {
   return { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#aa88ff',Exclusive:'#FF1493' }[rarity] || '#999';
 }
@@ -3461,6 +3568,10 @@ function showPage(name, { skipHash = false } = {}) {
   if (name === 'merchant') { renderMerchantPage(); loadBoostStatus(); }
   if (name === 'rankshop') { loadRankShopPage(); }
   if (name === 'fusion') { initFusionPage(); }
+  if (name === 'leaderboards') {
+    if (!_lbInitialized) initLBShowcase(); else refreshActiveLBCategory();
+    requestAnimationFrame(() => positionLBCatPill(false));
+  }
   if (name === 'market' || name === 'auctions' || name === 'auction-detail') {
     document.getElementById('nav-market-wrap')?.querySelector('.nav-dropdown-trigger')?.classList.add('active');
   } else {
@@ -3502,13 +3613,299 @@ function restorePageFromHash() {
 }
 window.addEventListener('popstate', restorePageFromHash);
 
-// ── LB TABS ──
-function switchLBTab(btn, contentId) {
-  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.lb-content').forEach(c => c.style.display = 'none');
-  btn.classList.add('active');
-  document.getElementById(contentId).style.display = 'block';
-  triggerReveal();
+// ── LB SHOWCASE (single large leaderboard, cycled with prev/next) ──
+const LB_CATEGORIES = ['garden', 'level', 'race', 'claims'];
+const LB_META = {
+  garden: { eyebrow: 'Total Power',    title: 'Garden Score',  desc: 'Ranked by total weighted garden value across every plant owned.', badge: 'Weighted' },
+  level:  { eyebrow: 'Experience',     title: 'Level',         desc: 'Ranked by total XP earned from claiming, trading, and playing.',  badge: 'XP Based' },
+  race:   { eyebrow: 'Fastest Times',  title: 'Race',          desc: 'Ranked by the single fastest recorded run.',                       badge: 'Best Time' },
+  claims: { eyebrow: 'Most Active',    title: 'Claims',        desc: 'Ranked by plants claimed — daily and weekly, side by side.',        badge: 'Activity' },
+};
+let _lbIndex = 0;
+let _lbAnimating = false;
+let _lbInitialized = false;
+
+function initLBShowcase() {
+  positionLBCatPill(false);
+  renderLBPanelContent(LB_CATEGORIES[_lbIndex]);
+  populateLBAvatarsForCategory(LB_CATEGORIES[_lbIndex]);
+  _lbInitialized = true;
+}
+
+function positionLBCatPill(animate = true) {
+  const bar = document.getElementById('lbx-catbar');
+  const pill = document.getElementById('lbx-catbtn-pill');
+  if (!bar || !pill) return;
+  const btn = bar.querySelector(`.lbx-catbtn[data-cat="${LB_CATEGORIES[_lbIndex]}"]`);
+  if (!btn) return;
+  if (!animate) pill.style.transition = 'none';
+  pill.style.width = btn.offsetWidth + 'px';
+  pill.style.transform = `translateX(${btn.offsetLeft - 4}px)`;
+  if (!animate) requestAnimationFrame(() => { pill.style.transition = ''; });
+  document.querySelectorAll('.lbx-catbtn').forEach(b => b.classList.toggle('active', b === btn));
+}
+
+function goToLBCategory(cat) {
+  const idx = LB_CATEGORIES.indexOf(cat);
+  if (idx === -1 || idx === _lbIndex || _lbAnimating) return;
+  transitionLBCategory(idx, idx > _lbIndex ? 1 : -1);
+}
+
+function navigateLBCategory(dir) {
+  if (_lbAnimating) return;
+  const next = (_lbIndex + dir + LB_CATEGORIES.length) % LB_CATEGORIES.length;
+  transitionLBCategory(next, dir);
+}
+
+function transitionLBCategory(idx, dir) {
+  const panel = document.getElementById('lbx-panel');
+  if (!panel) return;
+  _lbAnimating = true;
+  const outClass = dir >= 0 ? 'lbx-slide-out-l' : 'lbx-slide-out-r';
+  const inClass  = dir >= 0 ? 'lbx-slide-in-r'  : 'lbx-slide-in-l';
+  panel.classList.add(outClass);
+  setTimeout(() => {
+    _lbIndex = idx;
+    positionLBCatPill(true);
+    panel.className = 'lbx-panel ' + inClass;
+    renderLBPanelContent(LB_CATEGORIES[idx]);
+    populateLBAvatarsForCategory(LB_CATEGORIES[idx]);
+    void panel.offsetWidth; // force reflow
+    requestAnimationFrame(() => {
+      panel.classList.remove(inClass);
+      setTimeout(() => { _lbAnimating = false; }, 340);
+    });
+  }, 260);
+}
+
+function refreshActiveLBCategory() {
+  if (!_lbInitialized) return;
+  renderLBPanelContent(LB_CATEGORIES[_lbIndex]);
+  populateLBAvatarsForCategory(LB_CATEGORIES[_lbIndex]);
+}
+
+function lbFmtNum(n) { return (n || 0).toLocaleString('en-US'); }
+function lbFmtTime3(ms) { return ms == null ? '—' : (ms / 1000).toFixed(3); }
+
+const LBX_CROWN_SVG = `<svg class="lbx-crown" viewBox="0 0 48 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 33L1 12l11 8 12-16 12 16 11-8-3 21H4Z" fill="url(#lbxCrownGrad)" stroke="#8a6d2f" stroke-width="1.2" stroke-linejoin="round"/>
+  <rect x="4" y="33" width="40" height="5" rx="1.5" fill="url(#lbxCrownGrad)" stroke="#8a6d2f" stroke-width="1.2"/>
+  <circle cx="12" cy="15" r="2.6" fill="#fff6d8"/><circle cx="24" cy="9" r="2.6" fill="#fff6d8"/><circle cx="36" cy="15" r="2.6" fill="#fff6d8"/>
+  <defs><linearGradient id="lbxCrownGrad" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#f4e2a8"/><stop offset="1" stop-color="#c9a84c"/>
+  </linearGradient></defs>
+</svg>`;
+
+const LBX_BOLT_SVG = `<svg class="lbx-bolt" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14 1 2 18h8l-2 13 14-17h-8l0-13Z" fill="url(#lbxBoltGrad)" stroke="#0090ad" stroke-width="1.2" stroke-linejoin="round"/>
+  <defs><linearGradient id="lbxBoltGrad" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#b6faff"/><stop offset="1" stop-color="#00c2e8"/>
+  </linearGradient></defs>
+</svg>`;
+
+function lbRankBadge(i) {
+  const cls = i === 1 ? 'r2' : i === 2 ? 'r3' : '';
+  return `<div class="lbx-row-rank ${cls}">${i + 1}</div>`;
+}
+
+function lbNameHtml(username, userId, isFirst, rainbowTag, colorHex) {
+  if (isFirst) {
+    return `<canvas class="fuzzy-name-canvas" data-text="${username}" data-userid="${userId || ''}" ${colorHex ? `data-color="${colorHex}"` : ''} style="display:block"></canvas>`;
+  }
+  return rainbowTag ? `<span class="rainbow-name">${username}</span>` : username;
+}
+
+function lbAvId(cat, userId, username) {
+  return `lbx-av-${cat}-${userId || username}`;
+}
+
+// Standard row builder used by garden(2+), level(all), race(2+), claims(all)
+function lbRow(cat, e, i, opts) {
+  const userId = e.id || e.userId;
+  const clickable = userId ? `onclick="loadProfile('${userId}')"` : '';
+  const avId = lbAvId(cat, userId, e.username);
+  const nameHtml = lbNameHtml(e.username, userId, i === 0 && opts.allowHeroName, e.rainbowTag);
+  return `<div class="lbx-row">
+    ${lbRankBadge(i)}
+    <div class="lbx-row-avatar" id="${avId}" ${clickable}></div>
+    <div class="lbx-row-user" ${clickable}>
+      <div class="lbx-row-name">${nameHtml}</div>
+      ${opts.sub || ''}
+    </div>
+    <div class="lbx-row-value">
+      <div class="lbx-row-value-main">${opts.main}</div>
+      ${opts.valueSub ? `<div class="lbx-row-value-sub">${opts.valueSub}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function lbPanelShell(cat, bodyHtml) {
+  const m = LB_META[cat];
+  return `<div class="lbx-panel-header">
+    <div>
+      <div class="lbx-panel-eyebrow">${m.eyebrow}</div>
+      <div class="lbx-panel-title">${m.title} Leaderboard</div>
+      <div class="lbx-panel-desc">${m.desc}</div>
+    </div>
+    <div class="lbx-panel-badge">${m.badge}</div>
+  </div>
+  <div class="lbx-panel-body">${bodyHtml}</div>`;
+}
+
+function renderLBPanelContent(cat) {
+  const panel = document.getElementById('lbx-panel');
+  if (!panel) return;
+  const lb = window._cachedLB;
+  if (!lb) { panel.innerHTML = lbPanelShell(cat, `<div class="lbx-empty">Loading rankings…</div>`); return; }
+
+  if (cat === 'garden') panel.innerHTML = renderGardenPanel(lb);
+  else if (cat === 'level') panel.innerHTML = renderLevelPanel(lb);
+  else if (cat === 'race') panel.innerHTML = renderRacePanel(lb);
+  else if (cat === 'claims') panel.innerHTML = renderClaimsPanel(lb);
+}
+
+function renderGardenPanel(lb) {
+  const list = lb.garden || [];
+  if (!list.length) return lbPanelShell('garden', `<div class="lbx-empty">No garden data yet.</div>`);
+  const first = list[0];
+  const rest = list.slice(1);
+  const tierImg = e => `<img src="/images/tiers/${(e.tierName||'').toLowerCase()}.webp" onerror="this.style.display='none'">`;
+  const throne = `<div class="lbx-throne">
+    <div class="lbx-throne-aura"></div>
+    ${LBX_CROWN_SVG}
+    <div class="lbx-throne-avatar-wrap">
+      <div class="lbx-throne-ring"></div>
+      <div class="lbx-throne-avatar" id="${lbAvId('garden-hero', first.id || first.userId, first.username)}" onclick="loadProfile('${first.id||first.userId}')"></div>
+    </div>
+    <div class="lbx-throne-name">${lbNameHtml(first.username, first.id||first.userId, true, first.rainbowTag)}</div>
+    <div class="lbx-throne-title">King &amp; Ruler of the Garden</div>
+    <div class="lbx-throne-score">${lbFmtNum(first.score)}</div>
+    <div class="lbx-throne-tier">${tierImg(first)}${first.tierName || ''}</div>
+  </div>`;
+  const rows = rest.map((e, idx) => lbRow('garden', e, idx + 1, {
+    allowHeroName: false,
+    sub: `<div class="lbx-row-sub">${tierImg(e)}${e.tierName || ''}</div>`,
+    main: lbFmtNum(e.score),
+    valueSub: 'garden score',
+  })).join('');
+  return lbPanelShell('garden', throne + rows);
+}
+
+function renderLevelPanel(lb) {
+  const list = lb.level || [];
+  if (!list.length) return lbPanelShell('level', `<div class="lbx-empty">No level data yet.</div>`);
+  const rows = list.map((e, i) => {
+    const xp = levelXpProgress(e);
+    const pct = xp.need ? Math.max(2, Math.min(100, Math.round(xp.cur / xp.need * 100))) : 100;
+    return lbRow('level', e, i, {
+      allowHeroName: true,
+      sub: `<div class="lbx-xp-track"><div class="lbx-xp-fill" style="width:${pct}%"></div></div>`,
+      main: `<span class="lbx-level-badge">Lv. ${e.level}</span>`,
+      valueSub: `${lbFmtNum(xp.cur)} / ${lbFmtNum(xp.need)} XP`,
+    });
+  }).join('');
+  return lbPanelShell('level', rows);
+}
+
+function renderRacePanel(lb) {
+  const list = lb.race || [];
+  if (!list.length) return lbPanelShell('race', `<div class="lbx-empty">No race times recorded yet.</div>`);
+  const first = list[0];
+  const rest = list.slice(1);
+  const speed = `<div class="lbx-speed">
+    <div class="lbx-speed-lines"><span></span><span></span><span></span><span></span></div>
+    ${LBX_BOLT_SVG}
+    <div class="lbx-speed-avatar-wrap">
+      <div class="lbx-speed-ring"></div>
+      <div class="lbx-speed-avatar" id="${lbAvId('race-hero', first.id||first.userId, first.username)}" onclick="loadProfile('${first.id||first.userId}')"></div>
+    </div>
+    <div class="lbx-speed-name">${lbNameHtml(first.username, first.id||first.userId, true, first.rainbowTag, '#00c2e8')}</div>
+    <div class="lbx-speed-title">It Takes Speed To Stand Here</div>
+    <div class="lbx-speed-time">${lbFmtTime3(first.bestTime)}<span>sec</span></div>
+    <div class="lbx-speed-sub">Fastest Recorded Time</div>
+  </div>`;
+  const rows = rest.map((e, idx) => lbRow('race', e, idx + 1, {
+    allowHeroName: false,
+    sub: `<div class="lbx-row-sub">best time</div>`,
+    main: lbFmtTime3(e.bestTime) + 's',
+    valueSub: null,
+  })).join('');
+  return lbPanelShell('race', speed + rows);
+}
+
+function renderClaimsPanel(lb) {
+  const daily = lb.daily || [];
+  const weekly = lb.weeklyClaims || lb.weekly || [];
+  const col = (list, label, badge, prefix) => {
+    if (!list.length) return `<div class="lbx-claims-col"><div class="lbx-claims-col-head"><span class="lbx-claims-col-title">${label}</span><span class="lbx-claims-col-badge">${badge}</span></div><div class="lbx-empty">No claims yet.</div></div>`;
+    const rows = list.map((e, i) => lbRow(prefix, e, i, {
+      allowHeroName: true,
+      sub: '',
+      main: lbFmtNum(e.count),
+      valueSub: 'claims',
+    })).join('');
+    return `<div class="lbx-claims-col">
+      <div class="lbx-claims-col-head"><span class="lbx-claims-col-title">${label}</span><span class="lbx-claims-col-badge">${badge}</span></div>
+      <div class="lbx-claims-list">${rows}</div>
+    </div>`;
+  };
+  const body = `<div class="lbx-claims-grid">
+    ${col(daily, 'Daily', 'Last 24 Hours', 'claims-daily')}
+    ${col(weekly, 'Weekly', 'Last 7 Days', 'claims-weekly')}
+  </div>`;
+  return lbPanelShell('claims', body);
+}
+
+// XP-to-next-level helper. Uses fields straight from the API when present;
+// falls back to an approximate curve otherwise. If /api/leaderboards starts
+// returning per-entry xpIntoLevel/xpForNextLevel, this will pick those up
+// automatically and the fallback math below is never used.
+function levelXpProgress(e) {
+  if (typeof e.xpIntoLevel === 'number' && typeof e.xpForNextLevel === 'number') {
+    return { cur: e.xpIntoLevel, need: e.xpForNextLevel };
+  }
+  if (typeof e.currentLevelXp === 'number' && typeof e.nextLevelXp === 'number') {
+    return { cur: e.currentLevelXp, need: e.nextLevelXp };
+  }
+  const XP_BASE = 100, XP_GROWTH = 1.12;
+  const thresholdFor = lvl => Math.round(XP_BASE * lvl * Math.pow(XP_GROWTH, Math.max(0, lvl - 1)));
+  const lvl = Math.max(1, e.level || 1);
+  const total = e.xp || 0;
+  let cum = 0;
+  for (let L = 1; L < lvl; L++) cum += thresholdFor(L);
+  const need = thresholdFor(lvl);
+  const cur = Math.max(0, Math.min(need, total - cum));
+  return { cur, need };
+}
+
+function populateLBAvatarsForCategory(cat) {
+  const lb = window._cachedLB;
+  if (!lb) return;
+  const fillFor = (list, prefix, idField) => {
+    (list || []).forEach(e => {
+      const id = e[idField] || e.userId || e.id;
+      if (!id) return;
+      const el = document.getElementById(lbAvId(prefix, id, e.username));
+      if (!el) return;
+      if (_avatarCache[id]) {
+        el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`;
+      } else {
+        el.textContent = (e.username || '?')[0].toUpperCase();
+      }
+    });
+  };
+  if (cat === 'garden') {
+    fillFor(lb.garden, 'garden', 'id');
+    fillFor(lb.garden.slice(0, 1), 'garden-hero', 'id');
+  } else if (cat === 'level') {
+    fillFor(lb.level, 'level', 'id');
+  } else if (cat === 'race') {
+    fillFor(lb.race, 'race', 'userId');
+    fillFor((lb.race||[]).slice(0, 1), 'race-hero', 'userId');
+  } else if (cat === 'claims') {
+    fillFor(lb.daily, 'claims-daily', 'userId');
+    fillFor(lb.weeklyClaims || lb.weekly || [], 'claims-weekly', 'userId');
+  }
 }
 
 // ── SCROLL REVEAL ──
@@ -3530,55 +3927,11 @@ async function loadLiveData() {
 ]);
 window._cachedLB = lb;
 
-   // Garden
-const gardenTop = lb.garden[0]?.score || 1;
+   // Garden — track #1 for the fuzzy-name treatment used on the profiles grid
 window._gardenRank1Id = lb.garden[0]?.id || lb.garden[0]?.userId || null;
-const gardenHTML = lb.garden.map((e,i) =>
-  renderLBEntry(e.username, `<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + e.score.toLocaleString(), e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag, 'garden-full')
-).join('');
-document.getElementById('lb-garden-mini').innerHTML = lb.garden.slice(0,5).map((e,i) => {
-  const scoreStr = e.score >= 1000000 ? (e.score/1000000).toFixed(2)+'M' : (e.score/1000).toFixed(0)+'k';
-  return renderLBEntry(e.username,`<img src="/images/tiers/${e.tierName.toLowerCase()}.webp" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px" onerror="this.style.display='none'">` + scoreStr, e.tierName, Math.round(e.score/gardenTop*100), i, e.id||e.userId, e.rainbowTag, 'garden-mini');
-}).join('');
-document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
 
-    // Level
-    const levelTop = lb.level[0]?.xp || 1;
-    const levelHTML = lb.level.map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag, 'level-full')
-    ).join('');
-    document.getElementById('lb-level-mini').innerHTML = lb.level.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, 'Lv. ' + e.level, e.rank?.emoji, Math.round(e.xp/levelTop*100), i, e.id||e.userId, e.rainbowTag, 'level-mini')
-    ).join('');
-    document.getElementById('lb-level-full').innerHTML = levelHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No data yet</div>';
-
-    // Race
-    const raceTop = lb.race[0]?.bestTime || 1;
-    const raceHTML = lb.race.map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), 'best time', Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag, 'race-full')
-    ).join('');
-    document.getElementById('lb-race-mini').innerHTML = lb.race.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, msToStr(e.bestTime), null, Math.round((1/e.bestTime)/(1/raceTop)*100), i, e.id||e.userId, e.rainbowTag, 'race-mini')
-    ).join('');
-    document.getElementById('lb-race-full').innerHTML = raceHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No race times yet</div>';
-
-    // Daily claims
-    const dailyTop = lb.daily[0]?.count || 1;
-    const dailyHTML = lb.daily.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag, 'claims-daily')
-    ).join('');
-    document.getElementById('lb-daily-mini').innerHTML = lb.daily.slice(0,5).map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '24 hrs', Math.round(e.count/dailyTop*100), i, e.id||e.userId, e.rainbowTag, 'daily-mini')
-    ).join('');
-    document.getElementById('lb-claims-daily').innerHTML = dailyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No claims today</div>';
-
-    // Weekly claims
-    const weekly = lb.weeklyClaims || lb.weekly || [];
-    const weeklyTop = weekly[0]?.count || 1;
-    const weeklyHTML = weekly.map((e,i) =>
-      renderLBEntry(e.username, e.count + '', '7 days', Math.round(e.count/weeklyTop*100), i, e.id||e.userId, e.rainbowTag, 'claims-weekly')
-    ).join('');
-    document.getElementById('lb-claims-weekly').innerHTML = weeklyHTML || '<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">No weekly data yet</div>';
+    // Showcase leaderboard (single big panel, category cycled via next/prev)
+    if (_lbInitialized) refreshActiveLBCategory(); else initLBShowcase();
 
     // Profiles grid
     const grid = document.getElementById('profiles-grid');
@@ -3627,15 +3980,7 @@ document.getElementById('lb-garden-full').innerHTML = gardenHTML || '<div style=
     } catch {}
   }
 
-  loadLBAvatars(lb.garden, 'id', 'garden-mini');
-  loadLBAvatars(lb.garden, 'id', 'garden-full');
-  loadLBAvatars(lb.level,  'id', 'level-mini');
-  loadLBAvatars(lb.level,  'id', 'level-full');
-  loadLBAvatars(lb.race,   'userId', 'race-mini');
-  loadLBAvatars(lb.race,   'userId', 'race-full');
-  loadLBAvatars(lb.daily,  'userId', 'daily-mini');
-  loadLBAvatars(lb.daily,  'userId', 'claims-daily');
-  loadLBAvatars(lb.weeklyClaims || lb.weekly || [], 'userId', 'claims-weekly');
+  if (_lbInitialized) populateLBAvatarsForCategory(LB_CATEGORIES[_lbIndex]);
 
   loadMarketHighlights();
 
@@ -5162,44 +5507,6 @@ async function renderReferralsPane(pid, profileId, theme) {
   }
 }
 
-function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag, avPrefix='') {
-  const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-  const rankIcon  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1;
-  const clickable = userId ? `onclick="loadProfile('${userId}')" style="cursor:pointer"` : '';
-  const avId = userId ? `lb-av-${avPrefix}-${userId}` : `lb-av-${avPrefix}-${left}`;
-  const isFirst = i === 0;
-  const nameHtml = isFirst
-    ? `<canvas class="fuzzy-name-canvas" data-text="${left}" data-userid="${userId||''}" style="display:block;max-width:140px;height:28px"></canvas>`
-    : rainbowTag
-    ? `<span class="rainbow-name">${left}</span>`
-    : left;
-  return `<div class="lb-entry">
-    <div class="lb-rank ${rankClass}">${rankIcon}</div>
-    <div class="lb-avatar" id="${avId}" ${clickable} style="overflow:hidden;padding:0;${userId?'cursor:pointer':''}"></div>
-    <div class="lb-user" ${clickable}>
-      <div class="lb-username" style="${userId?'text-decoration:underline dotted;text-underline-offset:3px;':''}">${nameHtml}</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
-      <div class="lb-value">${right}${rightSub ? `<small>${rightSub}</small>` : ''}</div>
-    </div>
-  </div>`;
-}
-
-async function loadLBAvatars(entries, idField, avPrefix='') {
-  entries.forEach(e => {
-    const id = e[idField] || e.userId || e.id;
-    if (!id) return;
-    const el = document.getElementById(`lb-av-${avPrefix}-${id}`);
-    if (!el) return;
-    if (_avatarCache[id]) {
-      el.innerHTML = `<img src="${_avatarCache[id]}" loading="lazy" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`;
-    } else {
-      el.textContent = e.username[0].toUpperCase();
-    }
-  });
-}
-
 let _marketRarity = 'all';
 let _marketMineOnly = false;
 let _auctionMineOnly = false;
@@ -5359,8 +5666,9 @@ const FuzzyEngine = {
       c._fuzzyDone = true;
       const text = c.dataset.text;
       if (!text) return;
-      const isHero = !c.closest('.profile-mini') && !c.closest('.lb-entry');
-this.init(c, text, { fontSize: isHero ? 32 : 14, fontWeight: 700, color: '#FFD700', baseIntensity: isHero ? 0.08 : 0.12, hoverIntensity: isHero ? 0.38 : 0.5, fuzzRange: isHero ? 40 : 24, fps: 60 });
+      const isHero = !c.closest('.profile-mini') && !c.closest('.lbx-row');
+      const color = c.dataset.color || '#FFD700';
+this.init(c, text, { fontSize: isHero ? 32 : 14, fontWeight: 700, color, baseIntensity: isHero ? 0.08 : 0.12, hoverIntensity: isHero ? 0.38 : 0.5, fuzzRange: isHero ? 40 : 24, fps: 60 });
     });
   }
 };
