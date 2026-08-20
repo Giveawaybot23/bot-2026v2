@@ -4208,6 +4208,18 @@ ${isPodium ? `
 ._ct-btn.on{background:${isPodium ? pk?.g+'.16)' : 'var(--ink)'};color:${isPodium ? pk?.p : 'var(--bg)'};border-color:${isPodium ? pk?.g+'.38)' : 'var(--ink)'}}
 ._ct-btn:not(.on):hover{opacity:.75}
 
+/* ── pane tabs (Collection / Referrals) ── */
+._ppt{position:relative;padding:7px 14px;border-radius:9999px;border:none;background:transparent;font-size:12.5px;font-weight:700;color:${ink3};cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;transition:all .15s}
+._ppt.on{background:${card};color:${ink};box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+._ppt:not(.on):hover{color:${ink2}}
+
+/* ── referral cards ── */
+._rf-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:${bg2};border:1px solid ${bord};transition:border-color .15s,transform .15s}
+._rf-card:hover{border-color:${isPodium ? pk?.g+'.4)' : tc+'55'};transform:translateY(-1px)}
+._rf-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;object-fit:cover;cursor:pointer;background:${card};border:1px solid ${bord}}
+._rf-bar-track{height:6px;border-radius:100px;background:${card};border:1px solid ${bord};overflow:hidden;margin-top:6px}
+._rf-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,${tc},${tc}aa);transition:width .5s ease}
+
 /* ── collection sort bar ── */
 ._csb{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 ._csb-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ink3};margin-right:2px;white-space:nowrap}
@@ -4401,11 +4413,17 @@ ${isPodium ? `
     <div class="_pcol-center" style="grid-area:center;display:flex;flex-direction:column;gap:0;min-width:0">
       <div style="background:${card};border:1px solid ${bord};border-radius:13px;padding:14px">
 
-        <!-- title row -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div class="_sec" style="margin-bottom:0">Collection</div>
-          <div style="font-size:11px;color:${ink3}">${data.plants||0} plants</div>
+        <!-- title row / pane tabs -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap">
+          <div style="display:inline-flex;align-items:center;gap:2px;background:${bg2};border:1px solid ${bord};border-radius:9999px;padding:3px">
+            <button id="${pid}_ptab_collection" class="_ppt on" onclick="window['${pid}_showPane']('collection')">🌿 Collection</button>
+            <button id="${pid}_ptab_referrals" class="_ppt" onclick="window['${pid}_showPane']('referrals')">🔗 Referrals<span class="nav-fusion-badge" style="position:static;margin-left:5px;vertical-align:2px">1.0</span></button>
+          </div>
+          <div style="font-size:11px;color:${ink3}" id="${pid}_panecount">${data.plants||0} plants</div>
         </div>
+
+        <!-- ══ Collection pane ══ -->
+        <div id="${pid}_pane_collection">
 
         <!-- Sort bar -->
         <div class="_csb" id="${pid}_csb">
@@ -4437,6 +4455,11 @@ ${isPodium ? `
           <div class="_pg-num" id="${pid}_pnum"></div>
           <button class="_pg-btn" id="${pid}_next" onclick="window['${pid}_pg'](1)">›</button>
         </div>
+
+        </div><!-- /collection pane -->
+
+        <!-- ══ Referrals pane (1.0 — soft-launch gated, see renderReferralsPane) ══ -->
+        <div id="${pid}_pane_referrals" style="display:none"></div>
 
       </div>
     </div><!-- /center -->
@@ -4814,9 +4837,258 @@ ${isPodium ? `
       overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     };
 
+    /* ════════════════════════════════════
+       REFERRALS PANE (1.0 — soft-launch, gated to window._BETA_ACCESS_IDS)
+    ════════════════════════════════════ */
+    let _rfLoaded = false;
+
+    window[`${pid}_showPane`] = which => {
+      const collBtn = document.getElementById(`${pid}_ptab_collection`);
+      const refBtn  = document.getElementById(`${pid}_ptab_referrals`);
+      const collPane = document.getElementById(`${pid}_pane_collection`);
+      const refPane  = document.getElementById(`${pid}_pane_referrals`);
+      const countEl  = document.getElementById(`${pid}_panecount`);
+      if (!collPane || !refPane) return;
+      const onCollection = which === 'collection';
+      collBtn?.classList.toggle('on', onCollection);
+      refBtn?.classList.toggle('on', !onCollection);
+      collPane.style.display = onCollection ? '' : 'none';
+      refPane.style.display  = onCollection ? 'none' : '';
+      if (countEl) countEl.textContent = onCollection ? `${data.plants||0} plants` : '';
+      if (!onCollection && !_rfLoaded) {
+        _rfLoaded = true;
+        renderReferralsPane(pid, id, { ink, ink2, ink3, card, bg2, bord, tc, isPodium, pk });
+      }
+    };
+
     renderGrid();
 
   } catch(err) { console.error('[loadProfile]', err); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REFERRAL SYSTEM — Update 1.0 (soft-launch)
+   ════════════════════════════════════════════════════════════════
+   Rules:
+   • Anyone can refer as many players as they want.
+   • A player can only ever BE referred by one person, chosen once on
+     their own profile — permanent, not changeable after it's set.
+   • For every 100,000 coins a referred player earns (lifetime coin
+     EARNINGS, not current balance — spending shouldn't undo credit
+     already owed), the referrer gets 10,000 coins, capped at a total
+     of 1,000,000 coins earned FROM THAT ONE referral (i.e. the payout
+     stops accruing once the referred player has lifetime-earned 10M
+     coins; there's no cap on how many people you can refer).
+
+   Like Fusion HQ, this is gated client-side to window._BETA_ACCESS_IDS
+   (see the Fusion HQ script — that array is exposed on window so both
+   1.0 features share a single allowlist). This is a soft-launch gate
+   only; mirror the same allowlist check server-side once the real
+   endpoints below exist, since anyone can read this JS.
+
+   Expected backend endpoints (NOT implemented yet — this renders a
+   friendly "backend isn't connected" state until they exist, exactly
+   like Fusion HQ's POST /api/fusion/fuse does):
+
+   GET  /api/referral/:id
+     → { referredBy: <userId|null>, referredByUsername: <string|null>,
+         referrals: [
+           { id, username, avatarUrl, coinsEarned, rewardEarned }, ...
+         ] }
+       - coinsEarned  = that referred player's lifetime coin earnings
+       - rewardEarned = coins already paid to the referrer from that
+         one referral so far (server-computed, capped at 1,000,000)
+
+   POST /api/referral/set   body: { referrerUsername }
+     → { success:true, referrerId, referrerUsername }
+       or { error } — server must reject if referredBy is already set
+       for this user (permanent, one-time choice).
+   ════════════════════════════════════════════════════════════════ */
+
+const REFERRAL_REWARD_PER_STEP = 10000;   // coins to referrer, per step
+const REFERRAL_COINS_PER_STEP  = 100000;  // referred-player earnings per step
+const REFERRAL_REWARD_CAP      = 1000000; // max coins earned FROM one referral
+
+function _referralHasAccess() {
+  const myId = window._loggedInId ? String(window._loggedInId) : null;
+  return !!myId && Array.isArray(window._BETA_ACCESS_IDS) && window._BETA_ACCESS_IDS.includes(myId);
+}
+
+// Client-side mirror of the payout formula, used only for progress-bar
+// display when the server doesn't already give us rewardEarned.
+function referralRewardFor(coinsEarned) {
+  const steps = Math.floor((coinsEarned || 0) / REFERRAL_COINS_PER_STEP);
+  return Math.min(steps * REFERRAL_REWARD_PER_STEP, REFERRAL_REWARD_CAP);
+}
+
+async function renderReferralsPane(pid, profileId, theme) {
+  const { ink, ink2, ink3, card, bg2, bord, tc, isPodium, pk } = theme;
+  const pane = document.getElementById(`${pid}_pane_referrals`);
+  if (!pane) return;
+
+  const accentSoft = isPodium ? (pk?.g + '.14)') : 'rgba(82,183,136,0.1)';
+  const accent      = isPodium ? pk?.p : tc;
+
+  // Locked state — everyone can see the tab exists, only the allowlist
+  // (same two IDs as Fusion HQ) can actually open it during 1.0.
+  if (!_referralHasAccess()) {
+    pane.innerHTML = `
+      <div style="text-align:center;padding:48px 20px;border:1px dashed ${bord};border-radius:12px">
+        <div style="font-size:34px;margin-bottom:10px">🔒</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${ink};margin-bottom:6px">Referrals is still sealed</div>
+        <div style="font-size:13px;color:${ink3};max-width:360px;margin:0 auto">This is a limited 1.0 rollout — only a couple of testers have access right now. Everyone else will get it in a future update.</div>
+      </div>`;
+    return;
+  }
+
+  pane.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;padding:40px">
+      <div style="width:32px;height:32px;border-radius:50%;border:2px solid ${bord};border-top-color:${accent};animation:fsSpin 0.9s linear infinite"></div>
+    </div>`;
+
+  let rf;
+  try {
+    const res = await fetch(`/api/referral/${profileId}`);
+    if (res.status === 404) {
+      pane.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;border:1px dashed ${bord};border-radius:12px">
+          <div style="font-size:28px;margin-bottom:10px">🚧</div>
+          <div style="font-size:13px;color:${ink3}">Referrals backend isn't connected yet — the developer still needs to add GET /api/referral/:id.</div>
+        </div>`;
+      return;
+    }
+    rf = await res.json();
+    if (rf.error) throw new Error(rf.error);
+  } catch (e) {
+    pane.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;border:1px dashed ${bord};border-radius:12px">
+        <div style="font-size:28px;margin-bottom:10px">⚠️</div>
+        <div style="font-size:13px;color:${ink3}">Couldn't load referral data. Try again shortly.</div>
+      </div>`;
+    return;
+  }
+
+  const isOwnProfile = window._loggedInId && String(window._loggedInId) === String(profileId);
+  const referrals = Array.isArray(rf.referrals) ? rf.referrals : [];
+  const totalEarned = referrals.reduce((s, r) => s + (r.rewardEarned ?? referralRewardFor(r.coinsEarned)), 0);
+
+  // ── "Who referred you?" one-time picker — own profile only, only
+  //    shown if this account doesn't already have a permanent referrer ──
+  const pickerHtml = (isOwnProfile && !rf.referredBy) ? `
+    <div style="background:${accentSoft};border:1px solid ${bord};border-radius:12px;padding:16px;margin-bottom:18px">
+      <div style="font-size:13px;font-weight:700;color:${ink};margin-bottom:4px">Who referred you to Sprout?</div>
+      <div style="font-size:11.5px;color:${ink3};margin-bottom:10px">This can only be set once — choose carefully, it's permanent and can't be changed later.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="${pid}_rf_input" type="text" placeholder="Their username" style="flex:1;min-width:160px;background:${card};border:1px solid ${bord};border-radius:8px;padding:9px 12px;font-size:13px;color:${ink};font-family:inherit">
+        <button id="${pid}_rf_setbtn" onclick="window['${pid}_rf_confirm']()" style="background:var(--ink);color:var(--bg);border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Confirm</button>
+      </div>
+      <div id="${pid}_rf_msg" style="font-size:11.5px;color:${ink3};margin-top:8px"></div>
+    </div>` : (isOwnProfile && rf.referredBy) ? `
+    <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:${ink3};margin-bottom:18px">
+      <span>🔗 Referred by</span>
+      <strong style="color:${ink};cursor:pointer" onclick="loadProfile('${rf.referredBy}')">${rf.referredByUsername || 'Unknown'}</strong>
+    </div>` : '';
+
+  const summaryHtml = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+      <div style="flex:1;min-width:140px;background:${bg2};border:1px solid ${bord};border-radius:12px;padding:14px">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${ink3};margin-bottom:5px">Total Referrals</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:24px;color:${ink}">${referrals.length}</div>
+      </div>
+      <div style="flex:1;min-width:140px;background:${bg2};border:1px solid ${bord};border-radius:12px;padding:14px">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${ink3};margin-bottom:5px">Coins Earned From Referrals</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:24px;color:${accent}">🪙 ${totalEarned.toLocaleString()}</div>
+      </div>
+    </div>`;
+
+  const listHtml = !referrals.length
+    ? `<div style="text-align:center;padding:36px 16px;color:${ink3};font-size:12px;border:1px dashed ${bord};border-radius:10px">No referrals yet. Share your name with new players — once they pick you as their referrer, they'll show up here.</div>`
+    : `<div style="display:flex;flex-direction:column;gap:10px">
+        ${referrals.map(r => {
+          const earned = r.coinsEarned || 0;
+          const reward = r.rewardEarned ?? referralRewardFor(earned);
+          const pct = Math.min(100, Math.round((reward / REFERRAL_REWARD_CAP) * 100));
+          const capped = reward >= REFERRAL_REWARD_CAP;
+          return `
+          <div class="_rf-card">
+            <img class="_rf-av" id="rf-av-${r.id}" src="${r.avatarUrl || ''}" onerror="this.style.visibility='hidden'" onclick="loadProfile('${r.id}')" alt="">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:13.5px;font-weight:700;color:${ink};cursor:pointer" onclick="loadProfile('${r.id}')">${r.username || 'Unknown'}</span>
+              </div>
+              <div style="font-size:11px;color:${ink3};margin-top:1px">${earned.toLocaleString()} coins earned${capped ? ' · cap reached' : ''}</div>
+              <div class="_rf-bar-track"><div class="_rf-bar-fill" style="width:${pct}%"></div></div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${ink3}">You earned</div>
+              <div style="font-size:14px;font-weight:700;color:${accent}">🪙 ${reward.toLocaleString()}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+  pane.innerHTML = pickerHtml + summaryHtml + listHtml;
+
+  // Populate avatars from the shared cache / bulk endpoint, same as
+  // every other avatar grid in the app.
+  referrals.forEach(r => { if (r.avatarUrl) _avatarCache[r.id] = r.avatarUrl; });
+  const missing = referrals.map(r => r.id).filter(rid => !_avatarCache[rid]);
+  if (missing.length) {
+    try {
+      const res = await fetch('/api/avatars/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: missing })
+      });
+      const map = await res.json();
+      Object.entries(map).forEach(([rid, url]) => {
+        if (!url) return;
+        _avatarCache[rid] = url;
+        const el = document.getElementById(`rf-av-${rid}`);
+        if (el) { el.src = url; el.style.visibility = 'visible'; }
+      });
+    } catch {}
+  }
+
+  // ── One-time referrer picker submit handler ──
+  if (isOwnProfile && !rf.referredBy) {
+    window[`${pid}_rf_confirm`] = async () => {
+      const input = document.getElementById(`${pid}_rf_input`);
+      const btn   = document.getElementById(`${pid}_rf_setbtn`);
+      const msg   = document.getElementById(`${pid}_rf_msg`);
+      const name  = (input?.value || '').trim();
+      if (!name) { if (msg) msg.textContent = 'Enter a username first.'; return; }
+      if (!btn.dataset.armed) {
+        btn.dataset.armed = '1';
+        btn.textContent = 'Are you sure? Click again to confirm';
+        if (msg) msg.textContent = 'This is permanent — you cannot change your referrer later.';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Confirming...';
+      try {
+        const res = await fetch('/api/referral/set', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ referrerUsername: name })
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 404) {
+            showToast?.('Referral backend isn\'t connected yet — the developer still needs to add POST /api/referral/set.');
+          } else {
+            showToast?.(out.error || 'Could not set your referrer.');
+          }
+          btn.disabled = false; btn.dataset.armed = ''; btn.textContent = 'Confirm';
+          return;
+        }
+        showToast?.(`✅ ${out.referrerUsername || name} is now your referrer.`);
+        renderReferralsPane(pid, profileId, theme);
+      } catch (e) {
+        showToast?.('Network error — try again.');
+        btn.disabled = false; btn.dataset.armed = ''; btn.textContent = 'Confirm';
+      }
+    };
+  }
 }
 
 function renderLBEntry(left, right, rightSub, pct, i, userId, rainbowTag, avPrefix='') {
@@ -8584,6 +8856,10 @@ async function deletePriceAlert(alertId) {
     '239725298403246081',
     '734159803995259042',
   ];
+  // Shared with other 1.0 soft-launch features (e.g. the Referrals tab on
+  // profiles) so there's one allowlist to update, not several copies that
+  // can drift out of sync.
+  window._BETA_ACCESS_IDS = FUSION_ACCESS_IDS;
 
   // ── FUSION TIERS ─────────────────────────────────────────────────
   // 5 of `from` → 1 random plant of `to`. Mythic is the ceiling — nothing
