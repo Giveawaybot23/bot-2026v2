@@ -527,8 +527,8 @@ const XP_REWARDS = {
   claim:      50,
   daily:      100,
   weekly:     250,
-  race_finish:30,
-  race_win:   100,
+  race_finish:6,
+  race_win:   20,
   crate_open: 40,
 };
 function xpForLevel(level) {
