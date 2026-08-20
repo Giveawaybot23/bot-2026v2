@@ -293,7 +293,7 @@ function formatVersionRanges(versions) {
   }
   return formatVersionRangeList(collapsed);
 }
-function applyAutosellRules(user, userId, newPlants, guildId = null) {
+function applyAutosellRules(user, userId, newPlants, guildId = null, db = null) {
   const rules = getUserAutosellRules(userId);
   if (!rules.length) return 0;
   let totalEarned = 0;
@@ -351,7 +351,7 @@ function applyAutosellRules(user, userId, newPlants, guildId = null) {
   const soldPlants = candidates.map(idx => user.collection[idx]);
   for (const idx of candidates) user.collection.splice(idx, 1);
   user.currency += totalEarned;
-  trackEarned(user, totalEarned);
+  trackEarned(user, totalEarned, db);
   for (const p of soldPlants) announceDroppable(p, 'sold', guildId).catch(() => {});
   return totalEarned;
 }
@@ -1407,6 +1407,8 @@ function getUser(db, userId) {
   if (u.winStreak === undefined)           u.winStreak           = 0;
   if (u.bestWinStreak === undefined)       u.bestWinStreak       = 0;
   if (!u.recentClaimNames)                 u.recentClaimNames    = []; // for a future "claim same plant 3x in a row" achievement
+  if (u.referredBy === undefined)          u.referredBy          = null;
+  if (u.referralRewardPaid === undefined)  u.referralRewardPaid  = 0;
   return u;
 }
 
@@ -1481,12 +1483,50 @@ async function announceAchievements(newOnes, userId, channel) {
   }
 }
 
+// ─── Referral system ──────────────────────────────────────────────────────────
+// A referred player's referrer earns REFERRAL_REWARD_PCT of every coin the
+// referred player genuinely earns (live, via trackEarned — a real percentage
+// of their income, not a flat amount every 100k), capped at REFERRAL_REWARD_CAP
+// total coins earned FROM that one referral. A player can only be referred
+// while their OWN lifetime earnings are still under REFERRAL_ELIGIBILITY_CAP —
+// once they've earned past their first 100k they're considered an established
+// player and can never set a referrer (checked in POST /api/referral/set).
+const REFERRAL_REWARD_PCT      = 0.10;    // referrer's cut of the referred player's earnings
+const REFERRAL_REWARD_CAP      = 1000000; // max coins a referrer can earn from one referral, total
+const REFERRAL_ELIGIBILITY_CAP = 100000;  // a player can only be referred before this much lifetime earned
+
+// Called from trackEarned() whenever a `db` is available. Pays the referrer
+// their live percentage cut of `amount`, respecting the per-referral cap via
+// referralRewardPaid stored on the REFERRED user (`user` here) — that avoids
+// needing a reverse lookup map of "how much has referrer X earned from each
+// person they've referred" on the referrer's own record.
+function applyReferralReward(db, user, amount) {
+  if (!amount || !user.referredBy) return;
+  const referrer = db[user.referredBy];
+  if (!referrer) return;
+
+  const alreadyPaid  = user.referralRewardPaid || 0;
+  const remainingCap = REFERRAL_REWARD_CAP - alreadyPaid;
+  if (remainingCap <= 0) return;
+
+  const reward = Math.min(Math.round(amount * REFERRAL_REWARD_PCT), remainingCap);
+  if (reward <= 0) return;
+
+  user.referralRewardPaid = alreadyPaid + reward;
+  referrer.currency = (referrer.currency || 0) + reward;
+  referrer.lifetimeCoinsEarned = (referrer.lifetimeCoinsEarned || 0) + reward;
+  if (typeof pushCoinUpdate === 'function') pushCoinUpdate(user.referredBy, referrer.currency);
+}
+
 // Call after any GENUINE earning (`.currency +=`) — sells, trade receives after
 // tax, daily/weekly payouts, auction/market sell proceeds, admin grants. Not
 // for refunds — those return the user's own money rather than create new value.
-function trackEarned(user, amount) {
+// `db` is optional but should be passed whenever available (it's needed to look
+// up this user's referrer and pay out the live referral reward).
+function trackEarned(user, amount, db) {
   if (!amount) return;
   user.lifetimeCoinsEarned = (user.lifetimeCoinsEarned || 0) + amount;
+  if (db) applyReferralReward(db, user, amount);
 }
 
 // Call after any GENUINE spend (`.currency -=`) — crate buys, shop buys,
@@ -2114,7 +2154,7 @@ function payPayoutWinners(top, payouts) {
   for (let i = 0; i < top.length; i++) {
     const lbUser = getUser(db, top[i].userId);
     lbUser.currency += payouts[i];
-    trackEarned(lbUser, payouts[i]);
+    trackEarned(lbUser, payouts[i], db);
   }
   saveDB(db);
 }
@@ -2421,7 +2461,7 @@ async function endEvent(guildId, expectedId) {
     let rewardText = '*no reward set*';
     if (reward?.type === 'coins') {
       user.currency += reward.amount;
-      trackEarned(user, reward.amount);
+      trackEarned(user, reward.amount, db);
       pushCoinUpdate(entry.userId, user.currency);
       rewardText = fmt(reward.amount);
     } else if (reward?.type === 'plant') {
@@ -3874,7 +3914,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
           checkAchievements(user, message.author.id, message.channel);
           user.claimCooldowns[drop.rarity.name] = Date.now();
           const claimNewPlants = [{ name: drop.plant.name, version }];
-          applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id);
+          applyAutosellRules(user, message.author.id, claimNewPlants, message.guild?.id, db);
           saveDB(db);
           recordClaim(message.author.id, message.author.username);
           recordClaimValue(message.author.id, message.author.username, sellValue);
@@ -3987,7 +4027,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       markCrateTriggers(user, results);
       checkAchievements(user, message.author.id, message.channel);
       clearCrateTriggers(user);
-      applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id);
+      applyAutosellRules(user, message.author.id, addedCratePlants, message.guild?.id, db);
       saveDB(db);
     }
     const spoilerLines = addedCratePlants.map(p =>
@@ -4026,7 +4066,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
             if (markSellTriggers(user, soldPlant)) sellTriggered = true;
           }
           user.currency += totalVal;
-          trackEarned(user, totalVal);
+          trackEarned(user, totalVal, db);
           if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
           saveDB(db);
           for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
@@ -4041,7 +4081,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         user.collection.splice(index, 1);
         const price = getLiveSellValue(plant);
         user.currency += price;
-        trackEarned(user, price);
+        trackEarned(user, price, db);
         if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
         // remove locks for plants no longer owned
         const remaining = loadLocks(message.author.id).filter(l => {
@@ -4092,7 +4132,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     const count = sellable.length;
     user.collection = user.collection.filter(p => isLocked(message.author.id, p) || isUnsellableRarity(p.rarity));
     user.currency += totalVal;
-    trackEarned(user, totalVal);
+    trackEarned(user, totalVal, db);
     let sellTriggered = false;
     for (const p of sellable) { if (markSellTriggers(user, p)) sellTriggered = true; }
     if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
@@ -4254,7 +4294,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       trackSpent(buyer, message.author.id, auction.buyoutPrice, message.channel);
       const sellerReceives = applyTax(auction.buyoutPrice);
       seller.currency += sellerReceives;
-      trackEarned(seller, sellerReceives);
+      trackEarned(seller, sellerReceives, db);
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
@@ -5630,7 +5670,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
     for (const idx of indexesToRemove) user.collection.splice(idx, 1);
     user.currency += totalCoins;
-    trackEarned(user, totalCoins);
+    trackEarned(user, totalCoins, db);
     touchActivity(db, message.author.id, message.author);
     checkAchievements(user, message.author.id, message.channel);
     saveDB(db);
@@ -5962,7 +6002,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
         for (const idx of idxs) user.collection.splice(idx, 1);
         user.currency += finalTotal;
-        trackEarned(user, finalTotal);
+        trackEarned(user, finalTotal, db);
         touchActivity(db, message.author.id, message.author);
         checkAchievements(user, message.author.id, message.channel);
         saveDB(db);
@@ -6003,7 +6043,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
         for (const idx of indexesToRemove) user.collection.splice(idx, 1);
         user.currency += totalCoins;
-        trackEarned(user, totalCoins);
+        trackEarned(user, totalCoins, db);
         touchActivity(db, message.author.id, message.author);
         checkAchievements(user, message.author.id, message.channel);
         saveDB(db);
@@ -6079,7 +6119,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
           for (const idx of idxs) user2.collection.splice(idx, 1);
           user2.currency += finalTotal;
-          trackEarned(user2, finalTotal);
+          trackEarned(user2, finalTotal, db2);
           touchActivity(db2, message.author.id, message.author);
           checkAchievements(user2, message.author.id, message.channel);
           saveDB(db2);
@@ -6382,8 +6422,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!TEST_IDS.has(message.author.id)) {
       if (user.lastDaily && now - user.lastDaily < DAY) return message.reply(`⏳ Already claimed today.`);
       grantPlant(user, { name: plant.name, image: plant.display, rarity: rarity.name, mutation: mutation ? { name: mutation.name, emoji: mutation.emoji, multiplier: mutation.multiplier } : null, version, sellValue: sellVal, claimedAt: new Date().toISOString() });
-      user.currency += coins; trackEarned(user, coins); user.lastDaily = now;
-      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id); saveDB(db); claimingDaily.delete(message.author.id);
+      user.currency += coins; trackEarned(user, coins, db); user.lastDaily = now;
+      addXP(db, message.author.id, XP_REWARDS.daily); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, [{ name: plant.name, version }], message.guild?.id, db); saveDB(db); claimingDaily.delete(message.author.id);
     }
     const mutLine = mutation ? `\nMutation: ${mutation.emoji} **${mutation.name}**` : '', v1Badge = version === 1 ? ' 🔖 **First Copy!**' : '';
     const dailyAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
@@ -6405,8 +6445,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       for (const p of plants) {
         grantPlant(user, { name: p.name, image: p.display, rarity: p.rarity.name, mutation: p.mutation ? {name:p.mutation.name,emoji:p.mutation.emoji,multiplier:p.mutation.multiplier} : null, version: p.version, sellValue: p.sv, claimedAt: new Date().toISOString() });
       }
-      user.currency += coins; trackEarned(user, coins); user.lastWeekly = now;
-      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id); saveDB(db); claimingWeekly.delete(message.author.id);
+      user.currency += coins; trackEarned(user, coins, db); user.lastWeekly = now;
+      addXP(db, message.author.id, XP_REWARDS.weekly); checkAchievements(user, message.author.id, message.channel); applyAutosellRules(user, message.author.id, plants.map(p => ({ name: p.name, version: p.version })), message.guild?.id, db); saveDB(db); claimingWeekly.delete(message.author.id);
     }
     const lines = plants.map(p => `${p.rarity.emoji} **${p.name}** *(${p.rarity.name})* \`#${p.version}\`${p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : ''}${p.version===1?' 🔖':''}`);
     return message.channel.send({ embeds: [new EmbedBuilder().setTitle('🌿 Weekly Plants!').setDescription(lines.join('\n') + `\n\n+ ${fmt(coins)}`).setColor(0x4CAF50)] });
@@ -6550,7 +6590,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         markCrateTriggers(user, results);
         checkAchievements(user, message.author.id, message.channel);
         clearCrateTriggers(user);
-        autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id);
+        autoEarned = applyAutosellRules(user, message.author.id, addedPlants, message.guild?.id, db);
         saveDB(db);
       }
 
@@ -6590,7 +6630,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
     const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
-    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; trackEarned(user, amount); saveDB(db); pushCoinUpdate(target.id, user.currency);
+    const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; trackEarned(user, amount, db); saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
   }
   if (cmd === 'addplant') {
@@ -7348,7 +7388,7 @@ async function endAuction(auctionId, fallbackChannel) {
   // (minus market tax — see TRADE_TAX_RATE/applyTax above)
   const sellerReceives = applyTax(winner.amount);
   seller.currency += sellerReceives;
-  trackEarned(seller, sellerReceives);
+  trackEarned(seller, sellerReceives, db);
   grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
   saveDB(db);
 
@@ -7598,7 +7638,7 @@ app.post('/api/auctions/:id/bid', express.json({ strict: false }), async (req, r
       trackSpent(buyer, req.user.id, auction.buyoutPrice);
       const sellerReceives = applyTax(auction.buyoutPrice);
       seller.currency += sellerReceives;
-      trackEarned(seller, sellerReceives);
+      trackEarned(seller, sellerReceives, db);
       grantPlant(buyer, { ...auction.plant, claimedAt: new Date().toISOString() });
       saveDB(db);
       auctions.splice(idx, 1);
@@ -8006,7 +8046,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       markCrateTriggers(user, results);
       checkAchievements(user, req.user.id);
       clearCrateTriggers(user);
-      const autoEarned = applyAutosellRules(user, req.user.id, addedPlants);
+      const autoEarned = applyAutosellRules(user, req.user.id, addedPlants, null, db);
       saveDB(db);
       pushCoinUpdate(req.user.id, user.currency);
       pushCollectionUpdate(req.user.id);
@@ -8047,6 +8087,69 @@ const FUSION_ACCESS_IDS = new Set([
   '239725298403246081',
   '734159803995259042',
 ]);
+
+// ── REFERRALS ────────────────────────────────────────────────────────────────
+// Update 1.0 — same soft-launch allowlist as Fusion HQ (see index.html for the
+// cosmetic client-side gate; this is the real one).
+const REFERRAL_ACCESS_IDS = FUSION_ACCESS_IDS;
+
+app.get('/api/referral/:id', (req, res) => {
+  try {
+    const db   = loadDB();
+    const user = db[req.params.id];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const referredBy = user.referredBy || null;
+    const referredByUsername = referredBy ? (db[referredBy]?.username || null) : null;
+
+    const referrals = Object.entries(db)
+      .filter(([id, u]) => u.referredBy === req.params.id)
+      .map(([id, u]) => ({
+        id,
+        username: u.username || `User#${id.slice(-4)}`,
+        avatarUrl: u.avatarUrl || null,
+        coinsEarned: u.lifetimeCoinsEarned || 0,
+        rewardEarned: u.referralRewardPaid || 0,
+      }));
+
+    res.json({
+      referredBy,
+      referredByUsername,
+      referrals,
+      eligibleToSetReferrer: !referredBy && (user.lifetimeCoinsEarned || 0) < REFERRAL_ELIGIBILITY_CAP,
+    });
+  } catch (err) { apiError(res, err); }
+});
+
+app.post('/api/referral/set', express.json(), (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  if (!REFERRAL_ACCESS_IDS.has(req.user.id))
+    return res.status(403).json({ error: "Referrals is still in limited testing — you don't have access yet." });
+
+  const { referrerUsername } = req.body || {};
+  if (!referrerUsername || !referrerUsername.trim())
+    return res.status(400).json({ error: 'A referrer username is required.' });
+
+  const db   = loadDB();
+  const user = getUser(db, req.user.id);
+
+  if (user.referredBy)
+    return res.status(400).json({ error: 'Your referrer is already set and can\'t be changed.' });
+
+  if ((user.lifetimeCoinsEarned || 0) >= REFERRAL_ELIGIBILITY_CAP)
+    return res.status(400).json({ error: "You've already earned past the new-player window — you can no longer set a referrer." });
+
+  const targetName = referrerUsername.trim().toLowerCase();
+  const referrerEntry = Object.entries(db).find(([id, u]) => id !== req.user.id && (u.username || '').toLowerCase() === targetName);
+  if (!referrerEntry)
+    return res.status(400).json({ error: `No player found with username "${referrerUsername.trim()}".` });
+
+  const [referrerId, referrer] = referrerEntry;
+  user.referredBy = referrerId;
+  saveDB(db);
+
+  res.json({ success: true, referrerId, referrerUsername: referrer.username || referrerUsername.trim() });
+});
 
 // 5 of `from` → 1 random `to`. Mythic is the ceiling — there's no tier past it.
 const FUSION_TIERS = [
@@ -8286,7 +8389,7 @@ app.post('/api/market/buy/:id', async (req, res) => {
     trackSpent(buyer, req.user.id, listing.price);
     const sellerReceives = applyTax(listing.price);
     seller.currency += sellerReceives;
-    trackEarned(seller, sellerReceives);
+    trackEarned(seller, sellerReceives, db);
     grantPlant(buyer, { ...listing.plant, claimedAt: new Date().toISOString() });
 
     saveDB(db);
@@ -8483,14 +8586,14 @@ app.post('/api/trade/:id/confirm', express.json(), async (req, res) => {
         trackSpent(iUser, trade.initiatorId, iSide.coins);
         tReceivedNet = applyTax(iSide.coins);
         tUser.currency += tReceivedNet;
-        trackEarned(tUser, tReceivedNet);
+        trackEarned(tUser, tReceivedNet, db);
       }
       if (tSide.coins > 0) {
         tUser.currency -= tSide.coins;
         trackSpent(tUser, trade.targetId, tSide.coins);
         iReceivedNet = applyTax(tSide.coins);
         iUser.currency += iReceivedNet;
-        trackEarned(iUser, iReceivedNet);
+        trackEarned(iUser, iReceivedNet, db);
       }
 
       touchActivity(db, trade.initiatorId); touchActivity(db, trade.targetId);
