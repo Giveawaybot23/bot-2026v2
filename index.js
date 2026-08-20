@@ -8038,6 +8038,106 @@ app.get('/api/crate/cooldowns', (req, res) => {
   res.json(result);
 });
 
+// ── FUSION HQ ──────────────────────────────────────────────────────────────
+// Update 1.0 — limited release. Only these two Discord IDs may use Fusion HQ
+// for now; everyone else sees it in the nav but the page itself stays locked
+// client-side. This allowlist is the real gate — keep it in sync with the
+// (cosmetic) one in index.html.
+const FUSION_ACCESS_IDS = new Set([
+  '239725298403246081',
+  '734159803995259042',
+]);
+
+// 5 of `from` → 1 random `to`. Mythic is the ceiling — there's no tier past it.
+const FUSION_TIERS = [
+  { from: 'Common',    to: 'Uncommon',  cost: 500   },
+  { from: 'Uncommon',  to: 'Rare',      cost: 2500  },
+  { from: 'Rare',      to: 'Epic',      cost: 10000 },
+  { from: 'Epic',      to: 'Legendary', cost: 25000 },
+  { from: 'Legendary', to: 'Mythic',    cost: 50000 },
+];
+
+app.post('/api/fusion/fuse', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  if (!FUSION_ACCESS_IDS.has(req.user.id))
+    return res.status(403).json({ error: "Fusion HQ is still in limited testing — you don't have access yet." });
+
+  const { rarity, plants } = req.body || {};
+  const tier = FUSION_TIERS.find(t => t.from === rarity);
+  if (!tier) return res.status(400).json({ error: 'Invalid fusion tier.' });
+  if (!Array.isArray(plants) || plants.length !== 5)
+    return res.status(400).json({ error: 'Fusion requires exactly 5 plants.' });
+
+  return queueForUser(req.user.id, async () => {
+    try {
+      const db   = loadDB();
+      const user = getUser(db, req.user.id);
+
+      if ((user.currency || 0) < tier.cost)
+        return res.status(400).json({ error: `Not enough coins — need ${tier.cost.toLocaleString()}.` });
+
+      // Resolve each requested plant to a real, currently-owned collection
+      // slot. Every match is pinned to its own index so the same physical
+      // copy can't be counted twice toward the 5 required.
+      const usedIndices = new Set();
+      for (const req_p of (plants || [])) {
+        const name    = req_p && req_p.name;
+        const version = req_p && parseInt(req_p.version);
+        if (!name || !version) return res.status(400).json({ error: 'Invalid plant reference.' });
+
+        const idx = user.collection.findIndex((c, i) =>
+          !usedIndices.has(i) && c.name === name && c.version === version
+        );
+        if (idx === -1) return res.status(400).json({ error: `You don't own ${name} v${version}.` });
+
+        const plant = user.collection[idx];
+        if (plant.rarity !== tier.from) return res.status(400).json({ error: `${name} v${version} isn't ${tier.from} rarity.` });
+        if (isLocked(req.user.id, plant)) return res.status(400).json({ error: `${name} v${version} is locked.` });
+
+        usedIndices.add(idx);
+      }
+
+      // Remove the 5 consumed plants (highest index first so earlier splices
+      // don't shift the indices still queued for removal).
+      Array.from(usedIndices).sort((a, b) => b - a).forEach(idx => user.collection.splice(idx, 1));
+
+      user.currency -= tier.cost;
+      trackSpent(user, req.user.id, tier.cost);
+
+      // Mint one random plant from the next tier up.
+      const picked = pickPlant(tier.to);
+      const meta   = loadMeta();
+      const ver    = getAvailableVersionFromMeta(picked.name, db, meta);
+      if ((meta.plantVersions[picked.name] || 0) < ver) meta.plantVersions[picked.name] = ver;
+      const rCfg   = getRarityConfig(tier.to);
+      const sv     = calcSellValue(picked, rCfg, null, ver);
+      const entry  = {
+        name: picked.name, image: picked.display, rarity: picked.rarity,
+        mutation: null, version: ver, sellValue: sv, claimedAt: new Date().toISOString(),
+        fusedFrom: tier.from,
+      };
+      grantPlant(user, entry);
+      saveMeta(meta);
+
+      user.fusionsCompleted = (user.fusionsCompleted || 0) + 1;
+      checkAchievements(user, req.user.id);
+      saveDB(db);
+
+      pushCoinUpdate(req.user.id, user.currency);
+      pushCollectionUpdate(req.user.id);
+
+      return res.json({
+        success: true,
+        newBalance: user.currency,
+        resultPlant: {
+          name: entry.name, rarity: entry.rarity, image: entry.image,
+          version: entry.version, sellValue: entry.sellValue,
+        },
+      });
+    } catch (err) { apiError(res, err); }
+  });
+});
+
 app.get('/api/plants', (req, res) => {
   try {
     const db = loadDB();
