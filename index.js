@@ -7594,6 +7594,43 @@ app.get('/api/profile/:id', (req, res) => {
   } catch(err) { apiError(res, err); }
 });
 
+// ── Web locks (simple per-plant lock/unlock for the dashboard) ────────────────
+// Reuses the same name+version rule shape as `!lock`/`!unlock` (see isLocked
+// above) so a lock set from the web is respected everywhere sell/autosell/
+// trade/market/auction already call isLocked, and vice versa.
+app.get('/api/locks', (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  try {
+    res.json({ locks: loadLocks(req.user.id) });
+  } catch (err) { apiError(res, err); }
+});
+
+app.post('/api/locks/toggle', express.json(), (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
+  try {
+    const { name, version } = req.body || {};
+    if (!name || !version) return res.status(400).json({ error: 'name and version are required' });
+
+    const db = loadDB();
+    const user = getUser(db, req.user.id);
+    const owns = (user.collection || []).some(p => p.name === name && p.version === version);
+    if (!owns) return res.status(400).json({ error: `You don't own ${name} v${version}.` });
+
+    const locks = loadLocks(req.user.id);
+    const matchIdx = locks.findIndex(l => l.name === name && l.version === version && !l.mutation && !l.rarity);
+    let locked;
+    if (matchIdx !== -1) {
+      locks.splice(matchIdx, 1);
+      locked = false;
+    } else {
+      locks.push({ name, version });
+      locked = true;
+    }
+    saveLocks(req.user.id, locks);
+    res.json({ success: true, locked });
+  } catch (err) { apiError(res, err); }
+});
+
 app.get('/api/players', (req, res) => {
   try {
     const db = loadDB();

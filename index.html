@@ -4176,10 +4176,22 @@ ${isPodium ? `
 ._pc img{width:100%;aspect-ratio:1/1;object-fit:contain;padding:10px;display:block;background:transparent;transition:transform .22s ease;position:relative;z-index:1}
 ._pc:hover img{transform:scale(1.08)}
 ._pc-foot{padding:8px 10px 10px}
-._pc-name{font-size:12px;font-weight:700;color:${ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
-._pc-sub{font-size:10.5px;color:${ink3};display:flex;align-items:center;gap:4px}
+._pc-name{font-size:12px;font-weight:700;color:${ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+._pc-sub{font-size:10.5px;color:${ink3};display:flex;align-items:center;gap:6px}
 ._pc-bar{position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;transition:box-shadow .22s ease;z-index:2}
 ._pc:hover ._pc-bar{box-shadow:0 0 10px 2px var(--glow),0 0 20px 4px color-mix(in srgb, var(--glow) 60%, transparent)}
+
+/* ── version pill — always colored by rarity so it stays legible and the
+     rarity is still readable at a glance, with a distinct gold ring layered
+     on top for v1 instead of replacing the rarity color outright ── */
+._pc-ver{display:inline-flex;align-items:center;padding:2.5px 7px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1.3;color:var(--rc);background:color-mix(in srgb, var(--rc) 16%, transparent);border:1px solid color-mix(in srgb, var(--rc) 45%, transparent)}
+._pc-ver-v1{box-shadow:0 0 0 1px #c9a84c;background:color-mix(in srgb, var(--rc) 24%, transparent)}
+
+/* ── corner tags — v1 (top-right) and lock (top-left). Separate slots so
+     both can show at once without overlapping. ── */
+._pc-tag{position:absolute;top:6px;z-index:3;font-size:9.5px;font-weight:800;letter-spacing:.05em;line-height:1;padding:3px 6px;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+._pc-tag-v1{right:6px;color:#241a05;background:linear-gradient(135deg,#f7dc6f,#c9a84c)}
+._pc-tag-lock{left:6px;padding:3px 5px;font-size:10px;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
 
 /* ── stat row ── */
 ._sr{display:flex;align-items:center;gap:15px;padding:18px 20px;border-radius:12px;background:${bg2};border:1px solid ${bord};transition:border-color .2s;animation:_pSlideL .35s ease both}
@@ -4542,6 +4554,44 @@ ${isPodium ? `
     /* ════════════════════════════════════
        COLLECTION PAGINATOR + SORT/FILTER
     ════════════════════════════════════ */
+    const isOwnCollection = !!(window._loggedInId && String(window._loggedInId) === String(id));
+
+    // Web lock state — same rule shape as the bot's !lock/!unlock, loaded once
+    // up front so the grid and plant viewer can both read it synchronously.
+    let _locks = [];
+    if (isOwnCollection) {
+      try {
+        const lkRes = await fetch('/api/locks');
+        if (lkRes.ok) _locks = ((await lkRes.json()).locks) || [];
+      } catch {}
+    }
+    const isPlantLocked = p => _locks.some(l => {
+      if (l.name && l.name.toLowerCase() !== (p.name || '').toLowerCase()) return false;
+      if (l.version && l.version !== p.version) return false;
+      if (l.mutation && (!p.mutation || p.mutation.name.toLowerCase() !== l.mutation.toLowerCase())) return false;
+      if (l.rarity && (p.rarity || '').toLowerCase() !== l.rarity.toLowerCase()) return false;
+      return true;
+    });
+    window[`${pid}_toggleLock`] = async (name, version, btn) => {
+      if (btn) { btn.disabled = true; }
+      try {
+        const res = await fetch('/api/locks/toggle', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, version })
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast?.(out.error || 'Could not update lock.'); if (btn) btn.disabled = false; return; }
+        if (out.locked) _locks.push({ name, version });
+        else _locks = _locks.filter(l => !(l.name === name && l.version === version && !l.mutation && !l.rarity));
+        renderGrid();
+        return out.locked;
+      } catch (e) {
+        showToast?.('Network error — try again.');
+        if (btn) btn.disabled = false;
+      }
+    };
+
     const PER = 24; // auto-fill grid, ~5-8 cols depending on width
     let _filter  = 'all';
     let _sortKey = 'rarity';  // 'rarity' | 'version' | 'name'
@@ -4589,9 +4639,7 @@ ${isPodium ? `
       grid.innerHTML = slice.map((p, i) => {
         const rc   = rarityColors[p.rarity] || '#999';
         const isV1 = p.version === 1;
-        const barBg = isV1
-          ? 'linear-gradient(90deg,rgba(201,168,76,.8),rgba(247,220,80,.55))'
-          : rc;
+        const locked = isOwnCollection && isPlantLocked(p);
         const mutHtml = p.mutation
           ? `<span style="color:${mutationColor(p.mutation.name)}">${mutationEmoji(p.mutation.name)}</span>`
           : '';
@@ -4599,16 +4647,20 @@ ${isPodium ? `
           ? `<img src="${resolveImg(p.image)}" loading="lazy" alt="${p.name}"
                onerror="this.parentElement.innerHTML='<div style=\\'width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2.replace(/'/g,"\\'")}\\'>${p.emoji||'🌿'}</div>'">`
           : `<div style="width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:32px;background:${bg2}">${p.emoji||'🌿'}</div>`;
-        const glow = isV1 ? '#c9a84c' : rc;
+        // Rarity always drives the card's identity (bar + glow); v1 is layered
+        // on top as its own signal (corner tag) instead of overriding it — a
+        // Legendary v1 and a Mythic v1 now read as clearly different rarities
+        // that both happen to be v1, instead of both just looking "gold".
         return `
-          <div class="_pc${p.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity === 'Exclusive' ? ' exclusive-electric' : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${glow};animation-delay:${i*.022}s;${isV1 ? 'border-color:rgba(201,168,76,.5);box-shadow:0 0 12px rgba(201,168,76,.1)' : ''}">
-            <div class="_pc-bar" style="background:${barBg}"></div>
+          <div class="_pc${p.rarity === 'Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity === 'Exclusive' ? ' exclusive-electric' : ''}" onclick="window['${pid}_view'](${i})" style="--glow:${rc};animation-delay:${i*.022}s">
+            <div class="_pc-bar" style="background:${rc}"></div>
+            ${isV1 ? '<div class="_pc-tag _pc-tag-v1">V1</div>' : ''}
+            ${locked ? '<div class="_pc-tag _pc-tag-lock">🔒</div>' : ''}
             ${imgContent}
             <div class="_pc-foot">
-              <div class="_pc-name" style="${isV1 ? 'color:#c9a84c' : ''}">${p.name}${isV1 ? ' 👑' : ''}</div>
+              <div class="_pc-name">${p.name}</div>
               <div class="_pc-sub">
-                <span style="width:5px;height:5px;border-radius:50%;flex-shrink:0;background:${isV1 ? '#c9a84c' : rc};${isV1 ? 'box-shadow:0 0 5px rgba(201,168,76,.8)' : ''}"></span>
-                <span>${isV1 ? '<span style="color:#c9a84c;font-weight:700">v1</span>' : 'v'+(p.version||'?')}</span>
+                <span class="_pc-ver${isV1 ? ' _pc-ver-v1' : ''}" style="--rc:${rc}">v${p.version||'?'}</span>
                 ${mutHtml}
               </div>
             </div>
@@ -4696,8 +4748,8 @@ ${isPodium ? `
       const cardBg  = rarityGradients[p.rarity] || rarityGradients.Common;
       const isV1    = p.version === 1;
       const glow    = rc; // live glow always matches the plant's rarity color, even for v1
-      const highTier= ['Legendary','Mythic','Super','Secret','Exclusive'].includes(p.rarity);
       const obtained = readObtained(p);
+      const locked  = isOwnCollection && isPlantLocked(p);
 
       const mutRow = p.mutation ? `
         <div class="_pv-stat">
@@ -4716,25 +4768,25 @@ ${isPodium ? `
           @keyframes _pvSpin{to{transform:rotate(360deg)}}
           @keyframes _pvFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
           @keyframes _pvPulse{0%,100%{box-shadow:0 0 30px 2px ${glow}44,0 0 0 1px ${glow}55}50%{box-shadow:0 0 50px 6px ${glow}77,0 0 0 1px ${glow}aa}}
-          @keyframes _pvCardGlow{0%,100%{box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 30px ${glow}33,0 0 0 1.5px ${glow}77}50%{box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 68px ${glow}99,0 0 0 2.5px ${glow}}}
+          @keyframes _pvCardGlow{0%,100%{box-shadow:0 44px 100px rgba(0,0,0,0.55),0 0 30px ${glow}33,0 0 0 1.5px ${glow}77}50%{box-shadow:0 44px 100px rgba(0,0,0,0.55),0 0 68px ${glow}99,0 0 0 2.5px ${glow}}}
           .pv-card{animation:_pvIn .32s cubic-bezier(.16,1,.3,1) both}
           .pv-card-live{animation:_pvIn .32s cubic-bezier(.16,1,.3,1) both,_pvCardGlow 2.2s ease-in-out infinite}
           .pv-ring{position:absolute;inset:-10px;border-radius:50%;background:conic-gradient(from 0deg,${glow},transparent 30%,transparent 70%,${glow});animation:_pvSpin 5s linear infinite;opacity:.55}
           .pv-art{animation:_pvFloat 3.6s ease-in-out infinite}
           .pv-art-live{animation:_pvFloat 3.6s ease-in-out infinite,_pvPulse 2.6s ease-in-out infinite}
         </style>
-        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity==='Exclusive' ? ' exclusive-electric' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:400px;border:1px solid ${glow}4d;box-shadow:0 40px 90px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:visible;position:relative;background:${cardBg}">
+        <div class="pv-card${isV1 ? ' pv-card-live' : ''}${p.rarity==='Secret' ? (isV1 ? ' secret-electric secret-electric-v1' : ' secret-electric') : p.rarity==='Exclusive' ? ' exclusive-electric' : ''}" style="border-radius:26px;padding:0;width:100%;max-width:460px;border:1px solid ${glow}4d;box-shadow:0 44px 100px rgba(0,0,0,0.55),0 0 60px ${glow}22;overflow:visible;position:relative;background:${cardBg}">
 
-          <!-- inner wrapper clips the decorative background/texture to the card's
-               rounded corners; the outer pv-card stays overflow:visible so the
+          <!-- inner wrapper clips the ambient glow to the card's rounded
+               corners; the outer pv-card stays overflow:visible so the
                electric-border canvas (a direct child of pv-card, appended by
                initElectricBorder) isn't clipped and can wrap the card the same
                way it does on market/index cards. -->
           <div style="position:relative;border-radius:inherit;overflow:hidden">
 
-          <!-- ambient texture -->
+          <!-- ambient glow only — no repeating stripe texture, so the card
+               reads as clean at any rarity instead of busy at high tiers. -->
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 0%,${glow}22 0%,transparent 55%),radial-gradient(circle at 100% 100%,${glow}14 0%,transparent 50%);pointer-events:none"></div>
-          ${highTier ? `<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 10px,${glow}08 10px,${glow}08 20px);pointer-events:none"></div>` : ''}
 
           <button onclick="document.getElementById('profile-plant-viewer').remove()" style="position:absolute;top:16px;right:16px;z-index:3;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,0.75);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
 
@@ -4747,41 +4799,55 @@ ${isPodium ? `
               <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.4)">Owned by</div>
               <div style="font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${data.username}</div>
             </div>
-            ${isV1 ? `<div style="margin-left:auto;font-size:10px;font-weight:800;color:#c9a84c;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);border-radius:100px;padding:4px 10px;white-space:nowrap">👑 v1</div>` : ''}
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0">
+              ${locked ? `<div style="font-size:10px;font-weight:800;color:#fff;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);border-radius:100px;padding:4px 9px;white-space:nowrap">🔒 Locked</div>` : ''}
+              ${isV1 ? `<div style="font-size:10px;font-weight:800;color:#241a05;background:linear-gradient(135deg,#f7dc6f,#c9a84c);border-radius:100px;padding:4px 10px;white-space:nowrap">V1</div>` : ''}
+            </div>
           </div>
 
           <!-- art -->
-          <div style="position:relative;z-index:2;padding:30px 32px 6px;text-align:center">
-            <div style="position:relative;width:150px;height:150px;margin:0 auto 22px">
+          <div style="position:relative;z-index:2;padding:32px 32px 8px;text-align:center">
+            <div style="position:relative;width:168px;height:168px;margin:0 auto 22px">
               <div class="pv-ring"></div>
               <div class="pv-art${isV1 ? ' pv-art-live' : ''}" style="position:relative;width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);border:2px solid ${glow}66">
-                ${p.image ? `<img src="${resolveImg(p.image)}" style="width:108px;height:108px;object-fit:contain" onerror="this.style.display='none'">` : `<span style="font-size:56px">${p.emoji||'🌿'}</span>`}
+                ${p.image ? `<img src="${resolveImg(p.image)}" style="width:120px;height:120px;object-fit:contain" onerror="this.style.display='none'">` : `<span style="font-size:60px">${p.emoji||'🌿'}</span>`}
               </div>
             </div>
 
-            <div style="font-family:'DM Serif Display',serif;font-size:30px;color:#fff;margin-bottom:12px;text-shadow:0 0 24px ${glow}55">${p.name}</div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:${rc}33;border:1px solid ${rc}66;border-radius:100px;padding:5px 16px">
-              <div style="width:7px;height:7px;border-radius:50%;background:${rc};box-shadow:0 0 6px ${rc}"></div>
-              <span style="font-size:12.5px;font-weight:700;color:${rc}">${p.rarity} · v${p.version||'?'}</span>
-            </div>
+            <div style="font-family:'DM Serif Display',serif;font-size:31px;color:#fff;text-shadow:0 0 24px ${glow}55">${p.name}</div>
           </div>
 
-          <!-- stats -->
-          <div style="position:relative;z-index:2;padding:18px 22px 26px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+          <!-- stats — rarity/version/value each get their own tile once,
+               instead of the same info repeating across several badges. -->
+          <div style="position:relative;z-index:2;padding:14px 22px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:8px">
+            <div class="_pv-stat">
+              <div class="_pv-stat-lbl">Rarity</div>
+              <div class="_pv-stat-val" style="color:${rc}">${p.rarity}</div>
+            </div>
+            <div class="_pv-stat">
+              <div class="_pv-stat-lbl">Version</div>
+              <div class="_pv-stat-val">v${p.version||'?'}${isV1 ? ' · first ever' : ''}</div>
+            </div>
             <div class="_pv-stat">
               <div class="_pv-stat-lbl">Sell Value</div>
               <div class="_pv-stat-val">${p.sellPrice ? '🪙 ' + p.sellPrice.toLocaleString() : '—'}</div>
             </div>
-            <div class="_pv-stat">
-              <div class="_pv-stat-lbl">Version</div>
-              <div class="_pv-stat-val">${isV1 ? '👑 v1' : 'v'+(p.version||'?')}</div>
-            </div>
             ${mutRow}
-            <div class="_pv-stat" style="${mutRow ? '' : 'grid-column:span 1'}">
+            <div class="_pv-stat">
               <div class="_pv-stat-lbl">Obtained</div>
               <div class="_pv-stat-val" style="font-size:12.5px">${obtained || 'In collection'}</div>
             </div>
           </div>
+
+          ${isOwnCollection ? `
+          <!-- lock control — same rule the bot's !lock/!unlock commands use,
+               just a single click instead of a slash command. -->
+          <div style="position:relative;z-index:2;padding:0 22px 22px">
+            <button onclick="window['${pid}_toggleLock']('${p.name.replace(/'/g,"\\'")}',${p.version||1},this).then(() => window['${pid}_view'](${i}))" style="width:100%;padding:11px;border-radius:12px;border:1px solid ${locked ? 'rgba(255,255,255,0.22)' : glow+'55'};background:${locked ? 'rgba(255,255,255,0.08)' : glow+'1a'};color:${locked ? '#fff' : glow};font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+              ${locked ? '🔓 Unlock — allow selling / trading' : '🔒 Lock — protect from sell / trade / autosell'}
+            </button>
+          </div>` : ''}
+
           </div>
         </div>`;
       // scoped stat styles (kept out of the huge template above for readability)
@@ -8431,7 +8497,9 @@ async function deletePriceAlert(alertId) {
     const MARGIN = DISPLACEMENT + 20;
 
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = `position:absolute;left:-${MARGIN}px;top:-${MARGIN}px;right:-${MARGIN}px;bottom:-${MARGIN}px;width:calc(100% + ${MARGIN*2}px);height:calc(100% + ${MARGIN*2}px);pointer-events:none;z-index:10;`;
+    // Nudged 2px left / 3px up from dead-center so the glow reads as sitting
+    // slightly outside/above the card edge rather than perfectly straddling it.
+    canvas.style.cssText = `position:absolute;left:-${MARGIN+2}px;top:-${MARGIN+3}px;right:-${MARGIN-2}px;bottom:-${MARGIN-3}px;width:calc(100% + ${MARGIN*2}px);height:calc(100% + ${MARGIN*2}px);pointer-events:none;z-index:10;`;
     // Container must be position:relative (or already positioned) for the
     // absolutely-positioned canvas to line up with its bounds.
     const cs = getComputedStyle(container);
