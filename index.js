@@ -9445,4 +9445,4 @@ app.delete('/api/merchant/price-alert/:id', (req, res) => {
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 }
 
-client.login(TOKEN);
+client.login(TOKEN); 
