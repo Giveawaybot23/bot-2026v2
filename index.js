@@ -270,11 +270,11 @@ const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
 
 // ─── Leaf Event Currency ────────────────────────────────────────────────────
 // Temporary event currency. Plants flagged `leafCurrency: true` in PLANTS can
-// only be sold for Leafs (never Coins) — see calcSellValue. Leafs are worth
+// only be sold for Leaves (never Coins) — see calcSellValue. Leaves are worth
 // +25% over what the same rarity would sell for in Coins. When the event
-// wraps up, an admin runs !endleafevent to convert every user's Leafs back
-// into Coins 1:1 and zero the Leafs balance out.
-const LEAF_NAME            = 'Leafs';
+// wraps up, an admin runs !endleafevent to convert every user's Leaves back
+// into Coins 1:1 and zero the Leaves balance out.
+const LEAF_NAME            = 'Leaves';
 const LEAF_EMOJI           = '🍁';
 const LEAF_SELL_MULTIPLIER = 1.25;
 function fmtLeaf(amount) { return `${LEAF_EMOJI} **${Number(amount).toLocaleString()} ${LEAF_NAME}**`; }
@@ -651,8 +651,8 @@ const XP_REWARDS = {
   claim:      50,
   daily:      100,
   weekly:     250,
-  race_finish:6,
-  race_win:   20,
+  race_finish:7,
+  race_win:   24,
   crate_open: 40,
 };
 function xpForLevel(level) {
@@ -997,7 +997,7 @@ function calcSellValue(plant, rarity, mutation, version) {
   const mutMult = mutation ? mutation.multiplier : 1.0;
   // Leaf-currency event plants never get the normal dropOnly coin bonus —
   // they're priced at a flat +25% over the same rarity's base coin price,
-  // paid out in Leafs instead of Coins (see isLeafPlant / creditSale).
+  // paid out in Leaves instead of Coins (see isLeafPlant / creditSale).
   if (plant.leafCurrency) {
     return Math.max(1, Math.round(base * LEAF_SELL_MULTIPLIER * verMult * mutMult));
   }
@@ -1144,7 +1144,7 @@ const CRATES = {
     weights: { Common:  50000, Uncommon:  80000, Rare: 627000, Epic: 135313, Legendary:  67656, Mythic: 27063, Super:  11276, Secret:   1624 } },
 
   // ─── Leaf Crate ─────────────────────────────────────────────────────────
-  // Bought with Leafs, not Coins. Its pool is every plant in the game —
+  // Bought with Leaves, not Coins. Its pool is every plant in the game —
   // every regular plant PLUS every "Upd 1.0" event plant, including the
   // Mythic+ event plants (Amber Cranberry, Conifer Cone, Ghost Pepper,
   // Crimson Pomegranate, Romanesco, Maple Pomegranate, Maple Venom Spitter,
@@ -1153,9 +1153,8 @@ const CRATES = {
   // tells openCrate() to pass allowLeafEvent+allowCrateOnly through to
   // pickPlant for this crate specifically.
   // Price/EV math: pool-average leaf-equivalent value per slot ≈ 4,126,
-  // ×10 slots ≈ 41,258 EV. Priced at ~1.16x EV (in line with Ruby's own
-  // ~1.16x price/EV ratio) → 48,000 Leafs.
-  leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 48000, minLevel: 40, plants: 10, currency: 'leafs', includesEventPlants: true,
+  // ×10 slots ≈ 41,258 EV. Priced at ~20,000 Leaves (below EV — see crate note).
+  leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 20000, minLevel: 15, plants: 10, currency: 'leafs', includesEventPlants: true,
     weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
 };
 
@@ -1220,8 +1219,8 @@ const PLANTS = [
   // ── Standalone new plants ────────────────────────────────────────────
   { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' , dropOnly: true, leafCurrency: true },
   { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' , dropOnly: true, leafCurrency: true },
-  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' , crateOnly: true, leafCurrency: true },
-  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Secret' , dropOnly: true, leafCurrency: true },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Secret' , crateOnly: true, leafCurrency: true },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
   { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' , dropOnly: true, leafCurrency: true },
   { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'Epic' , dropOnly: true, leafCurrency: true },
   { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
@@ -2040,7 +2039,7 @@ function fmtSellValue(v) {
 }
 
 // ─── Leaf currency sell helpers ────────────────────────────────────────────
-// A plant sells for Leafs instead of Coins if it's flagged leafCurrency in PLANTS.
+// A plant sells for Leaves instead of Coins if it's flagged leafCurrency in PLANTS.
 function isLeafPlant(name) {
   const def = PLANTS.find(p => p.name === name);
   return !!(def && def.leafCurrency);
@@ -2058,12 +2057,12 @@ function splitSaleValue(plants, collection) {
   return { coinTotal, leafTotal };
 }
 // Credits a coin/leaf split onto a user. Lifetime-earned tracking only counts
-// Coins (Leafs are a temporary event currency, not part of the real economy).
+// Coins (Leaves are a temporary event currency, not part of the real economy).
 function creditSale(user, db, coinTotal, leafTotal) {
   if (coinTotal > 0) { user.currency += coinTotal; trackEarned(user, coinTotal, db); }
   if (leafTotal > 0) { user.leafs = (user.leafs || 0) + leafTotal; }
 }
-// Combined "X Coins + Y Leafs" payout string for sell confirmations/results.
+// Combined "X Coins + Y Leaves" payout string for sell confirmations/results.
 function fmtSaleTotal(coinTotal, leafTotal) {
   const parts = [];
   if (coinTotal > 0) parts.push(fmt(coinTotal));
@@ -2090,11 +2089,13 @@ function mutationDisplay(rarity, mutation, claimLine) {
 }
 
 // ─── Combined plant + captcha image ──────────────────────────────────────────
-// Some rarities (Secret) use pure black (0x000000) as their brand color, which
-// looks great as an embed accent but renders illegible captcha letters against
-// the dark drop background. When a rarity color is black/near-black, swap in a
-// purple stand-in just for the drawn captcha bar so it stays on-theme with the
-// "hidden/mysterious" secret vibe instead of vanishing into the background.
+// Some rarities (Secret) use pure black (0x000000) as their brand color.
+// getDisplayRarityColor() swaps that to a purple stand-in for places like the
+// profile card's tier accent, where a pure-black swatch would be invisible.
+// The captcha drop image below is a special case: it keeps the bar/border
+// true to black (no swap) and instead lifts just the captcha letters off
+// pure black into a dark charcoal gray, so they stay legible without the
+// accent looking like a different rarity.
 const SECRET_PURPLE = 0x9D4DFF;
 function getDisplayRarityColor(rarityColor) {
   const r = (rarityColor >> 16) & 0xFF, g = (rarityColor >> 8) & 0xFF, b = rarityColor & 0xFF;
@@ -2103,7 +2104,7 @@ function getDisplayRarityColor(rarityColor) {
 }
 
 async function generateDropImage(plant, captcha, rarityColorRaw, weather) {
-  const rarityColor = getDisplayRarityColor(rarityColorRaw);
+  const rarityColor = rarityColorRaw;
   const W = 400, H = 400, CAPTCHA_H = 52;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
@@ -2133,14 +2134,24 @@ async function generateDropImage(plant, captcha, rarityColorRaw, weather) {
     ctx.strokeStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.04})`; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.lineTo(Math.random() * W, barY + Math.random() * CAPTCHA_H); ctx.stroke();
   }
-  const colors = getRarityColorPalette(rarityColor);
+  const isSecretBlack = rr < 20 && rg < 20 && rb < 20;
+  // Secret's true brand color is pure black, which would vanish against the
+  // dark bar. Keep the letters black-themed — a dark charcoal gray with a
+  // faint light stroke so they stay legible without losing the "black"
+  // secret look.
+  const SECRET_LETTER_GRAYS = ['#5c5c5c', '#4a4a4a', '#6e6e6e', '#404040', '#525252', '#666666'];
+  const colors = isSecretBlack ? SECRET_LETTER_GRAYS : getRarityColorPalette(rarityColor);
   const letters = captcha.split('');
   const CHAR_W = 48, startX = (W - letters.length * CHAR_W) / 2 + CHAR_W * 0.35, midY = barY + CAPTCHA_H / 2;
   letters.forEach((char, i) => {
     ctx.save(); ctx.font = 'bold 30px Arial'; ctx.fillStyle = colors[i % colors.length];
-    ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 7; ctx.textBaseline = 'middle';
+    if (isSecretBlack) { ctx.shadowColor = 'rgba(255,255,255,0.35)'; ctx.shadowBlur = 3; }
+    else { ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 7; }
+    ctx.textBaseline = 'middle';
     ctx.translate(startX + i * CHAR_W, midY + Math.floor(Math.random() * 5) - 2);
-    ctx.rotate((Math.random() - 0.5) * 0.2); ctx.fillText(char, 0, 0); ctx.restore();
+    ctx.rotate((Math.random() - 0.5) * 0.2); ctx.fillText(char, 0, 0);
+    if (isSecretBlack) { ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.75; ctx.strokeText(char, 0, 0); }
+    ctx.restore();
   });
   for (let i = 0; i < 20; i++) {
     ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`; ctx.beginPath();
@@ -4107,7 +4118,7 @@ const SHOP_PAGES = [
 function buildShopEmbed(pageIndex, user, balance) {
   const page = SHOP_PAGES[pageIndex], total = SHOP_PAGES.length, fields = page.fields(user);
   const footerText = user.leafs > 0
-    ? `${balance.toLocaleString()} Coins  ·  ${user.leafs.toLocaleString()} Leafs   •   Page ${pageIndex+1} of ${total}`
+    ? `${balance.toLocaleString()} Coins  ·  ${user.leafs.toLocaleString()} Leaves   •   Page ${pageIndex+1} of ${total}`
     : `${balance.toLocaleString()}   •   Page ${pageIndex+1} of ${total}`;
   return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: footerText, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
 }
@@ -5197,7 +5208,7 @@ if (cmd === 'web') {
     const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, leafs: user.leafs || 0, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.name || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
     const att = new AttachmentBuilder(imgBuf, { name: 'profile.png' });
     const profileEmbed = new EmbedBuilder().setImage('attachment://profile.png').setColor(0x4d96ff);
-    if (user.leafs > 0) profileEmbed.setFooter({ text: `🍁 ${user.leafs.toLocaleString()} Leafs` });
+    if (user.leafs > 0) profileEmbed.setFooter({ text: `🍁 ${user.leafs.toLocaleString()} Leaves` });
     return message.channel.send({ files: [att], embeds: [profileEmbed] });
   }
 
@@ -6915,7 +6926,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const crateAffordInner = crateIsLeaf ? (user.leafs || 0) : user.currency;
 
       if (crateAffordInner < crate.price)
-        return message.channel.send(`❌ Not enough ${crateIsLeaf ? 'Leafs' : 'coins'} — need ${crateIsLeaf ? fmtLeaf(crate.price) : fmt(crate.price)}.`);
+        return message.channel.send(`❌ Not enough ${crateIsLeaf ? 'Leaves' : 'coins'} — need ${crateIsLeaf ? fmtLeaf(crate.price) : fmt(crate.price)}.`);
 
       if (!user.crateCooldowns) user.crateCooldowns = {};
       const lastUsedInner = user.crateCooldowns[crateKey] || 0;
@@ -7021,7 +7032,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     return message.reply(`✅ Gave ${fmtLeaf(amount)} to **${target.username}**.`);
   }
 
-  // ── Admin: !endleafevent — convert every user's Leafs to Coins (1:1), then zero Leafs ──
+  // ── Admin: !endleafevent — convert every user's Leaves to Coins (1:1), then zero Leaves ──
   // Run this once, when the Leaf event is actually over. Irreversible — the
   // per-user Leaf balances are gone afterward, folded straight into Coins.
   if (cmd === 'endleafevent') {
@@ -7034,8 +7045,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('🍁 End Leaf Event?')
         .setDescription(
-          `This will convert **every user's Leafs into Coins at a 1:1 rate**, then reset Leaf balances to 0.\n\n` +
-          `**${holders.length} users** currently hold Leafs — **${totalLeafsOutstanding.toLocaleString()} Leafs** total will become Coins.\n\n` +
+          `This will convert **every user's Leaves into Coins at a 1:1 rate**, then reset Leaf balances to 0.\n\n` +
+          `**${holders.length} users** currently hold Leaves — **${totalLeafsOutstanding.toLocaleString()} Leaves** total will become Coins.\n\n` +
           `This **cannot be undone**.\n\nTo confirm, run:\n\`\`\`\n!endleafevent ${CONFIRM_PHRASE}\n\`\`\``
         )
         .setColor(0xFF6600)
@@ -7057,7 +7068,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     saveDB(db);
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle('🍁 Leaf Event Ended')
-      .setDescription(`Converted **${totalConverted.toLocaleString()} Leafs** into Coins for **${convertedUsers} users**, 1:1. All Leaf balances are now 0.`)
+      .setDescription(`Converted **${totalConverted.toLocaleString()} Leaves** into Coins for **${convertedUsers} users**, 1:1. All Leaf balances are now 0.`)
       .setColor(0x00C853)
     ]});
   }
@@ -7579,7 +7590,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!sellbatch [-r rarity] [-m mutation] [-v op#] [-p plant] [--confirm]` — Bulk sell by filter',
               '*v1–v10 are always protected from batch sells.*',
               '',
-              '🍁 *Event plants sell for Leafs, not Coins — check `!leafs` for your balance. Leafs convert to Coins 1:1 when the event ends.*',
+              '🍁 *Event plants sell for Leaves, not Coins — check `!leafs` for your balance. Leaves convert to Coins 1:1 when the event ends.*',
             ].join('\n'),
           },
           {
@@ -7702,7 +7713,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`gold` — 10,000 coins',
               '`diamond` — 30,000 coins',
               '`ruby` — 75,000 coins',
-              '🍁 `leaf` — 48,000 Leafs *(event only — has every plant in the game, including Mythic+ event exclusives)*',
+              '🍁 `leaf` — 20,000 Leaves *(event only — has every plant in the game, including Mythic+ event exclusives)*',
               '*Higher tier crates have significantly better rarity odds.*',
             ].join('\n'),
           },
@@ -7768,8 +7779,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             value: [
               '`!addcurrency @user <amount>` — Give coins',
               '`!removecurrency @user <amount>` — Remove coins',
-              '`!addleafs @user <amount>` — Give event Leafs',
-              '`!endleafevent` — Convert every user\'s Leafs → Coins (1:1) and reset Leafs to 0. Irreversible, requires confirmation phrase.',
+              '`!addleafs @user <amount>` — Give event Leaves',
+              '`!endleafevent` — Convert every user\'s Leaves → Coins (1:1) and reset Leaves to 0. Irreversible, requires confirmation phrase.',
               '`!addxp @user <amount>` — Give XP',
               '`!removexp @user <amount>` — Remove XP',
               '`!removeplant @user <plant>` — Remove a plant from a user',
@@ -8488,7 +8499,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       const crateIsLeaf = crate.currency === 'leafs';
       if (crateIsLeaf) {
         if ((user.leafs || 0) < crate.price)
-          return res.status(400).json({ error: `Not enough Leafs — need ${crate.price.toLocaleString()}` });
+          return res.status(400).json({ error: `Not enough Leaves — need ${crate.price.toLocaleString()}` });
       } else if ((user.currency || 0) < crate.price) {
         return res.status(400).json({ error: `Not enough coins — need ${crate.price.toLocaleString()}` });
       }
