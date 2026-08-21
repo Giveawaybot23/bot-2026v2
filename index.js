@@ -1288,8 +1288,16 @@ function grantPlant(user, entry) {
 const GUIDE_PAGE_COUNT = 5;
 
 function buildGuidePage(page, guild, alreadyClaimed) {
-  const dropChId = guild ? (dropChannels[guild.id] || (relaxedDropChannels[guild.id] || [])[0]) : null;
-  const dropChMention = dropChId ? `<#${dropChId}>` : 'the drop channel';
+  // Drops only ever come from !setdropchat channels (relaxedDropChannels) —
+  // `dropChannels` is the !setdrop *command-only* channel and has nothing to
+  // do with where cards actually drop (see startDropLoop). A guild can have
+  // more than one drop channel, so mention all of them.
+  const dropChIds = guild ? (relaxedDropChannels[guild.id] || []) : [];
+  const dropChMention = dropChIds.length
+    ? dropChIds.map(id => `<#${id}>`).join(' or ')
+    : 'the drop channel';
+  const cmdChId = guild ? dropChannels[guild.id] : null;
+  const cmdChMention = cmdChId ? `<#${cmdChId}>` : '#commands';
 
   const embeds = {
     0: new EmbedBuilder()
@@ -1320,12 +1328,25 @@ function buildGuidePage(page, guild, alreadyClaimed) {
       .setColor(0x4CAF50),
     2: new EmbedBuilder()
       .setTitle("🏆 Don't Just Wait For Drops")
-      .setDescription([
-        `\`!daily\` and \`!weekly\` — free rewards, and \`!daily\` builds a **streak** the more consecutive days you claim it.`,
-        `\`!race\` — a typing-speed minigame with its own leaderboard (\`!racelb\`).`,
-        '',
-        'These are the fastest way to build up coins and XP between drops.',
-      ].join('\n'))
+      .setDescription(`Run these anytime in ${cmdChMention} — they're the fastest way to stack coins & XP between drops.`)
+      .addFields(
+        {
+          name: '☀️ Daily & Weekly',
+          value: [
+            '`!daily` · `!weekly`',
+            'Free rewards — `!daily` builds a **streak** the more consecutive days you claim it.',
+          ].join('\n'),
+          inline: true,
+        },
+        {
+          name: '🏁 Race',
+          value: [
+            '`!race`',
+            'A typing-speed minigame. Check `!racelb` for the leaderboard.',
+          ].join('\n'),
+          inline: true,
+        },
+      )
       .setColor(0x2196F3),
     3: new EmbedBuilder()
       .setTitle('🛒 Your Collection Has Value')
@@ -1337,10 +1358,9 @@ function buildGuidePage(page, guild, alreadyClaimed) {
       ].join('\n'))
       .setColor(0x9C27B0),
     4: new EmbedBuilder()
-      .setTitle('🤝 Bring Friends')
+      .setTitle('🚀 Almost Ready!')
       .setDescription([
-        `Use \`!referral\` to link up with whoever invited you — or share your own name with friends who join.`,
-        `You earn a cut of coins your referrals go on to earn, for as long as they play.`,
+        `A friend-invite reward system is on the way — earn a cut of coins your friends go on to earn. Stay tuned!`,
         '',
         alreadyClaimed
           ? '✅ You already claimed your starter kit below.'
