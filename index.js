@@ -5303,7 +5303,7 @@ if (cmd === 'web') {
     }
 
     const seconds = parseInt(args[1]);
-    if (!seconds || seconds < 5 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300) or `!setrace <channel id> on|off`');
+    if (!seconds || seconds < 1 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (1–300) or `!setrace <channel id> on|off`');
     raceTimer = seconds;
     return message.reply(`✅ Race timer set to **${raceTimer} seconds**.`);
   }
