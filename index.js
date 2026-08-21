@@ -84,6 +84,113 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// ─── Starter Guide nudge button — opens the guide privately ───────────────
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('guidenudge_')) return;
+
+  const ownerId = interaction.customId.slice('guidenudge_'.length);
+  if (interaction.user.id !== ownerId) {
+    return interaction.reply({ content: "This isn't your walkthrough — run `!start` to get your own.", ephemeral: true }).catch(() => {});
+  }
+
+  try {
+    const db = loadDB();
+    const user = getUser(db, ownerId);
+    await interaction.reply({
+      embeds: [buildGuidePage(0, interaction.guild, user.starterKitClaimed)],
+      components: buildGuideComponents(0, ownerId, user.starterKitClaimed),
+      ephemeral: true,
+    });
+    // The public nudge has done its job — remove it immediately.
+    await interaction.message.delete().catch(() => {});
+  } catch (err) {
+    console.error('[guide] nudge open failed:', err);
+    await interaction.reply({ content: '❌ Something went wrong opening the guide.', ephemeral: true }).catch(() => {});
+  }
+});
+
+// ─── Starter Guide buttons (Back / Next / Claim) ───────────────────────────
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('guide_')) return;
+
+  // guide_nav_<ownerId>_<page>  or  guide_claim_<ownerId>
+  const parts = interaction.customId.split('_');
+  const action = parts[1]; // 'nav' or 'claim'
+  const ownerId = parts[2];
+
+  if (interaction.user.id !== ownerId) {
+    return interaction.reply({ content: "This isn't your guide — run `!start` to get your own.", ephemeral: true }).catch(() => {});
+  }
+
+  try {
+    if (action === 'nav') {
+      const targetPage = parseInt(parts[3], 10);
+      const db = loadDB();
+      const user = getUser(db, ownerId);
+      return interaction.update({
+        embeds: [buildGuidePage(targetPage, interaction.guild, user.starterKitClaimed)],
+        components: buildGuideComponents(targetPage, ownerId, user.starterKitClaimed),
+      });
+    }
+
+    if (action === 'claim') {
+      const db = loadDB();
+      const user = getUser(db, ownerId);
+
+      if (user.starterKitClaimed) {
+        return interaction.reply({ content: "You've already claimed your starter kit!", ephemeral: true }).catch(() => {});
+      }
+
+      const uncommons = PLANTS.filter(p => p.rarity === 'Uncommon');
+      const plant = uncommons[Math.floor(Math.random() * uncommons.length)];
+      const rarityCfg = RARITIES.find(r => r.name === 'Uncommon');
+      const version = getAvailableVersion(plant.name, db);
+      recordVersionHighWater(plant.name, version);
+      const sellValue = calcSellValue(plant, rarityCfg, null, version);
+
+      grantPlant(user, {
+        name: plant.name,
+        image: plant.display,
+        rarity: 'Uncommon',
+        mutation: null,
+        version,
+        sellValue,
+        claimedAt: new Date().toISOString(),
+      });
+      user.claimed = (user.claimed || 0) + 1;
+      user.starterKitClaimed = true;
+      addXP(db, ownerId, XP_REWARDS.claim);
+      saveDB(db);
+
+      // Update the public guide message so the button now shows "Claimed".
+      await interaction.update({
+        embeds: [buildGuidePage(GUIDE_PAGE_COUNT - 1, interaction.guild, true)],
+        components: buildGuideComponents(GUIDE_PAGE_COUNT - 1, ownerId, true),
+      });
+
+      // Private reveal — only the claimer sees which plant they got.
+      const rewardEmbed = new EmbedBuilder()
+        .setTitle('🎁 Starter Kit Claimed!')
+        .setDescription(`${RARITY_EMOJIS.Uncommon} **${plant.name}** ${fmtVersion(version)}\nWorth **${sellValue} ${CURRENCY_NAME}** ${CURRENCY_EMOJI}`)
+        .setColor(rarityCfg.color);
+
+      try {
+        const attach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.display}`, { name: plant.display });
+        rewardEmbed.setThumbnail(`attachment://${plant.display}`);
+        await interaction.followUp({ embeds: [rewardEmbed], files: [attach], ephemeral: true });
+      } catch {
+        // Image missing/unreadable — still deliver the reward info.
+        await interaction.followUp({ embeds: [rewardEmbed], ephemeral: true }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error('[guide] button handler failed:', err);
+    await interaction.reply({ content: '❌ Something went wrong.', ephemeral: true }).catch(() => {});
+  }
+});
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PREFIX          = '!';
 const DROP_COOLDOWN   = 2 * 60 * 1000;
@@ -1173,6 +1280,131 @@ function grantPlant(user, entry) {
   return entry;
 }
 
+// ─── Starter Guide (!start / !guide) ───────────────────────────────────────
+// A 5-page paginated embed walking new players through the game, ending in a
+// free Uncommon "Starter Kit" plant claimed via an ephemeral (private) reply.
+// customId scheme: guide_nav_<ownerId>_<targetPage>  /  guide_claim_<ownerId>
+// Only the original invoker's clicks are honored (checked in the handler).
+const GUIDE_PAGE_COUNT = 5;
+
+function buildGuidePage(page, guild, alreadyClaimed) {
+  const dropChId = guild ? (dropChannels[guild.id] || (relaxedDropChannels[guild.id] || [])[0]) : null;
+  const dropChMention = dropChId ? `<#${dropChId}>` : 'the drop channel';
+
+  const embeds = {
+    0: new EmbedBuilder()
+      .setTitle('🌿 Welcome to Plant Bot!')
+      .setDescription([
+        `Every **2 minutes**, a plant drops in ${dropChMention} with a captcha code.`,
+        `Be the first to type \`claim <CODE>\` and it's yours!`,
+        '',
+        `That's the whole loop — watch the channel, claim fast. Let's walk through the rest.`,
+      ].join('\n'))
+      .setColor(0x57F287),
+    1: new EmbedBuilder()
+      .setTitle('⭐ Rarities')
+      .setDescription('Every plant has a rarity — the rarer it is, the more it sells for.')
+      .addFields({
+        name: '\u200B',
+        value: [
+          `${RARITY_EMOJIS.Common} **Common**`,
+          `${RARITY_EMOJIS.Uncommon} **Uncommon**`,
+          `${RARITY_EMOJIS.Rare} **Rare**`,
+          `${RARITY_EMOJIS.Epic} **Epic**`,
+          `${RARITY_EMOJIS.Legendary} **Legendary**`,
+          `${RARITY_EMOJIS.Mythic} **Mythic**`,
+          `${RARITY_EMOJIS.Super} **Super**`,
+          '*...and rumours of something even rarer.*',
+        ].join('\n'),
+      })
+      .setColor(0x4CAF50),
+    2: new EmbedBuilder()
+      .setTitle("🏆 Don't Just Wait For Drops")
+      .setDescription([
+        `\`!daily\` and \`!weekly\` — free rewards, and \`!daily\` builds a **streak** the more consecutive days you claim it.`,
+        `\`!race\` — a typing-speed minigame with its own leaderboard (\`!racelb\`).`,
+        '',
+        'These are the fastest way to build up coins and XP between drops.',
+      ].join('\n'))
+      .setColor(0x2196F3),
+    3: new EmbedBuilder()
+      .setTitle('🛒 Your Collection Has Value')
+      .setDescription([
+        `\`!inventory\` — see everything you own.`,
+        `\`!sell\` / \`!sellall\` — cash in duplicates or plants you don't need.`,
+        `\`!market\` — see what's trending.`,
+        `\`!shop\` — spend coins on crates, charms, and boosts.`,
+      ].join('\n'))
+      .setColor(0x9C27B0),
+    4: new EmbedBuilder()
+      .setTitle('🤝 Bring Friends')
+      .setDescription([
+        `Use \`!referral\` to link up with whoever invited you — or share your own name with friends who join.`,
+        `You earn a cut of coins your referrals go on to earn, for as long as they play.`,
+        '',
+        alreadyClaimed
+          ? '✅ You already claimed your starter kit below.'
+          : "**Last step** — claim your starter kit to get going!",
+      ].join('\n'))
+      .setColor(0xFFD700),
+  };
+  return embeds[page].setFooter({ text: `Page ${page + 1} of ${GUIDE_PAGE_COUNT}` });
+}
+
+function buildGuideComponents(page, ownerId, alreadyClaimed) {
+  const row = new ActionRowBuilder();
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`guide_nav_${ownerId}_${page - 1}`)
+      .setLabel('◀ Back')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === 0),
+  );
+  if (page < GUIDE_PAGE_COUNT - 1) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`guide_nav_${ownerId}_${page + 1}`)
+        .setLabel('Next ▶')
+        .setStyle(ButtonStyle.Primary),
+    );
+  } else {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`guide_claim_${ownerId}`)
+        .setLabel(alreadyClaimed ? 'Starter Kit Claimed ✅' : '🎁 Claim Starter Kit')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(alreadyClaimed),
+    );
+  }
+  return [row];
+}
+
+// Posts a small PUBLIC nudge with one button (used by !start/!guide and the
+// first-message auto-trigger). Clicking the button opens the actual guide as
+// an ephemeral reply, visible only to that user — the only way Discord allows
+// a bot to show content privately in a normal channel. The nudge self-deletes
+// after GUIDE_NUDGE_TTL_MS so it doesn't clutter the channel if ignored.
+const GUIDE_NUDGE_TTL_MS = 90 * 1000;
+
+async function sendGuideNudge(channel, userId) {
+  const db = loadDB();
+  const user = getUser(db, userId);
+  user.hasSeenGuide = true;
+  saveDB(db);
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`guidenudge_${userId}`)
+      .setLabel('📖 Get Started (private)')
+      .setStyle(ButtonStyle.Primary),
+  );
+  const msg = await channel.send({
+    content: `👋 <@${userId}> New here? Click below for a quick private walkthrough.`,
+    components: [row],
+  });
+  setTimeout(() => msg.delete().catch(() => {}), GUIDE_NUDGE_TTL_MS);
+}
+
 function loadMeta() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ plantVersions: {}, totalDrops: 0 }));
@@ -1409,6 +1641,8 @@ function getUser(db, userId) {
   if (!u.recentClaimNames)                 u.recentClaimNames    = []; // for a future "claim same plant 3x in a row" achievement
   if (u.referredBy === undefined)          u.referredBy          = null;
   if (u.referralRewardPaid === undefined)  u.referralRewardPaid  = 0;
+  if (u.hasSeenGuide === undefined)        u.hasSeenGuide        = false;
+  if (u.starterKitClaimed === undefined)   u.starterKitClaimed   = false;
   return u;
 }
 
@@ -3848,12 +4082,21 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   const content = message.content.trim();
   const lower   = content.toLowerCase();
 
-  // Touch activity for any message from a known user
+  // Touch activity for any message from a known user. A brand-new user (not
+  // yet in the DB) gets initialized and, in a real guild, is greeted with the
+  // starter guide instead — but only once (guarded by hasSeenGuide).
   {
     const db = loadDB();
     if (db[message.author.id]) {
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
+    } else if (message.guild && !message.author.bot) {
+      const user = getUser(db, message.author.id);
+      touchActivity(db, message.author.id, message.author);
+      saveDB(db);
+      if (!user.hasSeenGuide) {
+        sendGuideNudge(message.channel, message.author.id).catch(err => console.error('[guide] auto-trigger failed:', err));
+      }
     }
   }
 
@@ -4171,6 +4414,11 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   if (!content.startsWith(PREFIX)) return;
   const args = content.slice(PREFIX.length).trim().split(/\s+/);
   const cmd  = args[0].toLowerCase();
+
+  // ── !start / !guide ─────────────────────────────────────────────────────
+  if (cmd === 'start' || cmd === 'guide') {
+    return sendGuideNudge(message.channel, message.author.id);
+  }
 
   // ── !auction ──────────────────────────────────────────────────────────────
   // Usage: !auction <plant name> [-v version] [-start coins] [-buyout coins] [-hours n]
