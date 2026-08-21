@@ -268,16 +268,16 @@ function atomicWriteFileSync(filePath, data) {
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
 
-// ─── Leaves — Upd 1.0 currency ─────────────────────────────────────────────
-// Earned exclusively by selling Upd 1.0 (`event: '1.0'`) plants — see
-// calcLeavesValue / getLiveLeavesValue below. Scales exactly like Coins
-// (same rarity base price × dropOnly bonus × version multiplier × mutation
-// multiplier — see calcSellValue) but pays out 25% more per sale.
-// NOTE: not yet wired into !sell / !sellall / autosell — those still pay
-// Coins for everything, including 1.0 plants, until that's wired up.
-const LEAVES_NAME       = 'Leaves';
-const LEAVES_EMOJI      = '🍁';
-const LEAVES_SELL_BONUS = 1.25;
+// ─── Leaf Event Currency ────────────────────────────────────────────────────
+// Temporary event currency. Plants flagged `leafCurrency: true` in PLANTS can
+// only be sold for Leafs (never Coins) — see calcSellValue. Leafs are worth
+// +25% over what the same rarity would sell for in Coins. When the event
+// wraps up, an admin runs !endleafevent to convert every user's Leafs back
+// into Coins 1:1 and zero the Leafs balance out.
+const LEAF_NAME            = 'Leafs';
+const LEAF_EMOJI           = '🍁';
+const LEAF_SELL_MULTIPLIER = 1.25;
+function fmtLeaf(amount) { return `${LEAF_EMOJI} **${Number(amount).toLocaleString()} ${LEAF_NAME}**`; }
 const SERVER_NAME     = 'GAG2';
 const WATERMARK       = 'LA';
 
@@ -428,6 +428,7 @@ function applyAutosellRules(user, userId, newPlants, guildId = null, db = null) 
     if (newPlants && !newPlants.some(np => np.name === p.name && np.version === p.version)) continue;
     if (isLocked(userId, p)) continue;
     if (p.rarity === 'Exclusive') continue; // Exclusives are unsellable — never auto-sold
+    if (isLeafPlant(p.name)) continue; // Leaf-currency event plants are never auto-sold — always a manual !sell
     for (const rule of rules) {
       if (rule.rarity && p.rarity.toLowerCase() !== rule.rarity.toLowerCase()) continue;
 
@@ -990,23 +991,17 @@ function getMarketMultiplier(plantName) {
   return Math.max(0.5, Math.min(2.0, mult));
 }
 function calcSellValue(plant, rarity, mutation, version) {
-  const base      = rarity.sellPrice;
+  const base    = rarity.sellPrice;
+  const verMult = getVersionMultiplier(version);
+  const mutMult = mutation ? mutation.multiplier : 1.0;
+  // Leaf-currency event plants never get the normal dropOnly coin bonus —
+  // they're priced at a flat +25% over the same rarity's base coin price,
+  // paid out in Leafs instead of Coins (see isLeafPlant / creditSale).
+  if (plant.leafCurrency) {
+    return Math.max(1, Math.round(base * LEAF_SELL_MULTIPLIER * verMult * mutMult));
+  }
   const dropBonus = plant.dropOnly ? (rarity.name === 'Secret' ? 1.15 : 1.80) : 1.0;
-  const verMult   = getVersionMultiplier(version);
-  const mutMult   = mutation ? mutation.multiplier : 1.0;
   return Math.max(1, Math.round(base * dropBonus * verMult * mutMult));
-}
-
-// Leaves value — identical scaling to calcSellValue, +LEAVES_SELL_BONUS.
-// Only meaningful for `event: '1.0'` plants (see isLeavesPlant), but left
-// general so it stays correct if that ever changes.
-function calcLeavesValue(plant, rarity, mutation, version) {
-  return Math.max(1, Math.round(calcSellValue(plant, rarity, mutation, version) * LEAVES_SELL_BONUS));
-}
-
-// Whether a plant sells for Leaves instead of Coins — currently just Upd 1.0.
-function isLeavesPlant(plantDef) {
-  return !!(plantDef && plantDef.event === '1.0');
 }
 
 // ─── Exclusive rarity — v1 mimics the owner's best non-Exclusive card ─────────
@@ -1182,7 +1177,6 @@ const PLANTS = [
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
 
   // ── Mythic ─────────────────────────────────────────────────────────────
-  // NOTE: Briar Rose excluded (not obtainable in GAG2, no image present).
   { name: 'Venus Fly Trap', file: './images/VenusFlyTrap.png',  display: 'VenusFlyTrap.png',  rarity: 'Mythic' },
   { name: 'Pomegranate',    file: './images/Pomegranate.png', display: 'Pomegranate.png', rarity: 'Mythic' },
   { name: 'Poison Apple',   file: './images/PoisonApple.png', display: 'PoisonApple.png', rarity: 'Mythic' },
@@ -1201,60 +1195,50 @@ const PLANTS = [
 
   // ── Exclusive — admin-granted only, never rolled in crates/drops ────────
   { name: 'Rocket Pop', file: './images/RocketPopProduce.webp', display: 'RocketPopProduce.webp', rarity: 'Exclusive' },
-
+  { name: 'Briar Rose', file: './images/BriarRoseProduce.png',  display: 'BriarRoseProduce.png',  rarity: 'Exclusive' },
 
   // ═══════════════════════════════════════════════════════════════════════
   // Upd 1.0 — Event/Limited plants — now live and droppable
   // ═══════════════════════════════════════════════════════════════════════
-  // Tagged `event: '1.0'` so the passive drop pool (see PASSIVE_DROP_1_0_RARITIES
-  // in sendDrop) and the future Fall Crate can select 1.0-only plants without
-  // touching the base game's drop tables. 1.0 plants sell for Leaves, not
-  // Coins — see isLeavesPlant / calcLeavesValue.
-  // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
-  { name: 'Maple Acorn',          file: './images/_MConverteu_MapleAcornCropProducee.png', display: '_MConverteu_MapleAcornCropProducee.png', rarity: 'Legendary', event: '1.0' },
-  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon',  event: '1.0' },
-  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare',       event: '1.0' },
-  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common',     event: '1.0' },
-  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare',       event: '1.0' },
-  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common',     event: '1.0' },
-  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary',  event: '1.0' },
-  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare',       event: '1.0' },
-  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary',  event: '1.0' },
-  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic',       event: '1.0' },
-  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare',       event: '1.0' },
-  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic',     event: '1.0' },
-  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common',     event: '1.0' },
-  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary',  event: '1.0' },
-  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon',   event: '1.0' },
-  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon',   event: '1.0' },
-  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic',     event: '1.0' },
-  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic',     event: '1.0' },
 
-  // ── PENDING — Standalone 1.0 plants (do NOT uncomment yet) ────────────
-  // Blocked on: (1) real rarities — everything below is still 'TODO' except
-  // Cherry; (2) name collisions — 'Pomegranate (NEW)' collides with the
-  // existing Pomegranate, and 'Cherry' here duplicates the Legendary Cherry
-  // already listed above; (3) no Super-rarity entries yet anywhere in 1.0,
-  // which the Fall Crate needs for its Mythic/Super pool.
-  /*
-  { name: 'Glow Mushroom',          file: './images/_MConverteu_GlowMushroomProduce.png',    display: '_MConverteu_GlowMushroomProduce.png',    rarity: 'TODO', event: '1.0' },
-  { name: 'Horned Melon',           file: './images/_MConverteu_HornedMelonProduce.png',     display: '_MConverteu_HornedMelonProduce.png',     rarity: 'TODO', event: '1.0' },
-  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'TODO', event: '1.0' },
-  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'TODO', event: '1.0' },
-  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'TODO', event: '1.0' },
-  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'TODO', event: '1.0' },
-  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'TODO', event: '1.0' },
-  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'TODO', event: '1.0' },
-  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'TODO', event: '1.0' },
-  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'TODO', event: '1.0' },
-  { name: 'Pomegranate (NEW)',      file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'TODO', event: '1.0' }, // ⚠️ rename before use — collides with existing Pomegranate
-  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'TODO', event: '1.0' },
-  */
+  // ── Standalone new plants ────────────────────────────────────────────
+  { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' , dropOnly: true, leafCurrency: true },
+  { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' , dropOnly: true, leafCurrency: true },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' , dropOnly: true, leafCurrency: true },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' , dropOnly: true, leafCurrency: true },
+  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'Epic' , dropOnly: true, leafCurrency: true },
+  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Crimson Pomegranate',    file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+
+  // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
+  { name: 'Maple Acorn',          file: './images/MapleAcornCrop.png', display: 'MapleAcornCrop.png', rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon'  , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare'      , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon'  , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon'  , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
 
 ];
 
@@ -1672,8 +1656,7 @@ function getUser(db, userId) {
   if (!u.collection)     u.collection     = [];
   if (!u.claimed)        u.claimed        = 0;
   if (u.currency === undefined) u.currency = 500;
-  if (u.leaves === undefined) u.leaves = 0; // Upd 1.0 currency, see LEAVES_* / calcLeavesValue
-  if (u.lifetimeLeavesEarned === undefined) u.lifetimeLeavesEarned = 0;
+  if (u.leafs === undefined)    u.leafs    = 0;
   if (!u.charms)         u.charms         = [];
   if (!u.equippedCharms) u.equippedCharms = [];
   if (!u.bestRaceTime)   u.bestRaceTime   = null;
@@ -1896,17 +1879,8 @@ function pickRarityWithCharms(db, userId, customWeights) {
   }
   return pickRarity(weights);
 }
-// allowEvent1_0: whether plants tagged `event: '1.0'` are eligible for this
-// roll. Defaults false so every existing call site (crates, !daily, !weekly)
-// is unaffected — only the passive drop path opts in, and only for the
-// rarities the 1.0 pool is meant to touch (see PASSIVE_DROP_1_0_RARITIES).
-function pickPlant(rarityName, allowDropOnly = false, allowEvent1_0 = false) {
-  const pool = PLANTS.filter(p =>
-    p.rarity === rarityName &&
-    !p.giftOnly &&
-    (allowDropOnly || !p.dropOnly) &&
-    (allowEvent1_0 || p.event !== '1.0')
-  );
+function pickPlant(rarityName, allowDropOnly = false) {
+  const pool = PLANTS.filter(p => p.rarity === rarityName && !p.giftOnly && (allowDropOnly || !p.dropOnly));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
 }
 function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
@@ -2038,22 +2012,41 @@ function getLiveSellValue(storedPlant, collection) {
   return calcSellValue(plantDef, rarity, mutDef, version);
 }
 
-// Leaves counterpart of getLiveSellValue. Only really applies to `event: '1.0'`
-// plants (Exclusives can't be 1.0 plants, so no mimic-value branch is needed
-// here). Returns the Leaves payout for a stored plant.
-function getLiveLeavesValue(storedPlant) {
-  const rarity   = getRarityConfig(storedPlant.rarity);
-  const version  = storedPlant.version || 1;
-  const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
-  const mutDef   = storedPlant.mutation
-    ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
-    : null;
-  return calcLeavesValue(plantDef, rarity, mutDef, version);
-}
-
 // Formats a sell value for display, showing "???" for unknown Exclusive values.
 function fmtSellValue(v) {
   return v === null || v === undefined ? '???' : v.toLocaleString();
+}
+
+// ─── Leaf currency sell helpers ────────────────────────────────────────────
+// A plant sells for Leafs instead of Coins if it's flagged leafCurrency in PLANTS.
+function isLeafPlant(name) {
+  const def = PLANTS.find(p => p.name === name);
+  return !!(def && def.leafCurrency);
+}
+// Splits a batch of stored plant objects into coin/leaf sale totals. Every
+// manual sell path (single, sell-all-of-name, sell-entire-inventory,
+// sellbatch, !sellall wizard) should route through this so leaf plants never
+// silently pay out Coins.
+function splitSaleValue(plants, collection) {
+  let coinTotal = 0, leafTotal = 0;
+  for (const p of plants) {
+    const val = getLiveSellValue(p, collection) || 0;
+    if (isLeafPlant(p.name)) leafTotal += val; else coinTotal += val;
+  }
+  return { coinTotal, leafTotal };
+}
+// Credits a coin/leaf split onto a user. Lifetime-earned tracking only counts
+// Coins (Leafs are a temporary event currency, not part of the real economy).
+function creditSale(user, db, coinTotal, leafTotal) {
+  if (coinTotal > 0) { user.currency += coinTotal; trackEarned(user, coinTotal, db); }
+  if (leafTotal > 0) { user.leafs = (user.leafs || 0) + leafTotal; }
+}
+// Combined "X Coins + Y Leafs" payout string for sell confirmations/results.
+function fmtSaleTotal(coinTotal, leafTotal) {
+  const parts = [];
+  if (coinTotal > 0) parts.push(fmt(coinTotal));
+  if (leafTotal > 0) parts.push(fmtLeaf(leafTotal));
+  return parts.length ? parts.join(' + ') : fmt(0);
 }
 
 function calcInventoryValue(collection) {
@@ -2200,12 +2193,6 @@ async function tryActivityDrop(channel) {
   }
 }
 
-// Passive drop formula: existing plants + Upd 1.0 Common–Legendary (dropOnly
-// Secrets, like Eclipse Bloom, are already included separately via the
-// `allowDropOnly: true` passed to pickPlant below). 1.0 Mythic/Super plants
-// are deliberately excluded here — they're reserved for the Fall Crate.
-const PASSIVE_DROP_1_0_RARITIES = new Set(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary']);
-
 // ─── Drop ─────────────────────────────────────────────────────────────────────
 async function sendDrop(channel, opts = {}) {
   if (typeof opts === 'string') opts = { rarityName: opts };
@@ -2219,7 +2206,7 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    plant = pickPlant(rarity.name, true, PASSIVE_DROP_1_0_RARITIES.has(rarity.name));
+    plant = pickPlant(rarity.name, true);
   }
   const activeWeather = getActiveWeather();
   let mutation;
@@ -4393,21 +4380,24 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
 
         // Sell-all path
         if (pending.sellAllCandidates) {
-          const { sellAllCandidates, totalVal } = pending;
+          const { sellAllCandidates } = pending;
           // Remove from highest index down to avoid shift bugs
           let sellTriggered = false;
+          const soldPlants = [];
           for (const { plant: soldPlant, name, version } of sellAllCandidates) {
             const idx = user.collection.findIndex(p => p.name === name && p.version === version);
             if (idx !== -1) user.collection.splice(idx, 1);
+            soldPlants.push(soldPlant);
             if (markSellTriggers(user, soldPlant)) sellTriggered = true;
           }
-          user.currency += totalVal;
-          trackEarned(user, totalVal, db);
+          const { coinTotal, leafTotal } = splitSaleValue(soldPlants);
+          creditSale(user, db, coinTotal, leafTotal);
           if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
           saveDB(db);
           for (const { plant: soldPlant } of sellAllCandidates) announceDroppable(soldPlant, 'sold', message.guild?.id).catch(() => {});
           const names = sellAllCandidates.map(c => `**${c.plant.name}** ${fmtVersion(c.plant)}${c.plant.mutation ? ` [${c.plant.mutation.emoji} ${c.plant.mutation.name}]` : ''}`).join(', ');
-          return message.channel.send(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmt(totalVal)}! Balance: ${fmt(user.currency)}`);
+          const balanceStr = leafTotal > 0 ? `${fmt(user.currency)} · ${fmtLeaf(user.leafs)}` : fmt(user.currency);
+          return message.channel.send(`✅ Sold ${sellAllCandidates.length} copies — ${names} for ${fmtSaleTotal(coinTotal, leafTotal)}! Balance: ${balanceStr}`);
         }
 
         // Single sell path
@@ -4416,8 +4406,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         if (index === -1) return message.channel.send(`❌ Could not find **${plantName}** ${fmtVersion(plantVersion)} — it may have already been sold or traded.`);
         user.collection.splice(index, 1);
         const price = getLiveSellValue(plant);
-        user.currency += price;
-        trackEarned(user, price, db);
+        const isLeaf = isLeafPlant(plant.name);
+        creditSale(user, db, isLeaf ? 0 : price, isLeaf ? price : 0);
         if (markSellTriggers(user, plant)) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
         // remove locks for plants no longer owned
         const remaining = loadLocks(message.author.id).filter(l => {
@@ -4427,7 +4417,8 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
         saveLocks(message.author.id, remaining);
         saveDB(db);
         announceDroppable(plant, 'sold', message.guild?.id).catch(() => {});
-        return message.channel.send(`✅ Sold **${plant.name}** ${fmtVersion(plant)}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${fmt(price)}! Balance: ${fmt(user.currency)}`);
+        const singleBalanceStr = isLeaf ? `${fmt(user.currency)} · ${fmtLeaf(user.leafs)}` : fmt(user.currency);
+        return message.channel.send(`✅ Sold **${plant.name}** ${fmtVersion(plant)}${plant.mutation ? ` [${plant.mutation.emoji} ${plant.mutation.name}]` : ''} for ${isLeaf ? fmtLeaf(price) : fmt(price)}! Balance: ${singleBalanceStr}`);
       });
     }
     if (lower === 'no') { delete pendingSells[message.author.id]; return message.reply('❌ Sale cancelled.'); }
@@ -4464,19 +4455,19 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
     if (!user.collection.length) return message.reply('You have no plants to sell.');
     const sellable = user.collection.filter(p => !isLocked(message.author.id, p) && !isUnsellableRarity(p.rarity));
-    const totalVal = sellable.reduce((sum, p) => sum + (getLiveSellValue(p, user.collection) || 0), 0);
+    const { coinTotal, leafTotal } = splitSaleValue(sellable, user.collection);
     const count = sellable.length;
     user.collection = user.collection.filter(p => isLocked(message.author.id, p) || isUnsellableRarity(p.rarity));
-    user.currency += totalVal;
-    trackEarned(user, totalVal, db);
+    creditSale(user, db, coinTotal, leafTotal);
     let sellTriggered = false;
     for (const p of sellable) { if (markSellTriggers(user, p)) sellTriggered = true; }
     if (sellTriggered) { checkAchievements(user, message.author.id, message.channel); clearSellTriggers(user); }
     saveDB(db);
     for (const p of sellable) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
+    const inventoryBalanceStr = leafTotal > 0 ? `${fmt(user.currency)}\n${fmtLeaf(user.leafs)}` : fmt(user.currency);
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle('💰 Entire Inventory Sold')
-      .setDescription(`Sold **${count} plants** for ${fmt(totalVal)}.\nNew balance: ${fmt(user.currency)}`)
+      .setDescription(`Sold **${count} plants** for ${fmtSaleTotal(coinTotal, leafTotal)}.\nNew balance: ${inventoryBalanceStr}`)
       .setColor(0x00C853)
     ]});
   }
@@ -5178,9 +5169,11 @@ if (cmd === 'web') {
     const serverRank = allUsers.findIndex(e => e.id === target.id) + 1;
     const gardenScore = calcWeightedGardenScore(user.collection);
     const gardenTier  = getGardenTier(gardenScore);
-    const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.name || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
+    const imgBuf = await generateProfileImage({ username: target.username, avatarUrl: target.displayAvatarURL({ extension: 'png', size: 128 }), level, pct, rankEmoji: rank.emoji, rankName: rank.name, title, balance: user.currency, leafs: user.leafs || 0, plants: user.collection.length, achievements: user.achievements.length, totalAchievements: Object.keys(ACHIEVEMENTS).length, equippedCharms: user.equippedCharms.map(k => CHARMS[k]?.name || '').filter(Boolean), totalXp: user.xp || 0, serverRank, serverTotal: allUsers.length, gardenScore, gardenTier });
     const att = new AttachmentBuilder(imgBuf, { name: 'profile.png' });
-    return message.channel.send({ files: [att], embeds: [new EmbedBuilder().setImage('attachment://profile.png').setColor(0x4d96ff)] });
+    const profileEmbed = new EmbedBuilder().setImage('attachment://profile.png').setColor(0x4d96ff);
+    if (user.leafs > 0) profileEmbed.setFooter({ text: `🍁 ${user.leafs.toLocaleString()} Leafs` });
+    return message.channel.send({ files: [att], embeds: [profileEmbed] });
   }
 
   // ── !invlb ────────────────────────────────────────────────────────────────
@@ -5364,7 +5357,7 @@ if (cmd === 'web') {
     }
 
     const seconds = parseInt(args[1]);
-    if (!seconds || seconds < 1 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (1–300) or `!setrace <channel id> on|off`');
+    if (!seconds || seconds < 1 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300) or `!setrace <channel id> on|off`');
     raceTimer = seconds;
     return message.reply(`✅ Race timer set to **${raceTimer} seconds**.`);
   }
@@ -5683,7 +5676,8 @@ const page = Math.max(1, Math.min(pageArg, totalPages));
       const num = (page - 1) * PER_PAGE + i + 1;
       const sellVal = getLiveSellValue(p, user.collection);
       const lockBadge = isLocked(message.author.id, p) ? ' `[L]`' : '';
-return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verStr}${mutBadge}${lockBadge} — ${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
+      const priceTag = isLeafPlant(p.name) ? `${LEAF_EMOJI} ${fmtSellValue(sellVal)}` : `${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
+return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verStr}${mutBadge}${lockBadge} — ${priceTag}`;
     });
     const tierHex = '#' + gardenTier.color.toString(16).padStart(6, '0');
     const statsLine = `**${target.username}** · ${user.collection.length} plants · ${gardenTier.emoji} **${gardenTier.name}** · Score: **${gardenScore.toLocaleString()}**`;
@@ -5697,13 +5691,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         const sellVal = getLiveSellValue(plant, user.collection);
         const lockBadge = isLocked(message.author.id, plant) ? ' `[L]`' : '';
         const unsellBadge = isUnsellableRarity(plant.rarity) ? ' `[Trade only]`' : '';
-        return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge}${unsellBadge} — ${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
+        const priceTag = isLeafPlant(plant.name) ? `${LEAF_EMOJI} ${fmtSellValue(sellVal)}` : `${CURRENCY_EMOJI} ${fmtSellValue(sellVal)}`;
+        return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${plant.name}** ${verStr}${mutBadge}${lockBadge}${unsellBadge} — ${priceTag}`;
       });
       return new EmbedBuilder()
         .setTitle(`🎒 Inventory — Page ${p}/${totalPages}${filterStr}`)
         .setDescription(statsLine + '\n\u200b\n' + ls.join('\n'))
         .setColor(tR.color)
-        .setFooter({ text: `Showing ${filtered.length} plants  ·  !inv [page] [-r rarity] [-m mutation] [-version op#]` });
+        .setFooter({ text: `Showing ${filtered.length} plants  ·  ${fmt(user.currency)}${user.leafs > 0 ? `  ·  ${fmtLeaf(user.leafs)}` : ''}  ·  !inv [page] [-r rarity] [-m mutation] [-version op#]` });
     }
 
     function buildInvRow(p) {
@@ -5778,7 +5773,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const sellable = user.collection.filter(p => !isLocked(message.author.id, p) && !isUnsellableRarity(p.rarity));
       const exclusiveCount = user.collection.filter(p => p.rarity === 'Exclusive').length;
       const locked = user.collection.length - sellable.length - exclusiveCount;
-      const totalVal = sellable.reduce((sum, p) => sum + (getLiveSellValue(p, user.collection) || 0), 0);
+      const { coinTotal: previewCoinTotal, leafTotal: previewLeafTotal } = splitSaleValue(sellable, user.collection);
       const CONFIRM_PHRASE = `SELLALL-${message.author.id.slice(-4).toUpperCase()}`;
       pendingWipes[`sellall_${message.author.id}`] = { phrase: CONFIRM_PHRASE, ts: Date.now() };
       setTimeout(() => delete pendingWipes[`sellall_${message.author.id}`], 60_000);
@@ -5786,7 +5781,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle('⚠️  Sell Entire Inventory?')
         .setDescription(
-          `**This will sell ${sellable.length} plants for ${fmt(totalVal)}.**${locked > 0 ? `\n🔒 ${locked} locked plant${locked !== 1 ? 's' : ''} will be kept.` : ''}${exclusiveCount > 0 ? `\n✨ ${exclusiveCount} Exclusive plant${exclusiveCount !== 1 ? 's' : ''} will be kept — Exclusives can't be sold, only traded.` : ''}\n\n` +
+          `**This will sell ${sellable.length} plants for ${fmtSaleTotal(previewCoinTotal, previewLeafTotal)}.**${locked > 0 ? `\n🔒 ${locked} locked plant${locked !== 1 ? 's' : ''} will be kept.` : ''}${exclusiveCount > 0 ? `\n✨ ${exclusiveCount} Exclusive plant${exclusiveCount !== 1 ? 's' : ''} will be kept — Exclusives can't be sold, only traded.` : ''}\n\n` +
           `This **cannot be undone**.\n\nTo confirm, type:\n\`\`\`\n${CONFIRM_PHRASE}\n\`\`\`\n60 seconds.`
         )
         .setColor(0xFF0000)
@@ -5829,18 +5824,19 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       candidates = candidates.filter(({ p }) => !isLocked(message.author.id, p));
       if (!candidates.length) return message.reply(`All copies of **${plantName}** are locked.`);
       const rCfg      = getRarityConfig(candidates[0].p.rarity);
+      const isLeafGroup = isLeafPlant(plantName);
       const totalVal  = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p, user.collection), 0);
       const lines     = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
         const val    = getLiveSellValue(p, user.collection);
-        return `${fmtVersion(p)}${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+        return `${fmtVersion(p)}${mutStr}  —  ${isLeafGroup ? fmtLeaf(val) : `${CURRENCY_EMOJI} ${val.toLocaleString()}`}`;
       });
       // Store all indices for the confirm handler
       pendingSells[message.author.id] = { sellAllCandidates: candidates.map(c => ({ plant: c.p, name: c.p.name, version: c.p.version })), totalVal };
       setTimeout(() => delete pendingSells[message.author.id], 30_000);
       return message.channel.send({ embeds: [new EmbedBuilder()
         .setTitle(`💰 Sell All ${plantName}? (${candidates.length} copies)`)
-        .setDescription(lines.join('\n') + `\n\n**Total payout: ${CURRENCY_EMOJI} ${totalVal.toLocaleString()}**\n\nType \`yes\` to sell all, \`no\` to cancel. *(30s)*`)
+        .setDescription(lines.join('\n') + `\n\n**Total payout: ${isLeafGroup ? fmtLeaf(totalVal) : `${CURRENCY_EMOJI} ${totalVal.toLocaleString()}`}**\n\nType \`yes\` to sell all, \`no\` to cancel. *(30s)*`)
         .setColor(rCfg.color)
       ]});
     }
@@ -5848,12 +5844,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     // If multiple copies and no version/all specified, show picker prompt
     if (candidates.length > 1 && vSellFilter === null) {
       const rCfg  = getRarityConfig(candidates[0].p.rarity);
+      const isLeafGroup = isLeafPlant(plantName);
       const lines = candidates.map(({ p }) => {
         const mutStr = p.mutation ? ` ${p.mutation.emoji} ${p.mutation.name}` : '';
-        const val    = p.sellValue || rCfg.sellPrice;
-        return `${fmtVersion(p)}${mutStr}  —  ${CURRENCY_EMOJI} ${val.toLocaleString()}`;
+        const val    = getLiveSellValue(p, user.collection);
+        return `${fmtVersion(p)}${mutStr}  —  ${isLeafGroup ? fmtLeaf(val) : `${CURRENCY_EMOJI} ${val.toLocaleString()}`}`;
       });
-      const totalVal = candidates.reduce((sum, { p }) => sum + (p.sellValue || rCfg.sellPrice), 0);
+      const totalVal = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p, user.collection), 0);
       return message.reply({ embeds: [new EmbedBuilder()
         .setTitle(`Which **${plantName}** would you like to sell?`)
         .setDescription(
@@ -5861,7 +5858,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           `\n\n` +
           `**Select a copy:**\n` +
           `\`!sell ${plantName} -v <version>\`  — sell a specific copy\n` +
-          `\`!sell ${plantName} all\`  — sell all ${candidates.length} copies for ${CURRENCY_EMOJI} ${totalVal.toLocaleString()}`
+          `\`!sell ${plantName} all\`  — sell all ${candidates.length} copies for ${isLeafGroup ? fmtLeaf(totalVal) : `${CURRENCY_EMOJI} ${totalVal.toLocaleString()}`}`
         )
         .setColor(rCfg.color)
       ]});
@@ -5878,7 +5875,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     setTimeout(() => delete pendingSells[message.author.id], 30_000);
     const mutLine = plant.mutation ? `\nMutation: ${plant.mutation.emoji} **${plant.mutation.name}** *(×${plant.mutation.multiplier} value)*` : '';
     const v1Note  = plant.version === 1 ? '\n🔖 *First copy — high collector value!*' : '';
-    const sellEmbed = new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** ${fmtVersion(plant)}?\nRarity: ${rCfg.emoji} **${plant.rarity}**${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setColor(rCfg.color);
+    const priceLine = `\nPrice: ${isLeafPlant(plant.name) ? fmtLeaf(price) : `${CURRENCY_EMOJI} **${price.toLocaleString()}**`}`;
+    const sellEmbed = new EmbedBuilder().setTitle('💰 Confirm Sale').setDescription(`Sell **${plant.name}** ${fmtVersion(plant)}?\nRarity: ${rCfg.emoji} **${plant.rarity}**${priceLine}${mutLine}${v1Note}\n\nType \`yes\` or \`no\` *(30s)*`).setColor(rCfg.color);
     if (plant.image && fs.existsSync(`${IMAGES_DIR}/${plant.image}`)) {
       const sellAttach = new AttachmentBuilder(`${IMAGES_DIR}/${plant.image}`, { name: plant.image });
       sellEmbed.setThumbnail(`attachment://${plant.image}`);
@@ -5968,7 +5966,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     }
 
     // Tally up
-    const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p, user.collection), 0);
+    const { coinTotal: batchCoinTotal, leafTotal: batchLeafTotal } = splitSaleValue(candidates.map(c => c.p), user.collection);
 
     // Build a summary grouped by rarity
     const byRarity = {};
@@ -5999,7 +5997,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         .setDescription(
           `**Filters:** ${filterStr}\n\n` +
           summaryLines.join('\n') +
-          `\n\n**Total payout:** ${fmt(totalCoins)}\n\n` +
+          `\n\n**Total payout:** ${fmtSaleTotal(batchCoinTotal, batchLeafTotal)}\n\n` +
           protectionNote +
           `Add \`--confirm\` to your command to execute.`
         )
@@ -6010,19 +6008,19 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     // Execute — remove from highest index down to avoid index shift bugs
     const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
     for (const idx of indexesToRemove) user.collection.splice(idx, 1);
-    user.currency += totalCoins;
-    trackEarned(user, totalCoins, db);
+    creditSale(user, db, batchCoinTotal, batchLeafTotal);
     touchActivity(db, message.author.id, message.author);
     checkAchievements(user, message.author.id, message.channel);
     saveDB(db);
     for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
+    const batchBalanceStr = batchLeafTotal > 0 ? `${fmt(user.currency)}\n${fmtLeaf(user.leafs)}` : fmt(user.currency);
     return message.channel.send({ embeds: [new EmbedBuilder()
       .setTitle(`✅ Batch Sold — ${candidates.length} plants`)
       .setDescription(
         `**Filters:** ${filterStr}\n\n` +
         summaryLines.join('\n') +
-        `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`
+        `\n\n**Earned:** ${fmtSaleTotal(batchCoinTotal, batchLeafTotal)}\n**New balance:** ${batchBalanceStr}`
       )
       .setColor(0x00C853)
     ]});
@@ -6172,7 +6170,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const RARITY_ORDER_SA = ['Exclusive','Secret','Super','Mythic','Legendary','Epic','Rare','Uncommon','Common'];
 
     const saBuildPreview = (candidates) => {
-      const totalCoins = candidates.reduce((sum, { p }) => sum + getLiveSellValue(p), 0);
+      const { coinTotal, leafTotal } = splitSaleValue(candidates.map(c => c.p));
+      const totalCoins = coinTotal; // kept for backward compat with existing call sites
       const byRarity = {};
       for (const { p } of candidates) byRarity[p.rarity] = (byRarity[p.rarity] || 0) + 1;
       const summaryLines = RARITY_ORDER_SA.filter(r => byRarity[r]).map(r => `${getRarityConfig(r).emoji} **${r}** × ${byRarity[r]}`);
@@ -6184,7 +6183,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const protectionNote = sellbatchV10Protection
         ? `⚠️ *v1–v10 and locked plants are always excluded.*`
         : `🚨 *v1–v10 protection is currently OFF — only locked plants are excluded.*`;
-      return { totalCoins, summaryLines, filterParts, protectionNote };
+      return { totalCoins, leafTotal, payoutStr: fmtSaleTotal(coinTotal, leafTotal), summaryLines, filterParts, protectionNote };
     };
 
     const saConfirmRow = new ActionRowBuilder().addComponents(
@@ -6307,14 +6306,14 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           });
         }
 
-        const { totalCoins, summaryLines, filterParts, protectionNote } = saBuildPreview(candidates);
+        const { payoutStr, summaryLines, filterParts, protectionNote } = saBuildPreview(candidates);
         return interaction.update({
           embeds: [new EmbedBuilder()
             .setTitle(`⚠️ Confirm Sell — ${candidates.length} plants`)
             .setDescription(
               `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
               summaryLines.join('\n') +
-              `\n\n**Total payout:** ${fmt(totalCoins)}\n\n${protectionNote}\n\n` +
+              `\n\n**Total payout:** ${payoutStr}\n\n${protectionNote}\n\n` +
               `This **cannot be undone**. Click below to sell everything shown above.`
             )
             .setColor(0xFF6600)],
@@ -6339,23 +6338,23 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           });
         }
 
-        const { totalCoins: finalTotal, summaryLines: finalLines, filterParts } = saBuildPreview(finalCandidates);
+        const { totalCoins: finalCoinTotal, leafTotal: finalLeafTotal, payoutStr: finalPayoutStr, summaryLines: finalLines, filterParts } = saBuildPreview(finalCandidates);
         const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
         for (const idx of idxs) user.collection.splice(idx, 1);
-        user.currency += finalTotal;
-        trackEarned(user, finalTotal, db);
+        creditSale(user, db, finalCoinTotal, finalLeafTotal);
         touchActivity(db, message.author.id, message.author);
         checkAchievements(user, message.author.id, message.channel);
         saveDB(db);
         for (const { p } of finalCandidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
+        const finalBalanceStr = finalLeafTotal > 0 ? `${fmt(user.currency)} · ${fmtLeaf(user.leafs)}` : fmt(user.currency);
         return interaction.update({
           embeds: [new EmbedBuilder()
             .setTitle(`✅ Sold — ${finalCandidates.length} plants`)
             .setDescription(
               `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
               finalLines.join('\n') +
-              `\n\n**Earned:** ${fmt(finalTotal)}\n**New balance:** ${fmt(user.currency)}`
+              `\n\n**Earned:** ${finalPayoutStr}\n**New balance:** ${finalBalanceStr}`
             )
             .setColor(0x00C853)],
           components: [],
@@ -6379,21 +6378,21 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           });
         }
 
-        const { totalCoins, summaryLines, filterParts } = saBuildPreview(candidates);
+        const { totalCoins, leafTotal, payoutStr, summaryLines, filterParts } = saBuildPreview(candidates);
 
         const indexesToRemove = candidates.map(c => c.i).sort((a, b) => b - a);
         for (const idx of indexesToRemove) user.collection.splice(idx, 1);
-        user.currency += totalCoins;
-        trackEarned(user, totalCoins, db);
+        creditSale(user, db, totalCoins, leafTotal);
         touchActivity(db, message.author.id, message.author);
         checkAchievements(user, message.author.id, message.channel);
         saveDB(db);
         for (const { p } of candidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
+        const saBalanceStr = leafTotal > 0 ? `${fmt(user.currency)} · ${fmtLeaf(user.leafs)}` : fmt(user.currency);
         const soldSummaryDesc =
           `**Filters:** ${filterParts.join('  ·  ')}\n\n` +
           summaryLines.join('\n') +
-          `\n\n**Earned:** ${fmt(totalCoins)}\n**New balance:** ${fmt(user.currency)}`;
+          `\n\n**Earned:** ${payoutStr}\n**New balance:** ${saBalanceStr}`;
 
         // ── v1–v10 are protected by default and were already excluded above.
         // If any protected plants still match the filters, offer a separate,
@@ -6411,7 +6410,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
           });
         }
 
-        const { totalCoins: v10TotalCoins, summaryLines: v10SummaryLines } = saBuildPreview(underV10Candidates);
+        const { payoutStr: v10PayoutStr, summaryLines: v10SummaryLines } = saBuildPreview(underV10Candidates);
 
         await interaction.update({
           embeds: [new EmbedBuilder()
@@ -6420,7 +6419,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               soldSummaryDesc +
               `\n\n🛡️ **${underV10Candidates.length} more plant${underV10Candidates.length !== 1 ? 's' : ''} match your filters but ${underV10Candidates.length !== 1 ? 'are' : 'is'} v1–v10 (protected):**\n` +
               v10SummaryLines.join('\n') +
-              `\n**Worth:** ${fmt(v10TotalCoins)}\n\nSell ${underV10Candidates.length !== 1 ? 'these' : 'this'} too?`
+              `\n**Worth:** ${v10PayoutStr}\n\nSell ${underV10Candidates.length !== 1 ? 'these' : 'this'} too?`
             )
             .setColor(0x00C853)],
           components: [new ActionRowBuilder().addComponents(
@@ -6456,23 +6455,24 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             });
           }
 
-          const { totalCoins: finalTotal, summaryLines: finalLines } = saBuildPreview(finalCandidates);
+          const { totalCoins: finalTotal, leafTotal: finalLeafTotal, summaryLines: finalLines } = saBuildPreview(finalCandidates);
           const idxs = finalCandidates.map(c => c.i).sort((a, b) => b - a);
           for (const idx of idxs) user2.collection.splice(idx, 1);
-          user2.currency += finalTotal;
-          trackEarned(user2, finalTotal, db2);
+          creditSale(user2, db2, finalTotal, finalLeafTotal);
           touchActivity(db2, message.author.id, message.author);
           checkAchievements(user2, message.author.id, message.channel);
           saveDB(db2);
           for (const { p } of finalCandidates) announceDroppable(p, 'sold', message.guild?.id).catch(() => {});
 
+          const combinedLeafTotal = leafTotal + finalLeafTotal;
+          const v10FinalBalanceStr = combinedLeafTotal > 0 ? `${fmt(user2.currency)} · ${fmtLeaf(user2.leafs)}` : fmt(user2.currency);
           return v10Interaction.update({
             embeds: [new EmbedBuilder()
               .setTitle(`✅ Sold — ${candidates.length + finalCandidates.length} plants`)
               .setDescription(
                 soldSummaryDesc +
                 `\n\n🛡️ **Also sold v1–v10:**\n` + finalLines.join('\n') +
-                `\n\n**Total earned:** ${fmt(totalCoins + finalTotal)}\n**New balance:** ${fmt(user2.currency)}`
+                `\n\n**Total earned:** ${fmtSaleTotal(totalCoins + finalTotal, combinedLeafTotal)}\n**New balance:** ${v10FinalBalanceStr}`
               )
               .setColor(0x00C853)],
             components: [],
@@ -6966,6 +6966,13 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     return message.reply(`${target.username}'s balance: ${fmt(user.currency)}`);
   }
 
+  // ── !leafs — check Leaf event-currency balance ──────────────────────────────
+  if (cmd === 'leafs' || cmd === 'leaf') {
+    const target = (await resolveTarget(message, args[1])) || message.author;
+    const db = loadDB(); const user = getUser(db, target.id);
+    return message.reply(`${target.username}'s Leaf balance: ${fmtLeaf(user.leafs || 0)}`);
+  }
+
   // ── Admin: currency/xp management ────────────────────────────────────────
   if (cmd === 'addcurrency' || cmd === 'givecoin') {
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
@@ -6973,6 +6980,56 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (!target || isNaN(amount)) return message.reply('Usage: `!addcurrency @user <amount>`');
     const db = loadDB(); const user = getUser(db, target.id); user.currency += amount; trackEarned(user, amount, db); saveDB(db); pushCoinUpdate(target.id, user.currency);
     return message.reply(`✅ Gave ${fmt(amount)} to **${target.username}**.`);
+  }
+
+  // ── Admin: !addleafs — grant Leaf event-currency directly ───────────────────
+  if (cmd === 'addleafs' || cmd === 'giveleaf') {
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
+    const target = await resolveTarget(message, args[1]); const amount = parseInt(args[2]);
+    if (!target || isNaN(amount)) return message.reply('Usage: `!addleafs @user <amount>`');
+    const db = loadDB(); const user = getUser(db, target.id); user.leafs = (user.leafs || 0) + amount; saveDB(db);
+    return message.reply(`✅ Gave ${fmtLeaf(amount)} to **${target.username}**.`);
+  }
+
+  // ── Admin: !endleafevent — convert every user's Leafs to Coins (1:1), then zero Leafs ──
+  // Run this once, when the Leaf event is actually over. Irreversible — the
+  // per-user Leaf balances are gone afterward, folded straight into Coins.
+  if (cmd === 'endleafevent') {
+    if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
+    const CONFIRM_PHRASE = `ENDLEAFEVENT-${message.guild.id.slice(-6).toUpperCase()}`;
+    if (args[1] !== CONFIRM_PHRASE) {
+      const db = loadDB();
+      const holders = Object.values(db).filter(u => (u.leafs || 0) > 0);
+      const totalLeafsOutstanding = holders.reduce((sum, u) => sum + (u.leafs || 0), 0);
+      return message.channel.send({ embeds: [new EmbedBuilder()
+        .setTitle('🍁 End Leaf Event?')
+        .setDescription(
+          `This will convert **every user's Leafs into Coins at a 1:1 rate**, then reset Leaf balances to 0.\n\n` +
+          `**${holders.length} users** currently hold Leafs — **${totalLeafsOutstanding.toLocaleString()} Leafs** total will become Coins.\n\n` +
+          `This **cannot be undone**.\n\nTo confirm, run:\n\`\`\`\n!endleafevent ${CONFIRM_PHRASE}\n\`\`\``
+        )
+        .setColor(0xFF6600)
+      ]});
+    }
+    const db = loadDB();
+    let convertedUsers = 0, totalConverted = 0;
+    for (const userId of Object.keys(db)) {
+      const user = getUser(db, userId);
+      const leafBal = user.leafs || 0;
+      if (leafBal <= 0) continue;
+      user.currency += leafBal;
+      trackEarned(user, leafBal, db);
+      user.leafs = 0;
+      convertedUsers++;
+      totalConverted += leafBal;
+      pushCoinUpdate(userId, user.currency);
+    }
+    saveDB(db);
+    return message.channel.send({ embeds: [new EmbedBuilder()
+      .setTitle('🍁 Leaf Event Ended')
+      .setDescription(`Converted **${totalConverted.toLocaleString()} Leafs** into Coins for **${convertedUsers} users**, 1:1. All Leaf balances are now 0.`)
+      .setColor(0x00C853)
+    ]});
   }
   if (cmd === 'addplant') {
     if (!BOT_ADMIN_IDS.includes(message.author.id)) return message.reply('Admins only.');
@@ -7376,7 +7433,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         .setTitle('🌿 Plant Bot — Help')
         .setDescription('Welcome to Plant Bot! Choose a category to learn more.')
         .addFields(
-          { name: '📖  !help info', value: 'Rarities, mutations, charm effects & how the game works' },
+          { name: '📖  !help iddnfo', value: 'Rarities, mutations, charm effects & how the game works' },
           { name: '🎮  !help play', value: 'Claims, daily/weekly, inventory, selling, trading, market, profile' },
           { name: '🏆  !help compete', value: 'Races, leaderboards & garden ranking explained' },
           { name: '🛒  !help shop', value: 'Crates, charms and titles — prices & effects' },
