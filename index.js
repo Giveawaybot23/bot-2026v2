@@ -4106,15 +4106,22 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   const content = message.content.trim();
   const lower   = content.toLowerCase();
 
-  // Touch activity for any message from a known user. A brand-new user (not
-  // yet in the DB) gets initialized, and — only if they're posting inside the
-  // bot's own channel category — greeted with the starter guide, once
-  // (guarded by hasSeenGuide, only set true once the nudge actually sends).
+  // Touch activity for any message from a known user (creating their record
+  // on first-ever contact IN A GUILD — DMs from unknown users are still
+  // ignored, matching prior behavior). The guide nudge is gated on
+  // hasSeenGuide specifically — NOT on whether a DB record already exists —
+  // so a user who spoke in a non-Garbot channel first still gets nudged the
+  // first time they show up in a Garbot channel, instead of being silently
+  // skipped because their record was already created elsewhere.
   {
     const db = loadDB();
     if (db[message.author.id]) {
+      const user = getUser(db, message.author.id);
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
+      if (message.guild && !message.author.bot && !user.hasSeenGuide && message.channel.parentId === GARBOT_CATEGORY_ID) {
+        sendGuideNudge(message.channel, message.author.id).catch(err => console.error('[guide] auto-trigger failed:', err));
+      }
     } else if (message.guild && !message.author.bot) {
       const user = getUser(db, message.author.id);
       touchActivity(db, message.author.id, message.author);
