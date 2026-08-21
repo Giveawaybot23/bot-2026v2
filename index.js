@@ -267,6 +267,17 @@ function atomicWriteFileSync(filePath, data) {
 
 const CURRENCY_NAME   = 'Coins';
 const CURRENCY_EMOJI  = '<:coins:1477684491320426601>';
+
+// ─── Leaves — Upd 1.0 currency ─────────────────────────────────────────────
+// Earned exclusively by selling Upd 1.0 (`event: '1.0'`) plants — see
+// calcLeavesValue / getLiveLeavesValue below. Scales exactly like Coins
+// (same rarity base price × dropOnly bonus × version multiplier × mutation
+// multiplier — see calcSellValue) but pays out 25% more per sale.
+// NOTE: not yet wired into !sell / !sellall / autosell — those still pay
+// Coins for everything, including 1.0 plants, until that's wired up.
+const LEAVES_NAME       = 'Leaves';
+const LEAVES_EMOJI      = '🍁';
+const LEAVES_SELL_BONUS = 1.25;
 const SERVER_NAME     = 'GAG2';
 const WATERMARK       = 'LA';
 
@@ -986,6 +997,18 @@ function calcSellValue(plant, rarity, mutation, version) {
   return Math.max(1, Math.round(base * dropBonus * verMult * mutMult));
 }
 
+// Leaves value — identical scaling to calcSellValue, +LEAVES_SELL_BONUS.
+// Only meaningful for `event: '1.0'` plants (see isLeavesPlant), but left
+// general so it stays correct if that ever changes.
+function calcLeavesValue(plant, rarity, mutation, version) {
+  return Math.max(1, Math.round(calcSellValue(plant, rarity, mutation, version) * LEAVES_SELL_BONUS));
+}
+
+// Whether a plant sells for Leaves instead of Coins — currently just Upd 1.0.
+function isLeavesPlant(plantDef) {
+  return !!(plantDef && plantDef.event === '1.0');
+}
+
 // ─── Exclusive rarity — v1 mimics the owner's best non-Exclusive card ─────────
 // Only the v1 copy of an Exclusive has no stats/value of its own — it's worth
 // 115% of the best (highest-value) non-Exclusive card the owner holds. If they
@@ -1159,6 +1182,7 @@ const PLANTS = [
   { name: 'Fire Fern',    file: './images/FireFern.png',       display: 'FireFern.png',       rarity: 'Legendary' },
 
   // ── Mythic ─────────────────────────────────────────────────────────────
+  // NOTE: Briar Rose excluded (not obtainable in GAG2, no image present).
   { name: 'Venus Fly Trap', file: './images/VenusFlyTrap.png',  display: 'VenusFlyTrap.png',  rarity: 'Mythic' },
   { name: 'Pomegranate',    file: './images/Pomegranate.png', display: 'Pomegranate.png', rarity: 'Mythic' },
   { name: 'Poison Apple',   file: './images/PoisonApple.png', display: 'PoisonApple.png', rarity: 'Mythic' },
@@ -1177,50 +1201,60 @@ const PLANTS = [
 
   // ── Exclusive — admin-granted only, never rolled in crates/drops ────────
   { name: 'Rocket Pop', file: './images/RocketPopProduce.webp', display: 'RocketPopProduce.webp', rarity: 'Exclusive' },
-  { name: 'Briar Rose', file: './images/BriarRoseProduce.png',  display: 'BriarRoseProduce.png',  rarity: 'Exclusive' },
+
 
   // ═══════════════════════════════════════════════════════════════════════
   // Upd 1.0 — Event/Limited plants — now live and droppable
   // ═══════════════════════════════════════════════════════════════════════
-
-  // ── Standalone new plants ────────────────────────────────────────────
-  { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' },
-  { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' },
-  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' },
-  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' },
-  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' },
-  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'Epic' },
-  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' },
-  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'Mythic' },
-  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'Legendary' },
-  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'Legendary' },
-  { name: 'Crimson Pomegranate',    file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'Mythic' },
-  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'Mythic' },
-
+  // Tagged `event: '1.0'` so the passive drop pool (see PASSIVE_DROP_1_0_RARITIES
+  // in sendDrop) and the future Fall Crate can select 1.0-only plants without
+  // touching the base game's drop tables. 1.0 plants sell for Leaves, not
+  // Coins — see isLeavesPlant / calcLeavesValue.
   // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
-  { name: 'Maple Acorn',          file: './images/MapleAcornCrop.png', display: 'MapleAcornCrop.png', rarity: 'Legendary' },
-  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon'  },
-  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare'      },
-  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic'      },
-  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common'    },
-  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare'      },
-  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common'    },
-  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary' },
-  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic'      },
-  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare'      },
-  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary' },
-  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic'      },
-  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic'      },
-  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic'      },
-  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic'      },
-  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare'      },
-  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    },
-  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common'    },
-  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary' },
-  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon'  },
-  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon'  },
-  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    },
-  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    },
+  { name: 'Maple Acorn',          file: './images/_MConverteu_MapleAcornCropProducee.png', display: '_MConverteu_MapleAcornCropProducee.png', rarity: 'Legendary', event: '1.0' },
+  { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon',  event: '1.0' },
+  { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare',       event: '1.0' },
+  { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Blueberry',      file: './images/MapleBlueberryCrop.png',    display: 'MapleBlueberryCrop.png',    rarity: 'Common',     event: '1.0' },
+  { name: 'Maple Cactus',         file: './images/MapleCactusCrop.png',       display: 'MapleCactusCrop.png',       rarity: 'Rare',       event: '1.0' },
+  { name: 'Maple Carrot',         file: './images/MapleCarrotSeed.png',       display: 'MapleCarrotSeed.png',       rarity: 'Common',     event: '1.0' },
+  { name: 'Maple Cherry',         file: './images/MapleCherryCrop.png',       display: 'MapleCherryCrop.png',       rarity: 'Legendary',  event: '1.0' },
+  { name: 'Maple Coconut',        file: './images/MapleCoconutProduce.png',   display: 'MapleCoconutProduce.png',   rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Corn',           file: './images/MapleCornCrop.png',         display: 'MapleCornCrop.png',         rarity: 'Rare',       event: '1.0' },
+  { name: 'Maple Dragon Fruit',   file: './images/MapleDragonFruitCrop.png',  display: 'MapleDragonFruitCrop.png',  rarity: 'Legendary',  event: '1.0' },
+  { name: 'Maple Grape',          file: './images/MapleGrapeCrop.png',        display: 'MapleGrapeCrop.png',        rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Green Bean',     file: './images/MapleGreenBeanProduce.png', display: 'MapleGreenBeanProduce.png', rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic',       event: '1.0' },
+  { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare',       event: '1.0' },
+  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic',     event: '1.0' },
+  { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common',     event: '1.0' },
+  { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary',  event: '1.0' },
+  { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon',   event: '1.0' },
+  { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon',   event: '1.0' },
+  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic',     event: '1.0' },
+  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic',     event: '1.0' },
+
+  // ── PENDING — Standalone 1.0 plants (do NOT uncomment yet) ────────────
+  // Blocked on: (1) real rarities — everything below is still 'TODO' except
+  // Cherry; (2) name collisions — 'Pomegranate (NEW)' collides with the
+  // existing Pomegranate, and 'Cherry' here duplicates the Legendary Cherry
+  // already listed above; (3) no Super-rarity entries yet anywhere in 1.0,
+  // which the Fall Crate needs for its Mythic/Super pool.
+  /*
+  { name: 'Glow Mushroom',          file: './images/_MConverteu_GlowMushroomProduce.png',    display: '_MConverteu_GlowMushroomProduce.png',    rarity: 'TODO', event: '1.0' },
+  { name: 'Horned Melon',           file: './images/_MConverteu_HornedMelonProduce.png',     display: '_MConverteu_HornedMelonProduce.png',     rarity: 'TODO', event: '1.0' },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'TODO', event: '1.0' },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'TODO', event: '1.0' },
+  { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'TODO', event: '1.0' },
+  { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'TODO', event: '1.0' },
+  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'TODO', event: '1.0' },
+  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'TODO', event: '1.0' },
+  { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'TODO', event: '1.0' },
+  { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'TODO', event: '1.0' },
+  { name: 'Pomegranate (NEW)',      file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'TODO', event: '1.0' }, // ⚠️ rename before use — collides with existing Pomegranate
+  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'TODO', event: '1.0' },
+  */
 
 ];
 
@@ -1638,6 +1672,8 @@ function getUser(db, userId) {
   if (!u.collection)     u.collection     = [];
   if (!u.claimed)        u.claimed        = 0;
   if (u.currency === undefined) u.currency = 500;
+  if (u.leaves === undefined) u.leaves = 0; // Upd 1.0 currency, see LEAVES_* / calcLeavesValue
+  if (u.lifetimeLeavesEarned === undefined) u.lifetimeLeavesEarned = 0;
   if (!u.charms)         u.charms         = [];
   if (!u.equippedCharms) u.equippedCharms = [];
   if (!u.bestRaceTime)   u.bestRaceTime   = null;
@@ -1860,8 +1896,17 @@ function pickRarityWithCharms(db, userId, customWeights) {
   }
   return pickRarity(weights);
 }
-function pickPlant(rarityName, allowDropOnly = false) {
-  const pool = PLANTS.filter(p => p.rarity === rarityName && !p.giftOnly && (allowDropOnly || !p.dropOnly));
+// allowEvent1_0: whether plants tagged `event: '1.0'` are eligible for this
+// roll. Defaults false so every existing call site (crates, !daily, !weekly)
+// is unaffected — only the passive drop path opts in, and only for the
+// rarities the 1.0 pool is meant to touch (see PASSIVE_DROP_1_0_RARITIES).
+function pickPlant(rarityName, allowDropOnly = false, allowEvent1_0 = false) {
+  const pool = PLANTS.filter(p =>
+    p.rarity === rarityName &&
+    !p.giftOnly &&
+    (allowDropOnly || !p.dropOnly) &&
+    (allowEvent1_0 || p.event !== '1.0')
+  );
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
 }
 function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
@@ -1991,6 +2036,19 @@ function getLiveSellValue(storedPlant, collection) {
     ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
     : null;
   return calcSellValue(plantDef, rarity, mutDef, version);
+}
+
+// Leaves counterpart of getLiveSellValue. Only really applies to `event: '1.0'`
+// plants (Exclusives can't be 1.0 plants, so no mimic-value branch is needed
+// here). Returns the Leaves payout for a stored plant.
+function getLiveLeavesValue(storedPlant) {
+  const rarity   = getRarityConfig(storedPlant.rarity);
+  const version  = storedPlant.version || 1;
+  const plantDef = PLANTS.find(p => p.name === storedPlant.name) || { name: storedPlant.name, dropOnly: false };
+  const mutDef   = storedPlant.mutation
+    ? MUTATIONS.find(m => m.name === storedPlant.mutation.name) || storedPlant.mutation
+    : null;
+  return calcLeavesValue(plantDef, rarity, mutDef, version);
 }
 
 // Formats a sell value for display, showing "???" for unknown Exclusive values.
@@ -2142,6 +2200,12 @@ async function tryActivityDrop(channel) {
   }
 }
 
+// Passive drop formula: existing plants + Upd 1.0 Common–Legendary (dropOnly
+// Secrets, like Eclipse Bloom, are already included separately via the
+// `allowDropOnly: true` passed to pickPlant below). 1.0 Mythic/Super plants
+// are deliberately excluded here — they're reserved for the Fall Crate.
+const PASSIVE_DROP_1_0_RARITIES = new Set(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary']);
+
 // ─── Drop ─────────────────────────────────────────────────────────────────────
 async function sendDrop(channel, opts = {}) {
   if (typeof opts === 'string') opts = { rarityName: opts };
@@ -2155,7 +2219,7 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    plant = pickPlant(rarity.name, true);
+    plant = pickPlant(rarity.name, true, PASSIVE_DROP_1_0_RARITIES.has(rarity.name));
   }
   const activeWeather = getActiveWeather();
   let mutation;
@@ -5300,7 +5364,7 @@ if (cmd === 'web') {
     }
 
     const seconds = parseInt(args[1]);
-    if (!seconds || seconds < 1 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (5–300) or `!setrace <channel id> on|off`');
+    if (!seconds || seconds < 1 || seconds > 300) return message.reply('Usage: `!setrace <seconds>` (1–300) or `!setrace <channel id> on|off`');
     raceTimer = seconds;
     return message.reply(`✅ Race timer set to **${raceTimer} seconds**.`);
   }
@@ -7312,7 +7376,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         .setTitle('🌿 Plant Bot — Help')
         .setDescription('Welcome to Plant Bot! Choose a category to learn more.')
         .addFields(
-          { name: '📖  !help iddnfo', value: 'Rarities, mutations, charm effects & how the game works' },
+          { name: '📖  !help info', value: 'Rarities, mutations, charm effects & how the game works' },
           { name: '🎮  !help play', value: 'Claims, daily/weekly, inventory, selling, trading, market, profile' },
           { name: '🏆  !help compete', value: 'Races, leaderboards & garden ranking explained' },
           { name: '🛒  !help shop', value: 'Crates, charms and titles — prices & effects' },
