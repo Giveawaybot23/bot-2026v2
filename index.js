@@ -516,6 +516,7 @@ const CRATE_COOLDOWNS = {
   gold:    60 * 1000,
   diamond: 90 * 1000,
   ruby:    150 * 1000,
+  leaf:    180 * 1000,
 };
 
 const COOLDOWN_EXEMPT_IDS = [
@@ -1141,6 +1142,21 @@ const CRATES = {
 
   ruby:    { name: 'Super Seed Crate',   emoji: '<:ruby:1477667927854682254>',         color: 0xFF1744, price: 32000, minLevel: 40, plants: 10,
     weights: { Common:  50000, Uncommon:  80000, Rare: 627000, Epic: 135313, Legendary:  67656, Mythic: 27063, Super:  11276, Secret:   1624 } },
+
+  // ─── Leaf Crate ─────────────────────────────────────────────────────────
+  // Bought with Leafs, not Coins. Its pool is every plant in the game —
+  // every regular plant PLUS every "Upd 1.0" event plant, including the
+  // Mythic+ event plants (Amber Cranberry, Conifer Cone, Ghost Pepper,
+  // Crimson Pomegranate, Romanesco, Maple Pomegranate, Maple Venom Spitter,
+  // Maple Venus Fly Trap) that are flagged `crateOnly` and can NEVER drop —
+  // this crate is their only source. `includesEventPlants: true` is what
+  // tells openCrate() to pass allowLeafEvent+allowCrateOnly through to
+  // pickPlant for this crate specifically.
+  // Price/EV math: pool-average leaf-equivalent value per slot ≈ 4,126,
+  // ×10 slots ≈ 41,258 EV. Priced at ~1.16x EV (in line with Ruby's own
+  // ~1.16x price/EV ratio) → 48,000 Leafs.
+  leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 48000, minLevel: 40, plants: 10, currency: 'leafs', includesEventPlants: true,
+    weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
@@ -1204,16 +1220,16 @@ const PLANTS = [
   // ── Standalone new plants ────────────────────────────────────────────
   { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' , dropOnly: true, leafCurrency: true },
   { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' , dropOnly: true, leafCurrency: true },
-  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' , dropOnly: true, leafCurrency: true },
+  { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' , crateOnly: true, leafCurrency: true },
   { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
   { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' , dropOnly: true, leafCurrency: true },
   { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'Epic' , dropOnly: true, leafCurrency: true },
-  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
-  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+  { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
+  { name: 'Ghost Pepper',           file: './images/GhostPepperProduce.png',                 display: 'GhostPepperProduce.png',                 rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
   { name: 'Plum',                   file: './images/PlumProduce.png',                        display: 'PlumProduce.png',                        rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
   { name: 'Poison Ivy',             file: './images/PoisonIvyProduce.png',                   display: 'PoisonIvyProduce.png',                   rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
-  { name: 'Crimson Pomegranate',    file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
-  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'Mythic' , dropOnly: true, leafCurrency: true },
+  { name: 'Crimson Pomegranate',    file: './images/PomegranateProduce.png',                 display: 'PomegranateProduce.png',                 rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
+  { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
 
   // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
   { name: 'Maple Acorn',          file: './images/MapleAcornCrop.png', display: 'MapleAcornCrop.png', rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
@@ -1232,13 +1248,13 @@ const PLANTS = [
   { name: 'Maple Mango',          file: './images/MapleMangoCrop.png',        display: 'MapleMangoCrop.png',        rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
   { name: 'Maple Mushroom',       file: './images/MapleMushroomCrop.png',     display: 'MapleMushroomCrop.png',     rarity: 'Epic'      , dropOnly: true, leafCurrency: true },
   { name: 'Maple Pineapple',      file: './images/MaplePineappleCrop.png',    display: 'MaplePineappleCrop.png',    rarity: 'Rare'      , dropOnly: true, leafCurrency: true },
-  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Pomegranate',    file: './images/MaplePomegranateCrop.png',  display: 'MaplePomegranateCrop.png',  rarity: 'Mythic'    , crateOnly: true, leafCurrency: true },
   { name: 'Maple Strawberry',     file: './images/MapleStrawberryCrop.png',   display: 'MapleStrawberryCrop.png',   rarity: 'Common'    , dropOnly: true, leafCurrency: true },
   { name: 'Maple Sunflower',      file: './images/MapleSunflowerCrop.png',    display: 'MapleSunflowerCrop.png',    rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
   { name: 'Maple Tomato',         file: './images/MapleTomatoCrop.png',       display: 'MapleTomatoCrop.png',       rarity: 'Uncommon'  , dropOnly: true, leafCurrency: true },
   { name: 'Maple Tulip',          file: './images/MapleTulipCrop.png',        display: 'MapleTulipCrop.png',        rarity: 'Uncommon'  , dropOnly: true, leafCurrency: true },
-  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
-  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    , dropOnly: true, leafCurrency: true },
+  { name: 'Maple Venom Spitter',  file: './images/MapleVenomSpitterCrop.png', display: 'MapleVenomSpitterCrop.png', rarity: 'Mythic'    , crateOnly: true, leafCurrency: true },
+  { name: 'Maple Venus Fly Trap', file: './images/MapleVenusFlyTrapCrop.png', display: 'MapleVenusFlyTrapCrop.png', rarity: 'Mythic'    , crateOnly: true, leafCurrency: true },
 
 ];
 
@@ -1879,8 +1895,14 @@ function pickRarityWithCharms(db, userId, customWeights) {
   }
   return pickRarity(weights);
 }
-function pickPlant(rarityName, allowDropOnly = false) {
-  const pool = PLANTS.filter(p => p.rarity === rarityName && !p.giftOnly && (allowDropOnly || !p.dropOnly));
+function pickPlant(rarityName, allowDropOnly = false, allowLeafEvent = false, allowCrateOnly = false) {
+  const pool = PLANTS.filter(p =>
+    p.rarity === rarityName &&
+    !p.giftOnly &&
+    (allowDropOnly  || !p.dropOnly) &&
+    (allowLeafEvent || !p.leafCurrency) &&
+    (allowCrateOnly || !p.crateOnly)
+  );
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : PLANTS[0];
 }
 function getRarityConfig(name) { return RARITIES.find(r => r.name === name) || RARITIES[0]; }
@@ -2206,7 +2228,7 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    plant = pickPlant(rarity.name, true);
+    plant = pickPlant(rarity.name, true, true);
   }
   const activeWeather = getActiveWeather();
   let mutation;
@@ -2895,7 +2917,7 @@ function openCrate(crateKey, db, userId) {
     // PLANTS[0] (Carrot) while keeping the Secret rarityConfig/sell price —
     // a mispriced "Common" worth 250,000 coins. Now that Secret weight only
     // exists on the Ruby crate, this lets it correctly resolve to Eclipse Bloom.
-    const plant    = pickPlant(rarity.name, true);
+    const plant    = pickPlant(rarity.name, true, !!crate.includesEventPlants, !!crate.includesEventPlants);
     const mutation = rollMutation(activeWeather ? activeWeather.name : null, WEATHER_MUTATION_CHANCE_CRATE);
     return { ...plant, rarityConfig: rarity, mutation };
   });
@@ -4068,7 +4090,7 @@ async function generateInventoryImage(data) {
 
 // ─── Shop pages ───────────────────────────────────────────────────────────────
 const SHOP_PAGES = [
-  { title: '📦 Crates', fields: () => Object.entries(CRATES).map(([, c]) => ({ name: `${c.emoji} ${c.name} — ${c.price.toLocaleString()} ${CURRENCY_NAME}`, value: `Opens **${c.plants} plants**.\nRequires **Level ${c.minLevel}**.\n\`!buy ${c.name.split(' ')[0].toLowerCase()}\`` })) },
+  { title: '📦 Crates', fields: () => Object.entries(CRATES).map(([, c]) => ({ name: `${c.emoji} ${c.name} — ${c.price.toLocaleString()} ${c.currency === 'leafs' ? LEAF_NAME : CURRENCY_NAME}`, value: `Opens **${c.plants} plants**.\nRequires **Level ${c.minLevel}**.\n\`!buy ${c.name.split(' ')[0].toLowerCase()}\`` })) },
   { title: '🔮 Charms', fields: (user) => Object.entries(CHARMS).map(([key, ch]) => {
     const owned = user.charms.includes(key), equipped = user.equippedCharms.includes(key);
     const status = owned ? (equipped ? ' ✅ *Equipped*' : ' *(Owned)*') : '';
@@ -4084,7 +4106,10 @@ const SHOP_PAGES = [
 ];
 function buildShopEmbed(pageIndex, user, balance) {
   const page = SHOP_PAGES[pageIndex], total = SHOP_PAGES.length, fields = page.fields(user);
-  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: `${balance.toLocaleString()}   •   Page ${pageIndex+1} of ${total}`, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
+  const footerText = user.leafs > 0
+    ? `${balance.toLocaleString()} Coins  ·  ${user.leafs.toLocaleString()} Leafs   •   Page ${pageIndex+1} of ${total}`
+    : `${balance.toLocaleString()}   •   Page ${pageIndex+1} of ${total}`;
+  return new EmbedBuilder().setTitle(`🛒 Plant Shop — ${page.title}`).addFields(...fields).setFooter({ text: footerText, iconURL: 'https://cdn.discordapp.com/emojis/1477684491320426601.png' }).setColor(0x7289DA);
 }
 
 process.on('SIGTERM', () => {
@@ -6873,7 +6898,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     if (userLevel < crate.minLevel) {
       return message.reply(`❌ You need to be **Level ${crate.minLevel}** to open ${crate.name}. You're currently Level ${userLevel}.`);
     }
-    if (user.currency < crate.price) return message.reply(`❌ Need ${fmt(crate.price)}.`);
+    const crateIsLeaf = crate.currency === 'leafs';
+    const crateAfford = crateIsLeaf ? (user.leafs || 0) : user.currency;
+    if (crateAfford < crate.price) return message.reply(`❌ Need ${crateIsLeaf ? fmtLeaf(crate.price) : fmt(crate.price)}.`);
     if (!user.crateCooldowns) user.crateCooldowns = {};
     const lastUsed = user.crateCooldowns[crateKey] || 0;
     const cdMs = CRATE_COOLDOWNS[crateKey] || 0;
@@ -6885,9 +6912,10 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     return queueForUser(message.author.id, async () => {
       const db = loadDB();
       const user = getUser(db, message.author.id);
+      const crateAffordInner = crateIsLeaf ? (user.leafs || 0) : user.currency;
 
-      if (user.currency < crate.price)
-        return message.channel.send(`❌ Not enough coins — need ${fmt(crate.price)}.`);
+      if (crateAffordInner < crate.price)
+        return message.channel.send(`❌ Not enough ${crateIsLeaf ? 'Leafs' : 'coins'} — need ${crateIsLeaf ? fmtLeaf(crate.price) : fmt(crate.price)}.`);
 
       if (!user.crateCooldowns) user.crateCooldowns = {};
       const lastUsedInner = user.crateCooldowns[crateKey] || 0;
@@ -6903,8 +6931,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
 
       let dupeBlockedCount = 0;
       if (!TEST_IDS.has(message.author.id)) {
-        user.currency -= crate.price;
-        trackSpent(user, message.author.id, crate.price, message.channel);
+        if (crateIsLeaf) { user.leafs = (user.leafs || 0) - crate.price; }
+        else { user.currency -= crate.price; trackSpent(user, message.author.id, crate.price, message.channel); }
         user.crateCooldowns[crateKey] = Date.now();
         const crateMeta = loadMeta();
         for (const p of results) {
@@ -6923,7 +6951,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         }
         if (dupeBlockedCount > 0) {
           const refund = Math.round((crate.price / crate.plants) * dupeBlockedCount);
-          user.currency += refund;
+          if (crateIsLeaf) user.leafs = (user.leafs || 0) + refund;
+          else user.currency += refund;
         }
         saveMeta(crateMeta);
         user.cratesOpened = (user.cratesOpened||0) + 1;
@@ -6942,7 +6971,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       const cratePnl = crateValue - crate.price;
       const pnlStr = cratePnl >= 0 ? `🔼 **+${cratePnl.toLocaleString()}**` : `🔽 **${cratePnl.toLocaleString()}**`;
       const dupeRefundStr = dupeBlockedCount > 0 ? `  ·  ⚠️ ${dupeBlockedCount} slot${dupeBlockedCount!==1?'s':''} refunded (version collision)` : '';
-      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}${dupeRefundStr}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
+      const balanceStr = crateIsLeaf ? fmtLeaf(user.leafs || 0) : `${CURRENCY_EMOJI} **${user.currency.toLocaleString()}**`;
+      return message.channel.send({ embeds: [new EmbedBuilder().setTitle(`${crate.emoji} ${crate.name} — Click to Reveal`).setDescription(`${balanceStr}  ·  ${pnlStr}${autoEarned > 0 ? `  ·  ⚡ **+${autoEarned.toLocaleString()}** autosold` : ''}${dupeRefundStr}\n\n*Each plant is hidden — click to reveal...*\n\n${spoilerLines.join('\n')}`).setColor(crate.color)] });
     });
   }
 
@@ -7548,6 +7578,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!sell <plant> all` — Sell all copies at once',
               '`!sellbatch [-r rarity] [-m mutation] [-v op#] [-p plant] [--confirm]` — Bulk sell by filter',
               '*v1–v10 are always protected from batch sells.*',
+              '',
+              '🍁 *Event plants sell for Leafs, not Coins — check `!leafs` for your balance. Leafs convert to Coins 1:1 when the event ends.*',
             ].join('\n'),
           },
           {
@@ -7670,6 +7702,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`gold` — 10,000 coins',
               '`diamond` — 30,000 coins',
               '`ruby` — 75,000 coins',
+              '🍁 `leaf` — 48,000 Leafs *(event only — has every plant in the game, including Mythic+ event exclusives)*',
               '*Higher tier crates have significantly better rarity odds.*',
             ].join('\n'),
           },
@@ -7735,6 +7768,8 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
             value: [
               '`!addcurrency @user <amount>` — Give coins',
               '`!removecurrency @user <amount>` — Remove coins',
+              '`!addleafs @user <amount>` — Give event Leafs',
+              '`!endleafevent` — Convert every user\'s Leafs → Coins (1:1) and reset Leafs to 0. Irreversible, requires confirmation phrase.',
               '`!addxp @user <amount>` — Give XP',
               '`!removexp @user <amount>` — Remove XP',
               '`!removeplant @user <plant>` — Remove a plant from a user',
@@ -8450,13 +8485,18 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
       if (remaining > 0)
         return res.status(400).json({ error: 'On cooldown', cooldownMs: remaining });
 
-      if ((user.currency || 0) < crate.price)
+      const crateIsLeaf = crate.currency === 'leafs';
+      if (crateIsLeaf) {
+        if ((user.leafs || 0) < crate.price)
+          return res.status(400).json({ error: `Not enough Leafs — need ${crate.price.toLocaleString()}` });
+      } else if ((user.currency || 0) < crate.price) {
         return res.status(400).json({ error: `Not enough coins — need ${crate.price.toLocaleString()}` });
+      }
 
       const results     = openCrate(crateId, db, req.user.id);
       const addedPlants = [];
-      user.currency -= crate.price;
-      trackSpent(user, req.user.id, crate.price);
+      if (crateIsLeaf) { user.leafs = (user.leafs || 0) - crate.price; }
+      else { user.currency -= crate.price; trackSpent(user, req.user.id, crate.price); }
       user.crateCooldowns[crateId] = Date.now();
 
       const crateMeta = loadMeta();
@@ -8490,6 +8530,7 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
         ok: true,
         plants: addedPlants,
         newBalance: user.currency,
+        newLeafBalance: user.leafs || 0,
         autoSold: autoEarned,
         cooldownMs: CRATE_COOLDOWNS[crateId] || 0,
       });
@@ -9445,4 +9486,4 @@ app.delete('/api/merchant/price-alert/:id', (req, res) => {
 httpServer.listen(PORT, () => console.log(`🌐 Website running on port ${PORT}`));
 }
 
-client.login(TOKEN); 
+client.login(TOKEN);
