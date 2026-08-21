@@ -8023,6 +8023,7 @@ app.get('/api/profile/:id', (req, res) => {
       level, xp, pct, needed, progress,
       rank: { name: rank.name, emoji: rank.emoji },
       currency: user.currency || 0,
+      leafs: user.leafs || 0,
       plants: user.collection?.length || 0,
       achievements: user.achievements?.length || 0,
       collection: (user.collection||[]),

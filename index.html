@@ -152,6 +152,35 @@
     pointer-events: none;
   }
 
+  .hero-left { position: relative; z-index: 1; }
+
+  /* ── FALL DECORATION — drifting leaves ── */
+  .hero-fall-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .fall-leaf {
+    position: absolute; top: -24px; width: 11px; height: 11px;
+    border-radius: 0 60% 0 60%;
+    animation: fallDrift linear infinite;
+    opacity: 0;
+  }
+  @keyframes fallDrift {
+    0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+    6%   { opacity: 0.65; }
+    92%  { opacity: 0.45; }
+    100% { transform: translateY(calc(100vh)) translateX(var(--drift, 40px)) rotate(var(--spin, 300deg)); opacity: 0; }
+  }
+
+  .fall-banner {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #a4470f;
+    background: rgba(226,113,29,0.10); border: 1px solid rgba(226,113,29,0.28);
+    padding: 6px 14px; border-radius: 100px; margin-bottom: 16px;
+  }
+  .fall-banner::before {
+    content: ''; width: 9px; height: 9px; border-radius: 0 55% 0 55%;
+    background: linear-gradient(135deg, #f2a65a, #a4470f); flex-shrink: 0;
+  }
+
   .hero-eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 12px; font-weight: 600; letter-spacing: 0.12em;
@@ -502,6 +531,7 @@
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 24px; margin-top: 56px;
   }
+  .feature-grid .feature-card:last-child:nth-child(3n+1) { grid-column: 2; }
   .feature-card {
     background: var(--card); border-radius: var(--radius);
     padding: 32px; border: 1px solid var(--border);
@@ -1084,6 +1114,7 @@
     border-radius: 0; height: auto;
   }
   #coin-display { display: none !important; }
+  #leaf-display { display: none !important; }
   .nav-logo { font-size: 15px; }
 
   .nav-links > a { width: 100%; padding: 12px 16px; height: auto; overflow: visible; line-height: 1.2; }
@@ -1108,6 +1139,7 @@
   .hero-right { display: none; }
   .stats-row { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
+  .feature-grid .feature-card:last-child:nth-child(3n+1) { grid-column: 1; }
   .lb-grid { grid-template-columns: 1fr; }
   .profiles-grid { grid-template-columns: 1fr 1fr; }
   .section { padding: 48px 16px; }
@@ -1167,6 +1199,7 @@
   .market-card-price { font-size: 13px; }
   .auction-card-name { font-size: 13px; }
   .feature-grid { grid-template-columns: 1fr; gap: 12px; }
+  .feature-grid .feature-card:last-child:nth-child(3n+1) { grid-column: 1; }
   .lb-subtabs { flex-wrap: wrap; gap: 4px; }
   .profile-stats { grid-template-columns: 1fr 1fr; }
   ._pcols { gap: 12px !important; padding: 12px 10px 60px !important; }
@@ -2135,6 +2168,7 @@
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
+    <div id="leaf-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="notif-bell-wrap" style="position:relative;display:none">
       <button onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0" onmouseover="this.style.background='var(--ink)';this.style.color='var(--bg)'" onmouseout="this.style.background='var(--card)';this.style.color='var(--ink)'">
         🔔
@@ -2165,7 +2199,9 @@
 <div class="page active" id="page-home">
 
   <section class="hero">
+    <div class="hero-fall-layer" id="hero-fall-layer"></div>
     <div class="hero-left">
+      <div class="fall-banner">Fall Event · Maple Seed Crate</div>
       <div class="hero-eyebrow">Live on Discord</div>
       <h1 class="hero-title">Collect.<br><em>Trade.</em><br>Grow.</h1>
       <p class="hero-sub">A plant collecting game built into Discord. Claim rare drops, open packs, trade with friends, and build the ultimate garden.</p>
@@ -2268,6 +2304,13 @@
         <div class="feature-icon">🏆</div>
         <div class="feature-title">Garden Score</div>
         <div class="feature-desc">Your weighted score accounts for rarity, mutations, and version. Climb from Iron to Celestial tier.</div>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon" style="background:rgba(226,113,29,0.14)">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C7 5 3 9 3 14a9 9 0 0 0 9 6 9 9 0 0 0 9-6c0-5-4-9-9-12Z" fill="#e2711d" stroke="#a4470f" stroke-width="1"/><path d="M12 4.5V19" stroke="#a4470f" stroke-width="1" stroke-linecap="round"/></svg>
+        </div>
+        <div class="feature-title">Fall Event Leaves</div>
+        <div class="feature-desc">A limited-time currency earned from event drops. Sell Fall plants for Leaves, then spend them on the Maple Seed Crate — the only place to find several exclusive plants.</div>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon">⚠️</div>
@@ -2768,6 +2811,8 @@
 .pk-pack-card.gold::before{background:linear-gradient(90deg,#FFD700,#ff9900)}
 .pk-pack-card.platinum::before{background:linear-gradient(90deg,#00BFFF,#80dfff)}
 .pk-pack-card.ruby::before{background:linear-gradient(90deg,#e53935,#ff8a80)}
+.pk-pack-card.maple::before{background:linear-gradient(90deg,#a4470f,#e2711d,#f2a65a)}
+.pk-pack-card.maple{background:linear-gradient(180deg,var(--card) 0%,var(--card) 78%,rgba(226,113,29,0.05) 100%)}
 .pk-pack-name{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.1rem;color:var(--ink);letter-spacing:-.01em}
 .pk-pack-desc{font-size:12px;color:var(--ink3);text-align:center;line-height:1.6}
 .pk-pack-price{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.45rem;color:var(--ink);letter-spacing:-.02em;margin-top:4px}
@@ -2778,6 +2823,7 @@
 .pk-pack-card.gold .pk-pack-btn{background:linear-gradient(90deg,#FFD700,#ff9900);color:#1a0a00}
 .pk-pack-card.platinum .pk-pack-btn{background:linear-gradient(90deg,#00BFFF,#40d4ff);color:#fff}
 .pk-pack-card.ruby .pk-pack-btn{background:linear-gradient(90deg,#e53935,#ff6b6b);color:#fff}
+.pk-pack-card.maple .pk-pack-btn{background:linear-gradient(90deg,#a4470f,#e2711d);color:#fff}
 .pk-pack-btn:hover{filter:brightness(1.12) saturate(1.1);transform:translateY(-1px)}
 .pk-odds-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
 .pk-odd-pill{font-size:10px;font-weight:700;padding:2px 9px;border-radius:100px;background:var(--bg2);border:1px solid var(--border)}
@@ -2946,6 +2992,9 @@ const PK_PACKS = [
   { id:'ruby',     crateKey:'ruby',     name:'Ruby Pack',    tier:'ruby',     img:'/images/crates/ruby.webp', price:32000, minLevel:40, cards:10,
     color1:'#1a0000', color2:'#3d0505', accent:'#e53935', gemColor:'#ff8a80',
     desc:'The rarest drops. The highest stakes.', odds:{ Common:8, Uncommon:10, Rare:18, Epic:25, Legendary:20, Mythic:6, Super:2.2, Secret:0.06 } },
+  { id:'maple',    crateKey:'leaf',     name:'Maple Seed Crate', tier:'maple', img:'/images/crates/leaf.webp', price:20000, minLevel:15, cards:10,
+    color1:'#2e1200', color2:'#6b2a05', accent:'#e2711d', gemColor:'#ffb066', currency:'leafs',
+    desc:'Every plant in the game, including Fall event exclusives found nowhere else.', odds:{ Common:4, Uncommon:9, Rare:55, Epic:18, Legendary:9, Mythic:3.5, Super:1.2, Secret:0.3 } },
 ];
 
 const PK_RARITY_COLORS = { Common:'#9E9E9E',Uncommon:'#4CAF50',Rare:'#2196F3',Epic:'#9C27B0',Legendary:'#FFD700',Mythic:'#F44336',Super:'#00E5FF',Secret:'#9c5fff' };
@@ -3032,11 +3081,13 @@ function renderPackShop(){
     const cdSecs = Math.ceil(cdMs / 1000);
     const cdStr = cdSecs >= 60 ? `${Math.floor(cdSecs/60)}m ${cdSecs%60}s` : `${cdSecs}s`;
     const btnLabel = onCd ? `⏳ ${cdStr}` : 'Open Pack';
+    const isLeaf = p.currency === 'leafs';
+    const fallbackIcon = isLeaf ? LEAF_ICON_SVG.replace('width="16" height="16"', 'width="56" height="56"') : '';
     return `
     <div class="pk-pack-card ${p.tier}" data-cratekey="${p.crateKey}"
       onclick="${onCd ? '' : `pkOpenModal('${p.id}')`}"
       style="${onCd ? 'opacity:0.7;cursor:default' : ''}">
-      <img src="${p.img}" alt="${p.name}" style="width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 4px 12px ${p.accent}66)">
+      <img src="${p.img}" alt="${p.name}" style="width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 4px 12px ${p.accent}66)" onerror="this.outerHTML='${fallbackIcon.replace(/'/g,"\\'")}'">
       <div class="pk-pack-name">${p.name}</div>
       <div class="pk-pack-desc">${p.desc}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:-4px">Lv.${p.minLevel}+ · ${p.cards} plants</div>
@@ -3045,7 +3096,7 @@ function renderPackShop(){
           <div class="pk-odd-pill" style="color:${PK_RARITY_COLORS[r]};border-color:${PK_RARITY_COLORS[r]}44;background:${PK_RARITY_COLORS[r]}11">${r.slice(0,3)} ${p.odds[r]}%</div>
         `).join('')}
       </div>
-      <div class="pk-pack-price">${p.price.toLocaleString()}<small>coins</small></div>
+      <div class="pk-pack-price">${p.price.toLocaleString()}<small>${isLeaf ? 'leaves' : 'coins'}</small></div>
       <button class="pk-pack-btn" ${onCd ? 'disabled' : ''}
         onclick="event.stopPropagation();${onCd ? '' : `pkOpenModal('${p.id}')`}">${btnLabel}</button>
     </div>`;
@@ -3086,7 +3137,7 @@ function renderPackVisual(pack){
       <div class="pk-gem br" style="background:${pack.gemColor};box-shadow:0 0 6px ${pack.gemColor}"></div>
       <div class="pk-scan-line"></div><div class="pk-scan-line"></div><div class="pk-scan-line"></div>
       <div class="pk-pv-icon">
-        <img src="${pack.img}" alt="${pack.name}" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(255,255,255,.4));animation:pkIconPulse 2.5s ease-in-out infinite;margin-bottom:8px">
+        <img src="${pack.img}" alt="${pack.name}" style="width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 0 16px rgba(255,255,255,.4));animation:pkIconPulse 2.5s ease-in-out infinite;margin-bottom:8px" onerror="this.style.display='none'">
         <div class="pk-pv-label" style="color:${pack.accent}">${pack.name.toUpperCase()}</div>
         <div class="pk-pv-sub">${pack.cards} PLANTS INSIDE</div>
       </div>
@@ -3153,8 +3204,9 @@ async function pkDoOpen(){
     setTimeout(()=>{ pv.classList.add('splitting'); pkFlash(pack.accent+'88'); pkBurst(cx,cy,pack.accent,35); },80);
   }
 
-  // Success — use server plants, update coins
+  // Success — use server plants, update coins/leaves
   if(data.newBalance !== undefined) updateNavCoins(data.newBalance);
+  if(data.newLeafBalance !== undefined) updateNavLeaves(data.newLeafBalance);
   if(data.autoSold > 0) showToast(`⚡ Autosell: +${data.autoSold.toLocaleString()} coins from new plants.`);
 
   // Map server plants to the card format _pkPack expects
@@ -3923,6 +3975,25 @@ function populateLBAvatarsForCategory(cat) {
     fillFor(lb.daily, 'claims-daily', 'userId');
     fillFor(lb.weeklyClaims || lb.weekly || [], 'claims-weekly', 'userId');
   }
+}
+
+// ── FALL DECORATION — drifting leaves on the home hero ──
+function buildHeroFallLayer() {
+  const wrap = document.getElementById('hero-fall-layer');
+  if (!wrap) return;
+  const colors = ['#e2711d', '#a4470f', '#f2a65a', '#c1440e'];
+  let html = '';
+  for (let i = 0; i < 14; i++) {
+    const left  = Math.random() * 100;
+    const dur   = 10 + Math.random() * 12;
+    const delay = -Math.random() * dur;
+    const drift = (Math.random() * 80 - 40).toFixed(0) + 'px';
+    const spin  = (200 + Math.random() * 300).toFixed(0) + 'deg';
+    const size  = (8 + Math.random() * 8).toFixed(0) + 'px';
+    const color = colors[i % colors.length];
+    html += `<div class="fall-leaf" style="left:${left}%;width:${size};height:${size};background:${color};--drift:${drift};--spin:${spin};animation-duration:${dur}s;animation-delay:${delay}s"></div>`;
+  }
+  wrap.innerHTML = html;
 }
 
 // ── SCROLL REVEAL ──
@@ -5776,7 +5847,44 @@ async function loadNavCoins(userId, forceRefresh = false) {
       el.style.gap = '8px';
       requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
     }
+
+    // Leaves — a temporary event currency, only shown once a user actually
+    // has a balance (most users will have 0 and never see the pill).
+    if (data.leafs > 0) renderNavLeaves(data.leafs);
   } catch(e) {}
+}
+
+const LEAF_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C7 5 3 9 3 14a9 9 0 0 0 9 6 9 9 0 0 0 9-6c0-5-4-9-9-12Z" fill="#e2711d" stroke="#a4470f" stroke-width="1"/><path d="M12 4.5V19" stroke="#a4470f" stroke-width="1" stroke-linecap="round"/></svg>`;
+
+function renderNavLeaves(amount) {
+  const el = document.getElementById('leaf-display');
+  if (!el) return;
+  const shown = amount >= 1000000 ? (amount/1000000).toFixed(1)+'M' : amount >= 1000 ? (amount/1000).toFixed(1)+'k' : amount.toLocaleString();
+  el.innerHTML = `
+  <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(226,113,29,0.12);border:1px solid rgba(226,113,29,0.32);border-radius:100px;padding:5px 14px">
+    ${LEAF_ICON_SVG}
+    <span class="leaf-badge-amount" style="font-size:13px;font-weight:700;color:var(--ink)">${shown}</span>
+  </div>`;
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+}
+
+function updateNavLeaves(newBalance) {
+  if (!newBalance || newBalance <= 0) return;
+  const el = document.getElementById('leaf-display');
+  if (!el || el.style.display === 'none') { renderNavLeaves(newBalance); return; }
+  const amountEl = el.querySelector('.leaf-badge-amount');
+  if (!amountEl) { renderNavLeaves(newBalance); return; }
+  const amount = newBalance >= 1000000 ? (newBalance/1000000).toFixed(1)+'M' : newBalance >= 1000 ? (newBalance/1000).toFixed(1)+'k' : newBalance.toLocaleString();
+  amountEl.style.transition = 'color 0.15s, transform 0.15s';
+  amountEl.style.color = '#e2711d';
+  amountEl.style.transform = 'scale(1.15)';
+  amountEl.textContent = amount;
+  setTimeout(() => {
+    amountEl.style.color = 'var(--ink)';
+    amountEl.style.transform = 'scale(1)';
+  }, 600);
 }
 
 // ── INIT ──
@@ -5784,6 +5892,7 @@ async function loadNavCoins(userId, forceRefresh = false) {
 initAuth().then(async () => {
   loadLiveData();
   triggerReveal();
+  buildHeroFallLayer();
   initGlobalWS();
 
   // Check for an active trade first — if there is one, always land on the trade page
