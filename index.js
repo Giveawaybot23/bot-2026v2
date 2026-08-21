@@ -1221,7 +1221,7 @@ const PLANTS = [
   { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' , dropOnly: true, leafCurrency: true },
   { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' , dropOnly: true, leafCurrency: true },
   { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' , crateOnly: true, leafCurrency: true },
-  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' , dropOnly: true, leafCurrency: true },
+  { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Secret' , dropOnly: true, leafCurrency: true },
   { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' , dropOnly: true, leafCurrency: true },
   { name: 'Cinnamon Stick',         file: './images/CinnamonStickProduce.png',               display: 'CinnamonStickProduce.png',               rarity: 'Epic' , dropOnly: true, leafCurrency: true },
   { name: 'Conifer Cone',           file: './images/ConiferConeProduce.png',                 display: 'ConiferConeProduce.png',                 rarity: 'Mythic' , crateOnly: true, leafCurrency: true },
