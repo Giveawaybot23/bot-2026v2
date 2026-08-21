@@ -7312,7 +7312,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
         .setTitle('🌿 Plant Bot — Help')
         .setDescription('Welcome to Plant Bot! Choose a category to learn more.')
         .addFields(
-          { name: '📖  !help info', value: 'Rarities, mutations, charm effects & how the game works' },
+          { name: '📖  !help idnfo', value: 'Rarities, mutations, charm effects & how the game works' },
           { name: '🎮  !help play', value: 'Claims, daily/weekly, inventory, selling, trading, market, profile' },
           { name: '🏆  !help compete', value: 'Races, leaderboards & garden ranking explained' },
           { name: '🛒  !help shop', value: 'Crates, charms and titles — prices & effects' },
