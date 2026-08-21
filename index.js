@@ -1184,8 +1184,8 @@ const PLANTS = [
   // ═══════════════════════════════════════════════════════════════════════
 
   // ── Standalone new plants ────────────────────────────────────────────
-  { name: 'Glow Mushroom',          file: './images/_MConverteu_GlowMushroomProduce.png',    display: '_MConverteu_GlowMushroomProduce.png',    rarity: 'Epic' },
-  { name: 'Horned Melon',           file: './images/_MConverteu_HornedMelonProduce.png',     display: '_MConverteu_HornedMelonProduce.png',     rarity: 'Rare' },
+  { name: 'Glow Mushroom',          file: './images/GlowMushroomProduce.png',    display: 'GlowMushroomProduce.png',    rarity: 'Epic' },
+  { name: 'Horned Melon',           file: './images/HornedMelonProduce.png',     display: 'HornedMelonProduce.png.',     rarity: 'Rare' },
   { name: 'Amber Cranberry',        file: './images/AmberCranberryCrop.png',                 display: 'AmberCranberryCrop.png',                 rarity: 'Super' },
   { name: 'Atlantic Giant Pumpkin', file: './images/AtlanticGiantPumpkinProducee.png',       display: 'AtlanticGiantPumpkinProducee.png',       rarity: 'Legendary' },
   { name: 'Baby Cactus',            file: './images/BabyCactusProduce.png',                  display: 'BabyCactusProduce.png',                  rarity: 'Rare' },
@@ -1198,7 +1198,7 @@ const PLANTS = [
   { name: 'Romanesco',              file: './images/RomanescoProduce.png',                   display: 'RomanescoProduce.png',                   rarity: 'Mythic' },
 
   // ── Maple Collection — reskins, rarity mirrors the base plant ─────────
-  { name: 'Maple Acorn',          file: './images/_MConverteu_MapleAcornCropProducee.png', display: '_MConverteu_MapleAcornCropProducee.png', rarity: 'Legendary' },
+  { name: 'Maple Acorn',          file: './images/MapleAcornCrop.png', display: 'MapleAcornCrop.png', rarity: 'Legendary' },
   { name: 'Maple Apple',          file: './images/MapleAppleCrop.png',        display: 'MapleAppleCrop.png',        rarity: 'Uncommon'  },
   { name: 'Maple Bamboo',         file: './images/MapleBambooCrop.png',       display: 'MapleBambooCrop.png',       rarity: 'Rare'      },
   { name: 'Maple Banana',         file: './images/MapleBananaCrop.png',       display: 'MapleBananaCrop.png',       rarity: 'Epic'      },
