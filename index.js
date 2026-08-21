@@ -193,6 +193,10 @@ client.on('interactionCreate', async (interaction) => {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PREFIX          = '!';
+// The starter-guide nudge should only ever post inside the bot's own
+// channels (garbot-1, garbot-2, commands, etc.) — never in general server
+// channels a new member might post in first.
+const GARBOT_CATEGORY_ID = '1539200696019189841';
 const DROP_COOLDOWN   = 2 * 60 * 1000;
 const ACTIVITY_WINDOW = 2 * 60 * 1000;
 
@@ -4103,8 +4107,9 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
   const lower   = content.toLowerCase();
 
   // Touch activity for any message from a known user. A brand-new user (not
-  // yet in the DB) gets initialized and, in a real guild, is greeted with the
-  // starter guide instead — but only once (guarded by hasSeenGuide).
+  // yet in the DB) gets initialized, and — only if they're posting inside the
+  // bot's own channel category — greeted with the starter guide, once
+  // (guarded by hasSeenGuide, only set true once the nudge actually sends).
   {
     const db = loadDB();
     if (db[message.author.id]) {
@@ -4114,7 +4119,7 @@ setTimeout(() => processedMessages.delete(message.id), 30000);
       const user = getUser(db, message.author.id);
       touchActivity(db, message.author.id, message.author);
       saveDB(db);
-      if (!user.hasSeenGuide) {
+      if (!user.hasSeenGuide && message.channel.parentId === GARBOT_CATEGORY_ID) {
         sendGuideNudge(message.channel, message.author.id).catch(err => console.error('[guide] auto-trigger failed:', err));
       }
     }
