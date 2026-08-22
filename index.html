@@ -1178,7 +1178,8 @@
   .profile-mini-stats { gap: 6px; }
   .auction-detail { padding: 12px 12px 60px; }
   #pk-shop-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .pk-pack-card { padding: 18px 14px 16px; }
+  .pk-pack-card { padding: 18px 14px 16px; gap: 10px; }
+  .pk-odd-pill { font-size: 9px; padding: 3px 8px; }
   #pack-scene { padding: 24px 12px; }
   #pk-title { font-size: 1.4rem; }
 }
@@ -2803,7 +2804,7 @@
 #pk-title span{color:var(--green)}
 #pk-sub{font-size:13px;color:var(--ink3);letter-spacing:.15em;text-transform:uppercase;text-align:center;position:relative;z-index:1;margin-bottom:40px}
 #pk-shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;width:100%;max-width:900px;position:relative;z-index:1;margin-bottom:40px}
-.pk-pack-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px 22px 22px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;cursor:pointer}
+.pk-pack-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px 22px 22px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;cursor:pointer}
 .pk-pack-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(14,13,11,.1)}
 .pk-pack-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .pk-pack-card.bronze::before{background:linear-gradient(90deg,#CD7F32,#e8aa6a)}
@@ -2813,11 +2814,12 @@
 .pk-pack-card.ruby::before{background:linear-gradient(90deg,#e53935,#ff8a80)}
 .pk-pack-card.maple::before{background:linear-gradient(90deg,#a4470f,#e2711d,#f2a65a)}
 .pk-pack-card.maple{background:linear-gradient(180deg,var(--card) 0%,var(--card) 78%,rgba(226,113,29,0.05) 100%)}
-.pk-pack-name{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.1rem;color:var(--ink);letter-spacing:-.01em}
-.pk-pack-desc{font-size:12px;color:var(--ink3);text-align:center;line-height:1.6}
-.pk-pack-price{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.45rem;color:var(--ink);letter-spacing:-.02em;margin-top:4px}
+.pk-pack-name{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.1rem;color:var(--ink);letter-spacing:-.01em;width:100%}
+.pk-pack-desc{font-size:12px;color:var(--ink3);text-align:center;line-height:1.55;width:100%;margin-top:-4px}
+.pk-pack-meta{font-size:11px;color:var(--ink3);width:100%;text-align:center}
+.pk-pack-price{font-family:'DM Sans',sans-serif;font-weight:700;font-size:1.45rem;color:var(--ink);letter-spacing:-.02em;margin-top:2px;width:100%;text-align:center}
 .pk-pack-price small{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:var(--ink3);margin-left:3px}
-.pk-pack-btn{width:100%;padding:11px;border-radius:100px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:4px}
+.pk-pack-btn{width:100%;padding:11px;border-radius:100px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:2px}
 .pk-pack-card.bronze .pk-pack-btn{background:linear-gradient(90deg,#CD7F32,#e8a84a);color:#fff}
 .pk-pack-card.silver .pk-pack-btn{background:linear-gradient(90deg,#888,#b0b0b0);color:#fff}
 .pk-pack-card.gold .pk-pack-btn{background:linear-gradient(90deg,#FFD700,#ff9900);color:#1a0a00}
@@ -2825,8 +2827,8 @@
 .pk-pack-card.ruby .pk-pack-btn{background:linear-gradient(90deg,#e53935,#ff6b6b);color:#fff}
 .pk-pack-card.maple .pk-pack-btn{background:linear-gradient(90deg,#a4470f,#e2711d);color:#fff}
 .pk-pack-btn:hover{filter:brightness(1.12) saturate(1.1);transform:translateY(-1px)}
-.pk-odds-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.pk-odd-pill{font-size:10px;font-weight:700;padding:2px 9px;border-radius:100px;background:var(--bg2);border:1px solid var(--border)}
+.pk-odds-row{display:flex;row-gap:8px;column-gap:6px;flex-wrap:wrap;justify-content:center;width:100%}
+.pk-odd-pill{font-size:10px;font-weight:700;padding:3px 10px;line-height:1.5;border-radius:100px;background:var(--bg2);border:1px solid var(--border);white-space:nowrap}
 /* ── MODAL ── */
 #pk-modal{display:none;position:fixed;inset:0;z-index:10000;overflow-y:auto;-webkit-overflow-scrolling:touch;align-items:safe center;justify-content:center;padding:12px;background:rgba(14,13,11,.65);backdrop-filter:blur(10px)}
 #pk-modal.open{display:flex}
@@ -3090,9 +3092,9 @@ function renderPackShop(){
       <img src="${p.img}" alt="${p.name}" style="width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 4px 12px ${p.accent}66)" onerror="this.outerHTML='${fallbackIcon.replace(/'/g,"\\'")}'">
       <div class="pk-pack-name">${p.name}</div>
       <div class="pk-pack-desc">${p.desc}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:-4px">Lv.${p.minLevel}+ · ${p.cards} plants</div>
+      <div class="pk-pack-meta">Lv.${p.minLevel}+ · ${p.cards} plants</div>
       <div class="pk-odds-row">
-        ${PK_RARITY_ORDER.filter(r=>p.odds[r]>0).map(r=>`
+        ${PK_RARITY_ORDER.filter(r=>p.odds[r]>=1).map(r=>`
           <div class="pk-odd-pill" style="color:${PK_RARITY_COLORS[r]};border-color:${PK_RARITY_COLORS[r]}44;background:${PK_RARITY_COLORS[r]}11">${r.slice(0,3)} ${p.odds[r]}%</div>
         `).join('')}
       </div>
