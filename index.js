@@ -1159,22 +1159,10 @@ const CRATES = {
 };
 
 // ── SOFT-LAUNCH ACCESS CONTROL ────────────────────────────────────────────────
-// Shared allowlist for Update 1.0's limited-release features: Fusion HQ,
-// Referrals, and the Leaf Event. Deliberately declared here at true top-level
-// module scope (NOT inside the `if (ENABLE_WEB_DASHBOARD)` block further down)
-// because the Leaf Event needs to gate Discord commands (!shop, !buy) that
-// run before that block, in addition to the web /api routes that run inside
-// it. Fusion HQ/Referrals are web-only so this didn't matter for them, but
-// putting LEAF_EVENT_ACCESS_IDS inside that block made it invisible to the
-// Discord command handlers (ReferenceError, silently swallowed — this is why
-// !shop stopped responding). Keep this declaration up here going forward.
-const FUSION_ACCESS_IDS = new Set([
-  '239725298403246081',
-  '734159803995259042',
-  '1363910513096130751',
-]);
-const REFERRAL_ACCESS_IDS  = FUSION_ACCESS_IDS;
-const LEAF_EVENT_ACCESS_IDS = FUSION_ACCESS_IDS;
+// Update 1.0's limited-release features (Fusion HQ, Referrals, the Leaf
+// Event) have graduated out of the soft-launch allowlist and are now open to
+// everyone. The allowlist and every gate that checked against it have been
+// removed; see index.html for the matching front-end change.
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
 const PLANTS = [
@@ -6860,7 +6848,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
-    user._hasLeafEventAccess = LEAF_EVENT_ACCESS_IDS.has(message.author.id);
+    user._hasLeafEventAccess = true; // Leaf Event is out of soft-launch — open to everyone
 
     const totalShopPages = SHOP_PAGES.length;
 
@@ -6885,7 +6873,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (interaction.customId === 'shop_prev') currentShopPage = Math.max(0, currentShopPage - 1);
       if (interaction.customId === 'shop_next') currentShopPage = Math.min(totalShopPages - 1, currentShopPage + 1);
       const freshDb = loadDB(); const freshUser = getUser(freshDb, message.author.id);
-      freshUser._hasLeafEventAccess = LEAF_EVENT_ACCESS_IDS.has(message.author.id);
+      freshUser._hasLeafEventAccess = true; // Leaf Event is out of soft-launch — open to everyone
       await interaction.update({ embeds: [buildShopEmbed(currentShopPage, freshUser, freshUser.currency)], components: [buildShopRow(currentShopPage)] });
     });
     shopCollector.on('end', () => {
@@ -6932,9 +6920,6 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply('❌ Crate buying is disabled in this channel.');
     }
     const crate = CRATES[crateKey];
-    if (crate.currency === 'leafs' && !LEAF_EVENT_ACCESS_IDS.has(message.author.id)) {
-      return message.reply('❌ Unknown item. Check `!shop`.');
-    }
     const userLevel = getLevelFromXP(user.xp || 0);
     if (userLevel < crate.minLevel) {
       return message.reply(`❌ You need to be **Level ${crate.minLevel}** to open ${crate.name}. You're currently Level ${userLevel}.`);
@@ -8513,9 +8498,6 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
     try {
       if (!crateId || !CRATES[crateId]) return res.status(400).json({ error: 'Unknown crate' });
       const crate = CRATES[crateId];
-      if (crate.currency === 'leafs' && !LEAF_EVENT_ACCESS_IDS.has(req.user.id)) {
-        return res.status(400).json({ error: 'Unknown crate' });
-      }
       const db    = loadDB();
       const user  = getUser(db, req.user.id);
 
@@ -8600,10 +8582,9 @@ app.get('/api/crate/cooldowns', (req, res) => {
 });
 
 // ── FUSION HQ / REFERRALS / LEAF EVENT ────────────────────────────────────────
-// FUSION_ACCESS_IDS, REFERRAL_ACCESS_IDS, and LEAF_EVENT_ACCESS_IDS now live
-// at true top-level scope near the CRATES definition, so both this web block
-// and the earlier Discord command handlers (!shop, !buy) can see them. See
-// the comment there for why. index.html has the matching cosmetic gate.
+// All three are now open to everyone — the soft-launch allowlist and its
+// checks (here and in the Discord !shop/!buy handlers) have been removed.
+// index.html has the matching front-end change.
 
 app.get('/api/referral/:id', (req, res) => {
   try {
@@ -8635,8 +8616,6 @@ app.get('/api/referral/:id', (req, res) => {
 
 app.post('/api/referral/set', express.json(), (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not logged in' });
-  if (!REFERRAL_ACCESS_IDS.has(req.user.id))
-    return res.status(403).json({ error: "Referrals is still in limited testing — you don't have access yet." });
 
   const { referrerUsername } = req.body || {};
   if (!referrerUsername || !referrerUsername.trim())
@@ -8674,8 +8653,6 @@ const FUSION_TIERS = [
 
 app.post('/api/fusion/fuse', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  if (!FUSION_ACCESS_IDS.has(req.user.id))
-    return res.status(403).json({ error: "Fusion HQ is still in limited testing — you don't have access yet." });
 
   const { rarity, plants } = req.body || {};
   const tier = FUSION_TIERS.find(t => t.from === rarity);

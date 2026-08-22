@@ -3077,12 +3077,9 @@ function _pkStartCooldownTicker() {
 function renderPackShop(){
   const grid=document.getElementById('pk-shop-grid');
   if(!grid)return;
-  // Leaf Event (Maple Seed Crate) is a soft-launch feature — hidden from
-  // the shop grid entirely unless the logged-in Discord ID is on the same
-  // allowlist as Fusion HQ/Referrals. See index.js LEAF_EVENT_ACCESS_IDS
-  // for the real (server-side) gate; this is just the cosmetic one.
-  const hasLeafAccess = !!(window._BETA_ACCESS_IDS && window._loggedInId && window._BETA_ACCESS_IDS.includes(String(window._loggedInId)));
-  const visiblePacks = PK_PACKS.filter(p => p.currency !== 'leafs' || hasLeafAccess);
+  // Leaf Event (Maple Seed Crate) has graduated out of soft-launch — it's
+  // now visible in the shop grid for everyone.
+  const visiblePacks = PK_PACKS;
   grid.innerHTML=visiblePacks.map(p=>{
     const cdMs = _pkCdMs(p.crateKey);
     const onCd = cdMs > 0;
@@ -5345,7 +5342,7 @@ ${isPodium ? `
     };
 
     /* ════════════════════════════════════
-       REFERRALS PANE (1.0 — soft-launch, gated to window._BETA_ACCESS_IDS)
+       REFERRALS PANE (1.0 — open to everyone, login required)
     ════════════════════════════════════ */
     let _rfLoaded = false;
 
@@ -5391,11 +5388,8 @@ ${isPodium ? `
      REFERRAL_REWARD_CAP (1,000,000) coins earned FROM THAT ONE
      referral (there's no cap on how many people you can refer).
 
-   Like Fusion HQ, this is gated client-side to window._BETA_ACCESS_IDS
-   (see the Fusion HQ script — that array is exposed on window so both
-   1.0 features share a single allowlist). This is a soft-launch gate
-   only — the real gate is server-side (REFERRAL_ACCESS_IDS, aliased
-   to the same FUSION_ACCESS_IDS Set), since anyone can read this JS.
+   Like Fusion HQ, Referrals has graduated out of the Update 1.0
+   soft-launch allowlist and is now open to any logged-in player.
 
    Backend endpoints (implemented):
 
@@ -5424,7 +5418,7 @@ const REFERRAL_ELIGIBILITY_CAP = 100000;  // can only be referred before this mu
 
 function _referralHasAccess() {
   const myId = window._loggedInId ? String(window._loggedInId) : null;
-  return !!myId && Array.isArray(window._BETA_ACCESS_IDS) && window._BETA_ACCESS_IDS.includes(myId);
+  return !!myId;
 }
 
 // Client-side mirror of the payout formula, used only for progress-bar
@@ -5441,14 +5435,14 @@ async function renderReferralsPane(pid, profileId, theme) {
   const accentSoft = isPodium ? (pk?.g + '.14)') : 'rgba(82,183,136,0.1)';
   const accent      = isPodium ? pk?.p : tc;
 
-  // Locked state — everyone can see the tab exists, only the allowlist
-  // (same two IDs as Fusion HQ) can actually open it during 1.0.
+  // Locked state — only shown to logged-out visitors now that the beta
+  // allowlist is gone; every logged-in player has access.
   if (!_referralHasAccess()) {
     pane.innerHTML = `
       <div style="text-align:center;padding:48px 20px;border:1px dashed ${bord};border-radius:12px">
         <div style="font-size:34px;margin-bottom:10px">🔒</div>
-        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${ink};margin-bottom:6px">Referrals is still sealed</div>
-        <div style="font-size:13px;color:${ink3};max-width:360px;margin:0 auto">This is a limited 1.0 rollout — only a couple of testers have access right now. Everyone else will get it in a future update.</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${ink};margin-bottom:6px">Log in to view Referrals</div>
+        <div style="font-size:13px;color:${ink3};max-width:360px;margin:0 auto">Log in with Discord to see your referral link and rewards.</div>
       </div>`;
     return;
   }
@@ -5801,16 +5795,13 @@ async function initAuth() {
         <a href="/auth/logout" style="font-size:12px;font-weight:500;color:var(--ink3);text-decoration:none;padding:5px 8px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Out</a>
       </div>`;
       window._loggedInId = data.user.id;
-      // Leaf Event soft-launch gate — same allowlist as Fusion HQ/Referrals
-      // (window._BETA_ACCESS_IDS, set later in this file). Both elements
-      // default to display:none in the HTML so logged-out visitors and
-      // non-testers never see the event advertised.
-      if (window._BETA_ACCESS_IDS && window._BETA_ACCESS_IDS.includes(String(data.user.id))) {
-        const banner = document.getElementById('home-fall-banner');
-        const card   = document.getElementById('home-leaf-feature-card');
-        if (banner) banner.style.display = '';
-        if (card)   card.style.display = '';
-      }
+      // Leaf Event has graduated out of soft-launch — show it to every
+      // logged-in player. Both elements default to display:none in the
+      // HTML so logged-out visitors still don't see the event advertised.
+      const banner = document.getElementById('home-fall-banner');
+      const card   = document.getElementById('home-leaf-feature-card');
+      if (banner) banner.style.display = '';
+      if (card)   card.style.display = '';
       document.getElementById('notif-bell-wrap').style.display = 'block';
       refreshNotifBadge();
       syncNotifPrefsFromServer();
@@ -9368,24 +9359,8 @@ async function deletePriceAlert(alertId) {
 (function() {
 
   // ── ACCESS CONTROL ──────────────────────────────────────────────
-  // Update 1.0: Fusion HQ is a limited-release feature. The nav link is
-  // public on purpose, but only these two Discord IDs can actually open
-  // the Chamber for now. Replace the placeholders below with the real
-  // Discord user IDs before this goes live.
-  //
-  // NOTE: this is a client-side gate only, good enough for a soft-launch
-  // in front of trusted testers. If/when the real /api/fusion/* endpoints
-  // are built, mirror this same allowlist check server-side too, since
-  // anyone can read this JS.
-  const FUSION_ACCESS_IDS = [
-    '239725298403246081',
-    '734159803995259042',
-    '1363910513096130751',
-  ];
-  // Shared with other 1.0 soft-launch features (e.g. the Referrals tab on
-  // profiles) so there's one allowlist to update, not several copies that
-  // can drift out of sync.
-  window._BETA_ACCESS_IDS = FUSION_ACCESS_IDS;
+  // Fusion HQ has graduated out of Update 1.0 soft-launch — the beta
+  // allowlist is gone and the Chamber is open to any logged-in player.
 
   // ── FUSION TIERS ─────────────────────────────────────────────────
   // 5 of `from` → 1 random plant of `to`. Mythic is the ceiling — nothing
@@ -9418,18 +9393,13 @@ async function deletePriceAlert(alertId) {
     if (!_fsInitedShell) { fsBuildBackdrop(); _fsInitedShell = true; }
 
     const myId = window._loggedInId ? String(window._loggedInId) : null;
-    _fsAccess = !!myId && FUSION_ACCESS_IDS.includes(myId);
+    _fsAccess = !!myId;
 
     const body = document.getElementById('fs-body');
     if (!body) return;
 
     if (!myId) {
-      body.innerHTML = fsLockedHTML('Log in with Discord to see whether you have Chamber access.');
-      triggerReveal();
-      return;
-    }
-    if (!_fsAccess) {
-      body.innerHTML = fsLockedHTML();
+      body.innerHTML = fsLockedHTML('Log in with Discord to enter the Chamber.');
       triggerReveal();
       return;
     }
@@ -9461,8 +9431,7 @@ async function deletePriceAlert(alertId) {
           <div class="fs-locked-chamber-preview"><div class="fs-mini-ring"></div></div>
           <div class="fs-locked-icon">🔒</div>
           <h2>The Chamber is sealed</h2>
-          <p>${customMsg || `Fusion HQ is still in early testing for Update 1.0 — only a couple of researchers have Chamber access right now. Everyone else can see it's here, the doors just aren't open yet.`}</p>
-          <div class="fs-locked-chip">🌱 Public rollout coming in a future update</div>
+          <p>${customMsg || `Log in with Discord to enter the Chamber.`}</p>
         </div>
       </div>`;
   }
