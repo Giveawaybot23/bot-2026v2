@@ -515,8 +515,8 @@ const CRATE_COOLDOWNS = {
   silver:  40 * 1000,
   gold:    60 * 1000,
   diamond: 90 * 1000,
-  ruby:    150 * 1000,
-  leaf:    180 * 1000,
+  ruby:    10 * 60 * 1000,
+  leaf:    15 * 60 * 1000,
 };
 
 const COOLDOWN_EXEMPT_IDS = [
@@ -1140,8 +1140,13 @@ const CRATES = {
   diamond: { name: 'Mythic Seed Vault',  emoji: '<:diamond:1478191131841007829>',      color: 0x00BFFF, price: 14000, minLevel: 30, plants: 10,
     weights: { Common: 280000, Uncommon: 285000, Rare: 305000, Epic:  82328, Legendary:  32931, Mythic: 10977, Super:   4098, Secret:      0 } }, // Secret is Ruby-only now; its odds folded into Super
 
+  // Rebalanced: Rare/Epic/Legendary/Mythic/Super/Secret weights all cut
+  // roughly in half from their previous values. The freed weight (434,966)
+  // was redistributed into Common/Uncommon proportional to their old split,
+  // so the crate now leans much more toward the low tiers instead of
+  // guaranteeing Rare+ almost every slot.
   ruby:    { name: 'Super Seed Crate',   emoji: '<:ruby:1477667927854682254>',         color: 0xFF1744, price: 32000, minLevel: 40, plants: 10,
-    weights: { Common:  50000, Uncommon:  80000, Rare: 627000, Epic: 135313, Legendary:  67656, Mythic: 27063, Super:  11276, Secret:   1624 } },
+    weights: { Common: 217295, Uncommon: 347671, Rare: 313500, Epic:  67656, Legendary:  33828, Mythic: 13532, Super:   5638, Secret:    812 } },
 
   // ─── Leaf Crate ─────────────────────────────────────────────────────────
   // Bought with Leaves, not Coins. Its pool is every plant in the game —
@@ -1152,10 +1157,14 @@ const CRATES = {
   // this crate is their only source. `includesEventPlants: true` is what
   // tells openCrate() to pass allowLeafEvent+allowCrateOnly through to
   // pickPlant for this crate specifically.
-  // Price/EV math: pool-average leaf-equivalent value per slot ≈ 4,126,
-  // ×10 slots ≈ 41,258 EV. Priced at ~20,000 Leaves (below EV — see crate note).
+  // Rebalanced: Mythic/Super odds cut to match the Mythic odds on the Bronze
+  // crate (195/1,000,000 each — see CRATES.bronze), and Secret dropped to 0
+  // so Eclipse Bloom is no longer obtainable from this crate (Ruby remains
+  // the only source). The weight freed up from Mythic/Super/Secret (49,610)
+  // was moved entirely into Legendary, so Legendary is now what funds this
+  // crate's value instead of Mythic/Super/Secret.
   leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 20000, minLevel: 15, plants: 10, currency: 'leafs', includesEventPlants: true,
-    weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
+    weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary: 139610, Mythic:    195, Super:    195, Secret:      0 } },
 };
 
 // ── SOFT-LAUNCH ACCESS CONTROL ────────────────────────────────────────────────
