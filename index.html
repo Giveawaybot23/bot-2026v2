@@ -2202,7 +2202,7 @@
   <section class="hero">
     <div class="hero-fall-layer" id="hero-fall-layer"></div>
     <div class="hero-left">
-      <div class="fall-banner">Fall Event · Maple Seed Crate</div>
+      <div class="fall-banner" id="home-fall-banner" style="display:none">Fall Event · Maple Seed Crate</div>
       <div class="hero-eyebrow">Live on Discord</div>
       <h1 class="hero-title">Collect.<br><em>Trade.</em><br>Grow.</h1>
       <p class="hero-sub">A plant collecting game built into Discord. Claim rare drops, open packs, trade with friends, and build the ultimate garden.</p>
@@ -2306,7 +2306,7 @@
         <div class="feature-title">Garden Score</div>
         <div class="feature-desc">Your weighted score accounts for rarity, mutations, and version. Climb from Iron to Celestial tier.</div>
       </div>
-      <div class="feature-card reveal">
+      <div class="feature-card reveal" id="home-leaf-feature-card" style="display:none">
         <div class="feature-icon" style="background:rgba(226,113,29,0.14)">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C7 5 3 9 3 14a9 9 0 0 0 9 6 9 9 0 0 0 9-6c0-5-4-9-9-12Z" fill="#e2711d" stroke="#a4470f" stroke-width="1"/><path d="M12 4.5V19" stroke="#a4470f" stroke-width="1" stroke-linecap="round"/></svg>
         </div>
@@ -3077,7 +3077,13 @@ function _pkStartCooldownTicker() {
 function renderPackShop(){
   const grid=document.getElementById('pk-shop-grid');
   if(!grid)return;
-  grid.innerHTML=PK_PACKS.map(p=>{
+  // Leaf Event (Maple Seed Crate) is a soft-launch feature — hidden from
+  // the shop grid entirely unless the logged-in Discord ID is on the same
+  // allowlist as Fusion HQ/Referrals. See index.js LEAF_EVENT_ACCESS_IDS
+  // for the real (server-side) gate; this is just the cosmetic one.
+  const hasLeafAccess = !!(window._BETA_ACCESS_IDS && window._loggedInId && window._BETA_ACCESS_IDS.includes(String(window._loggedInId)));
+  const visiblePacks = PK_PACKS.filter(p => p.currency !== 'leafs' || hasLeafAccess);
+  grid.innerHTML=visiblePacks.map(p=>{
     const cdMs = _pkCdMs(p.crateKey);
     const onCd = cdMs > 0;
     const cdSecs = Math.ceil(cdMs / 1000);
@@ -5795,6 +5801,16 @@ async function initAuth() {
         <a href="/auth/logout" style="font-size:12px;font-weight:500;color:var(--ink3);text-decoration:none;padding:5px 8px;border-radius:8px;border:1px solid var(--border);white-space:nowrap;flex-shrink:0">Out</a>
       </div>`;
       window._loggedInId = data.user.id;
+      // Leaf Event soft-launch gate — same allowlist as Fusion HQ/Referrals
+      // (window._BETA_ACCESS_IDS, set later in this file). Both elements
+      // default to display:none in the HTML so logged-out visitors and
+      // non-testers never see the event advertised.
+      if (window._BETA_ACCESS_IDS && window._BETA_ACCESS_IDS.includes(String(data.user.id))) {
+        const banner = document.getElementById('home-fall-banner');
+        const card   = document.getElementById('home-leaf-feature-card');
+        if (banner) banner.style.display = '';
+        if (card)   card.style.display = '';
+      }
       document.getElementById('notif-bell-wrap').style.display = 'block';
       refreshNotifBadge();
       syncNotifPrefsFromServer();

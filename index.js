@@ -1152,13 +1152,10 @@ const CRATES = {
   // this crate is their only source. `includesEventPlants: true` is what
   // tells openCrate() to pass allowLeafEvent+allowCrateOnly through to
   // pickPlant for this crate specifically.
-  // Rebalanced so odds sit strictly between Diamond (14k/lvl30) and Ruby
-  // (32k/lvl40) on every rarity tier — priced above Diamond so it should
-  // beat it, but far more accessible (lvl 15) than Ruby so it must never
-  // beat Ruby. The draw is the exclusive crateOnly Maple/event plants,
-  // not out-rolling the game's top coin pack.
+  // Price/EV math: pool-average leaf-equivalent value per slot ≈ 4,126,
+  // ×10 slots ≈ 41,258 EV. Priced at ~20,000 Leaves (below EV — see crate note).
   leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 20000, minLevel: 15, plants: 10, currency: 'leafs', includesEventPlants: true,
-    weights: { Common: 205000, Uncommon: 217000, Rare: 411000, Epic: 100000, Legendary:  44000, Mythic: 16000, Super:   6500, Secret:    500 } },
+    weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
@@ -4104,7 +4101,7 @@ async function generateInventoryImage(data) {
 
 // ─── Shop pages ───────────────────────────────────────────────────────────────
 const SHOP_PAGES = [
-  { title: '📦 Crates', fields: () => Object.entries(CRATES).map(([, c]) => ({ name: `${c.emoji} ${c.name} — ${c.price.toLocaleString()} ${c.currency === 'leafs' ? LEAF_NAME : CURRENCY_NAME}`, value: `Opens **${c.plants} plants**.\nRequires **Level ${c.minLevel}**.\n\`!buy ${c.name.split(' ')[0].toLowerCase()}\`` })) },
+  { title: '📦 Crates', fields: (user) => Object.entries(CRATES).filter(([, c]) => c.currency !== 'leafs' || user._hasLeafEventAccess).map(([, c]) => ({ name: `${c.emoji} ${c.name} — ${c.price.toLocaleString()} ${c.currency === 'leafs' ? LEAF_NAME : CURRENCY_NAME}`, value: `Opens **${c.plants} plants**.\nRequires **Level ${c.minLevel}**.\n\`!buy ${c.name.split(' ')[0].toLowerCase()}\`` })) },
   { title: '🔮 Charms', fields: (user) => Object.entries(CHARMS).map(([key, ch]) => {
     const owned = user.charms.includes(key), equipped = user.equippedCharms.includes(key);
     const status = owned ? (equipped ? ' ✅ *Equipped*' : ' *(Owned)*') : '';
@@ -6838,6 +6835,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
     const db = loadDB(); const user = getUser(db, message.author.id);
     user.username = message.author.username;
     user.avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+    user._hasLeafEventAccess = LEAF_EVENT_ACCESS_IDS.has(message.author.id);
 
     const totalShopPages = SHOP_PAGES.length;
 
@@ -6862,6 +6860,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       if (interaction.customId === 'shop_prev') currentShopPage = Math.max(0, currentShopPage - 1);
       if (interaction.customId === 'shop_next') currentShopPage = Math.min(totalShopPages - 1, currentShopPage + 1);
       const freshDb = loadDB(); const freshUser = getUser(freshDb, message.author.id);
+      freshUser._hasLeafEventAccess = LEAF_EVENT_ACCESS_IDS.has(message.author.id);
       await interaction.update({ embeds: [buildShopEmbed(currentShopPage, freshUser, freshUser.currency)], components: [buildShopRow(currentShopPage)] });
     });
     shopCollector.on('end', () => {
@@ -6908,6 +6907,9 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
       return message.reply('❌ Crate buying is disabled in this channel.');
     }
     const crate = CRATES[crateKey];
+    if (crate.currency === 'leafs' && !LEAF_EVENT_ACCESS_IDS.has(message.author.id)) {
+      return message.reply('❌ Unknown item. Check `!shop`.');
+    }
     const userLevel = getLevelFromXP(user.xp || 0);
     if (userLevel < crate.minLevel) {
       return message.reply(`❌ You need to be **Level ${crate.minLevel}** to open ${crate.name}. You're currently Level ${userLevel}.`);
@@ -8486,6 +8488,9 @@ app.post('/api/crate/open', express.json(), async (req, res) => {
     try {
       if (!crateId || !CRATES[crateId]) return res.status(400).json({ error: 'Unknown crate' });
       const crate = CRATES[crateId];
+      if (crate.currency === 'leafs' && !LEAF_EVENT_ACCESS_IDS.has(req.user.id)) {
+        return res.status(400).json({ error: 'Unknown crate' });
+      }
       const db    = loadDB();
       const user  = getUser(db, req.user.id);
 
@@ -8584,6 +8589,15 @@ const FUSION_ACCESS_IDS = new Set([
 // Update 1.0 — same soft-launch allowlist as Fusion HQ (see index.html for the
 // cosmetic client-side gate; this is the real one).
 const REFERRAL_ACCESS_IDS = FUSION_ACCESS_IDS;
+
+// ── LEAF EVENT ───────────────────────────────────────────────────────────────
+// Same soft-launch allowlist as Fusion HQ/Referrals. Built on the testing
+// branch, merged to main behind this gate so it can ship whenever without a
+// risky big-bang merge later. Gates: !buy (leaf crates), /api/crate/open
+// (leaf crates), and the !shop crate listing. See index.html for the
+// cosmetic client-side gate (shop card, homepage banner, feature card) —
+// this is the real one.
+const LEAF_EVENT_ACCESS_IDS = FUSION_ACCESS_IDS;
 
 app.get('/api/referral/:id', (req, res) => {
   try {
