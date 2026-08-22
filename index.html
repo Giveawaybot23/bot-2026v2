@@ -2168,6 +2168,10 @@
   </div>
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;min-width:0">
     <button class="hamburger" onclick="toggleMobileNav()" style="display:none;width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:18px;align-items:center;justify-content:center;flex-shrink:0" id="hamburger-btn">☰</button>
+    <div id="online-count-wrap" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink3);border:1.5px solid var(--border);border-radius:9999px;padding:6px 10px;background:var(--card);flex-shrink:0" title="Users currently on the website (admin only)">
+      <span style="width:7px;height:7px;border-radius:50%;background:#00C853;box-shadow:0 0 6px #00C853;flex-shrink:0"></span>
+      <span id="online-count-num">0</span>
+    </div>
     <div id="coin-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="leaf-display" style="display:none;opacity:0;transform:translateY(-4px);transition:all 0.3s ease"></div>
     <div id="notif-bell-wrap" style="position:relative;display:none">
@@ -5816,11 +5820,33 @@ async function initAuth() {
           window._isAdmin = d.isAdmin === true;
           const btn = document.getElementById('merchant-restock-btn');
           if (btn) btn.style.display = window._isAdmin ? 'inline-flex' : 'none';
+          if (window._isAdmin) startOnlineCountPolling();
         }).catch(() => { window._isAdmin = false; });
     } else {
       el.innerHTML = '<a href="/auth/discord" style="display:inline-flex;align-items:center;gap:8px;background:#5865F2;color:white;font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;text-decoration:none">Login with Discord</a>';
     }
   } catch(err) { console.error('Auth error:', err); }
+}
+
+// Admin-only nav pill showing how many logged-in users currently have the
+// website open (see /api/admin/online-count). Polls every 15s; the endpoint
+// itself re-checks admin status server-side so this is just cosmetic gating.
+let _onlineCountInterval = null;
+function startOnlineCountPolling() {
+  const wrap = document.getElementById('online-count-wrap');
+  if (wrap) wrap.style.display = 'inline-flex';
+  const refresh = () => {
+    fetch('/api/admin/online-count', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.isAdmin) { if (wrap) wrap.style.display = 'none'; clearInterval(_onlineCountInterval); return; }
+        const num = document.getElementById('online-count-num');
+        if (num) num.textContent = d.online;
+      }).catch(() => {});
+  };
+  refresh();
+  if (_onlineCountInterval) clearInterval(_onlineCountInterval);
+  _onlineCountInterval = setInterval(refresh, 15000);
 }
 
 async function loadNavCoins(userId, forceRefresh = false) {

@@ -8859,8 +8859,10 @@ app.post('/api/fusion/fuse', express.json(), async (req, res) => {
       user.currency -= tier.cost;
       trackSpent(user, req.user.id, tier.cost);
 
-      // Mint one random plant from the next tier up.
-      const picked = pickPlant(tier.to);
+      // Mint one random plant from the next tier up. Limited plants (drop-only,
+      // leaf-currency, crate-only) are now fair game here too — Super/Secret
+      // still can't come out of fusion since no FUSION_TIERS entry targets them.
+      const picked = pickPlant(tier.to, true, true, true);
       const meta   = loadMeta();
       const ver    = getAvailableVersionFromMeta(picked.name, db, meta);
       if ((meta.plantVersions[picked.name] || 0) < ver) meta.plantVersions[picked.name] = ver;
@@ -9413,6 +9415,22 @@ app.get('/api/merchant/is-admin', async (req, res) => {
     const member = await guild.members.fetch(req.user.id);
     const isAdmin = member.permissions.has(PermissionsBitField.Flags.ManageGuild);
     res.json({ isAdmin });
+  } catch (e) {
+    res.json({ isAdmin: false });
+  }
+});
+
+// Admin-only: how many distinct logged-in users currently have the website
+// open (i.e. an authenticated WebSocket connection in userSockets). Same
+// Manage Guild admin check as /api/merchant/is-admin above.
+app.get('/api/admin/online-count', async (req, res) => {
+  if (!req.user) return res.json({ isAdmin: false });
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(req.user.id);
+    const isAdmin = member.permissions.has(PermissionsBitField.Flags.ManageGuild);
+    if (!isAdmin) return res.json({ isAdmin: false });
+    res.json({ isAdmin: true, online: Object.keys(userSockets).length });
   } catch (e) {
     res.json({ isAdmin: false });
   }
