@@ -1158,6 +1158,24 @@ const CRATES = {
     weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
 };
 
+// ── SOFT-LAUNCH ACCESS CONTROL ────────────────────────────────────────────────
+// Shared allowlist for Update 1.0's limited-release features: Fusion HQ,
+// Referrals, and the Leaf Event. Deliberately declared here at true top-level
+// module scope (NOT inside the `if (ENABLE_WEB_DASHBOARD)` block further down)
+// because the Leaf Event needs to gate Discord commands (!shop, !buy) that
+// run before that block, in addition to the web /api routes that run inside
+// it. Fusion HQ/Referrals are web-only so this didn't matter for them, but
+// putting LEAF_EVENT_ACCESS_IDS inside that block made it invisible to the
+// Discord command handlers (ReferenceError, silently swallowed — this is why
+// !shop stopped responding). Keep this declaration up here going forward.
+const FUSION_ACCESS_IDS = new Set([
+  '239725298403246081',
+  '734159803995259042',
+  '1363910513096130751',
+]);
+const REFERRAL_ACCESS_IDS  = FUSION_ACCESS_IDS;
+const LEAF_EVENT_ACCESS_IDS = FUSION_ACCESS_IDS;
+
 // ─── Plants ───────────────────────────────────────────────────────────────────
 const PLANTS = [
   // ── Common ─────────────────────────────────────────────────────────────
@@ -2239,7 +2257,14 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    plant = pickPlant(rarity.name, true, true);
+    // allowLeafEvent is false here on purpose: passive drops go out to a
+    // channel before anyone has claimed them, so there's no "recipient" yet
+    // to check against LEAF_EVENT_ACCESS_IDS. Leaving this true let every
+    // dropOnly+leafCurrency plant (the whole Maple Collection, Glow
+    // Mushroom, Horned Melon, etc.) drop for every player, event or no
+    // event. Until there's a real "is the Leaf Event live" switch, keep this
+    // false so those plants stay crate-exclusive via the Maple Seed Crate.
+    plant = pickPlant(rarity.name, true, false);
   }
   const activeWeather = getActiveWeather();
   let mutation;
@@ -8574,30 +8599,11 @@ app.get('/api/crate/cooldowns', (req, res) => {
   res.json(result);
 });
 
-// ── FUSION HQ ──────────────────────────────────────────────────────────────
-// Update 1.0 — limited release. Only these two Discord IDs may use Fusion HQ
-// for now; everyone else sees it in the nav but the page itself stays locked
-// client-side. This allowlist is the real gate — keep it in sync with the
-// (cosmetic) one in index.html.
-const FUSION_ACCESS_IDS = new Set([
-  '239725298403246081',
-  '734159803995259042',
-  '1363910513096130751',
-]);
-
-// ── REFERRALS ────────────────────────────────────────────────────────────────
-// Update 1.0 — same soft-launch allowlist as Fusion HQ (see index.html for the
-// cosmetic client-side gate; this is the real one).
-const REFERRAL_ACCESS_IDS = FUSION_ACCESS_IDS;
-
-// ── LEAF EVENT ───────────────────────────────────────────────────────────────
-// Same soft-launch allowlist as Fusion HQ/Referrals. Built on the testing
-// branch, merged to main behind this gate so it can ship whenever without a
-// risky big-bang merge later. Gates: !buy (leaf crates), /api/crate/open
-// (leaf crates), and the !shop crate listing. See index.html for the
-// cosmetic client-side gate (shop card, homepage banner, feature card) —
-// this is the real one.
-const LEAF_EVENT_ACCESS_IDS = FUSION_ACCESS_IDS;
+// ── FUSION HQ / REFERRALS / LEAF EVENT ────────────────────────────────────────
+// FUSION_ACCESS_IDS, REFERRAL_ACCESS_IDS, and LEAF_EVENT_ACCESS_IDS now live
+// at true top-level scope near the CRATES definition, so both this web block
+// and the earlier Discord command handlers (!shop, !buy) can see them. See
+// the comment there for why. index.html has the matching cosmetic gate.
 
 app.get('/api/referral/:id', (req, res) => {
   try {
@@ -8993,10 +8999,10 @@ app.post('/api/trade/:id/offer', express.json(), async (req, res) => {
   const db = loadDB();
   const user = db[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Secret','Exclusive'];
+  const TRADEABLE_RARITIES = ['Epic','Legendary','Mythic','Super','Secret','Exclusive'];
   if (plants !== undefined) {
     for (const p of plants) {
-      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, Secret, and Exclusive plants can be traded.' });
+      if (!TRADEABLE_RARITIES.includes(p.rarity)) return res.status(400).json({ error: 'Only Epic, Legendary, Mythic, Super, Secret, and Exclusive plants can be traded.' });
       const owns = user.collection.some(c => c.name === p.name && c.version === p.version);
       if (!owns) return res.status(400).json({ error: `You don't own ${p.name} v${p.version}` });
     }
