@@ -2254,14 +2254,10 @@ async function sendDrop(channel, opts = {}) {
     if (!plant) { await channel.send(`❌ Plant **${forcedPlant}** not found.`); return; }
     rarity = getRarityConfig(plant.rarity);
   } else {
-    // allowLeafEvent is false here on purpose: passive drops go out to a
-    // channel before anyone has claimed them, so there's no "recipient" yet
-    // to check against LEAF_EVENT_ACCESS_IDS. Leaving this true let every
-    // dropOnly+leafCurrency plant (the whole Maple Collection, Glow
-    // Mushroom, Horned Melon, etc.) drop for every player, event or no
-    // event. Until there's a real "is the Leaf Event live" switch, keep this
-    // false so those plants stay crate-exclusive via the Maple Seed Crate.
-    plant = pickPlant(rarity.name, true, false);
+    // Leaf Event is fully open now (no more per-user allowlist), so the
+    // Maple Collection / Glow Mushroom / Horned Melon / etc. are allowed
+    // into natural passive drops too, not just the Maple Seed Crate.
+    plant = pickPlant(rarity.name, true, true);
   }
   const activeWeather = getActiveWeather();
   let mutation;
