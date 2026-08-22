@@ -4063,6 +4063,142 @@ async function generateMoneyLBImage(entries) {
   return canvas.toBuffer('image/png');
 }
 
+// ─── Fall (Leaves) Leaderboard Canvas Image ──────────────────────────────────
+// Exact same template/system as generateMoneyLBImage above, just re-themed
+// for the Leaves currency (orange accent instead of green, e.currency ->
+// e.leafs, "Leaves" label instead of "coins").
+async function generateFallLBImage(entries) {
+  const W = 600, ROW_H = 64, HEADER_H = 0, FOOTER_H = 36;
+  const H = HEADER_H + entries.length * ROW_H + FOOTER_H;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0, 0, W, H);
+
+  // Accent line
+  const accentGrad = ctx.createLinearGradient(0, 0, W, 0);
+  accentGrad.addColorStop(0, '#e2711d'); accentGrad.addColorStop(0.5, '#ffb066'); accentGrad.addColorStop(1, '#e2711d');
+  ctx.fillStyle = accentGrad; ctx.fillRect(0, 0, W, 3);
+
+  for (let i = 0; i < entries.length; i++) {
+    const e   = entries[i];
+    const y   = HEADER_H + i * ROW_H;
+    const mid = y + ROW_H / 2;
+
+    // Alternating row bg
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    // Top 3 glow
+    if (i < 3) {
+      const glowCols = ['rgba(255,215,0,0.08)','rgba(192,192,192,0.06)','rgba(205,127,50,0.06)'];
+      ctx.fillStyle = glowCols[i]; ctx.fillRect(0, y, W, ROW_H);
+    }
+
+    // Left accent bar
+    ctx.save();
+    const barCol = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#e2711d';
+    ctx.shadowColor = barCol; ctx.shadowBlur = 14;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(0, y, 4, ROW_H);
+    ctx.restore();
+
+    // Rank number circle
+    const rankX = 44, rankR = 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(rankX, mid, rankR, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3
+      ? ['rgba(255,215,0,0.15)','rgba(192,192,192,0.12)','rgba(205,127,50,0.12)'][i]
+      : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = i < 3 ? 2 : 1;
+    ctx.stroke();
+    ctx.font = i < 3 ? 'bold 15px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : 'rgba(255,255,255,0.4)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${i + 1}`, rankX, mid);
+    ctx.restore();
+
+    // Avatar circle
+    const avatarX = 92, avatarR = 22;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR, 0, Math.PI * 2); ctx.clip();
+    let avatarDrawn = false;
+    if (e.avatarURL) {
+      try {
+        const buf = await fetchImageBuffer(e.avatarURL);
+        const img = await loadImage(buf);
+        ctx.drawImage(img, avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+        avatarDrawn = true;
+      } catch {}
+    }
+    if (!avatarDrawn) {
+      ctx.fillStyle = '#e2711d';
+      ctx.fillRect(avatarX - avatarR, mid - avatarR, avatarR * 2, avatarR * 2);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((e.username[0] || '?').toUpperCase(), avatarX, mid);
+    }
+    ctx.restore();
+
+    // Avatar ring
+    ctx.save();
+    ctx.beginPath(); ctx.arc(avatarX, mid, avatarR + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][i] : '#e2711d';
+    ctx.lineWidth = i < 3 ? 2.5 : 1.5;
+    if (i < 3) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; }
+    ctx.stroke();
+    ctx.restore();
+
+    // Username
+    ctx.font = i < 3 ? 'bold 17px Arial' : '16px Arial';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (e.rainbowTag) {
+      drawRainbowText(ctx, e.username, 130, mid - 8);
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffffff' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(e.username, 130, mid - 8);
+    }
+
+    // Relative wealth bar
+    const relPct = entries[0].leafs > 0 ? e.leafs / entries[0].leafs : 0;
+    const miniBarW = 90, miniBarH = 5, miniBarX = 130, miniBarY = mid + 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, miniBarW, miniBarH, 3); ctx.fill();
+    const miniGrad = ctx.createLinearGradient(miniBarX, 0, miniBarX + miniBarW, 0);
+    miniGrad.addColorStop(0, '#e2711d'); miniGrad.addColorStop(1, '#ffb066');
+    ctx.fillStyle = miniGrad; ctx.beginPath(); ctx.roundRect(miniBarX, miniBarY, Math.max(miniBarW * relPct, 4), miniBarH, 3); ctx.fill();
+
+    // Leaves
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillStyle = i === 0 ? '#e2711d' : 'rgba(255,255,255,0.75)';
+    ctx.save();
+    if (i === 0) { ctx.shadowColor = '#e2711d'; ctx.shadowBlur = 12; }
+    ctx.fillText(e.leafs.toLocaleString(), W - 16, mid - 8);
+    ctx.restore();
+
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillText('leaves', W - 16, mid + 10);
+    ctx.textAlign = 'left';
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(16, y + ROW_H); ctx.lineTo(W - 16, y + ROW_H); ctx.stroke();
+  }
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H - FOOTER_H); ctx.lineTo(W, H - FOOTER_H); ctx.stroke();
+  ctx.font = '12px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${SERVER_NAME}  ·  Fall Leaderboard  ·  Top ${entries.length}`, W / 2, H - FOOTER_H / 2);
+  drawWatermark(ctx, W, H);
+
+  return canvas.toBuffer('image/png');
+}
+
 // ─── Inventory Canvas Image ───────────────────────────────────────────────────
 async function generateInventoryImage(data) {
   const { username, plants, page, totalPages, totalPlants, filterDesc } = data;
@@ -5682,6 +5818,23 @@ if (cmd === 'web') {
     const imgBuf = await generateMoneyLBImage(entries);
     const att    = new AttachmentBuilder(imgBuf, { name: 'moneylb.png' });
     return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://moneylb.png').setFooter({ text: `Top ${entries.length} Richest  ·  !mlb` }).setColor(0x00C853)], files: [att] });
+  }
+
+  // ── !flb / !falllb / !fallleaderboard — same template/system as !mlb, for Leaves ──
+  if (cmd === 'flb' || cmd === 'falllb' || cmd === 'fallleaderboard') {
+    const db = loadDB();
+    const now = Date.now();
+    const sorted = Object.entries(db).filter(([id]) => !TEST_IDS.has(id)).map(([id,u]) => ({ id, leafs: u.leafs||0 })).sort((a,b) => b.leafs-a.leafs).slice(0, 10);
+    const entries = await Promise.all(sorted.map(async (e) => {
+      let username = `User#${e.id.slice(-4)}`;
+      let avatarURL = null;
+      try { const u = await client.users.fetch(e.id); username = u.username; avatarURL = u.displayAvatarURL({ extension: 'png', size: 64 }); } catch {}
+      const rainbowTag = !!(db[e.id]?.rainbowTag && db[e.id].rainbowTag.expiresAt > now);
+      return { username, avatarURL, leafs: e.leafs, rainbowTag };
+    }));
+    const imgBuf = await generateFallLBImage(entries);
+    const att    = new AttachmentBuilder(imgBuf, { name: 'falllb.png' });
+    return message.channel.send({ embeds: [new EmbedBuilder().setImage('attachment://falllb.png').setFooter({ text: `Top ${entries.length} Leaves  ·  !flb` }).setColor(0xe2711d)], files: [att] });
   }
 
   // ── !inventory / !inv ─────────────────────────────────────────────────────
@@ -7690,6 +7843,7 @@ return `\`${String(num).padStart(2, ' ')}.\` ${rCfg.emoji} **${p.name}** ${verSt
               '`!invlb` — Garden leaderboard ranked by weighted garden score',
               '`!llb [page]` — Level leaderboard',
               '`!mlb` — Richest players by coins',
+              '`!flb` — Richest players by Leaves',
               '`!rlb` — Fastest race times',
               '`!streaklb` — Longest claim streaks',
             ].join('\n'),
