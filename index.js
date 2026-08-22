@@ -2127,14 +2127,14 @@ async function generateDropImage(plant, captcha, rarityColorRaw, weather) {
   // instead of the default dark navy, so they read as "fall themed" even
   // where the plant art has transparent edges.
   const isLimited = !!plant.leafCurrency;
-  ctx.fillStyle = isLimited ? '#1f160d' : '#111827'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = isLimited ? '#3a2410' : '#111827'; ctx.fillRect(0, 0, W, H);
   try {
     const img = await loadImage(plant.file);
     const scale = Math.max(W / img.width, H / img.height);
     const dw = img.width * scale, dh = img.height * scale;
     ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
   } catch {
-    ctx.fillStyle = isLimited ? '#2a2015' : '#1a2332'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = isLimited ? '#4a3016' : '#1a2332'; ctx.fillRect(0, 0, W, H);
     ctx.font = '22px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(plant.name, W / 2, H / 2);
