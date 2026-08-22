@@ -1152,10 +1152,13 @@ const CRATES = {
   // this crate is their only source. `includesEventPlants: true` is what
   // tells openCrate() to pass allowLeafEvent+allowCrateOnly through to
   // pickPlant for this crate specifically.
-  // Price/EV math: pool-average leaf-equivalent value per slot ≈ 4,126,
-  // ×10 slots ≈ 41,258 EV. Priced at ~20,000 Leaves (below EV — see crate note).
+  // Rebalanced so odds sit strictly between Diamond (14k/lvl30) and Ruby
+  // (32k/lvl40) on every rarity tier — priced above Diamond so it should
+  // beat it, but far more accessible (lvl 15) than Ruby so it must never
+  // beat Ruby. The draw is the exclusive crateOnly Maple/event plants,
+  // not out-rolling the game's top coin pack.
   leaf:    { name: 'Maple Seed Crate',   emoji: '🍁',                                  color: 0xFF6600, price: 20000, minLevel: 15, plants: 10, currency: 'leafs', includesEventPlants: true,
-    weights: { Common:  40000, Uncommon:  90000, Rare: 550000, Epic: 180000, Legendary:  90000, Mythic: 35000, Super:  12000, Secret:   3000 } },
+    weights: { Common: 205000, Uncommon: 217000, Rare: 411000, Epic: 100000, Legendary:  44000, Mythic: 16000, Super:   6500, Secret:    500 } },
 };
 
 // ─── Plants ───────────────────────────────────────────────────────────────────
