@@ -3094,7 +3094,7 @@ function renderPackShop(){
       <div class="pk-pack-desc">${p.desc}</div>
       <div class="pk-pack-meta">Lv.${p.minLevel}+ · ${p.cards} plants</div>
       <div class="pk-odds-row">
-        ${PK_RARITY_ORDER.filter(r=>p.odds[r]>=1).map(r=>`
+        ${PK_RARITY_ORDER.filter(r=>p.odds[r]>0).map(r=>`
           <div class="pk-odd-pill" style="color:${PK_RARITY_COLORS[r]};border-color:${PK_RARITY_COLORS[r]}44;background:${PK_RARITY_COLORS[r]}11">${r.slice(0,3)} ${p.odds[r]}%</div>
         `).join('')}
       </div>
